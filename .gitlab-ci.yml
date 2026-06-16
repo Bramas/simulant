@@ -1,0 +1,21 @@
+image: node:latest
+
+cache:
+  paths:
+    - node_modules/
+    - .pnpm-store/
+
+before_script:
+  - npm install -g pnpm
+  - pnpm install
+
+
+pages:
+  script:
+    - pnpm build
+    - mv dist/ public
+  artifacts:
+    paths:
+      - public
+  only:
+    - main

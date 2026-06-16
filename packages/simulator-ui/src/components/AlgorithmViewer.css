@@ -1,0 +1,324 @@
+/**
+ * Algorithm Viewer Styles
+ */
+
+.algorithm-viewer {
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 14px;
+  background-color: #f8f9fa;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.algorithm-section {
+  margin-bottom: 2rem;
+}
+
+.algorithm-section:not(:last-of-type) {
+  border-bottom: 3px solid #adb5bd;
+  padding-bottom: 1.5rem;
+}
+
+.algorithm-header {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #dee2e6;
+}
+
+.algorithm-caption {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #212529;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.algorithm-input {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
+
+.input-label {
+  font-weight: 600;
+  color: #495057;
+}
+
+.algorithm-body {
+  background-color: white;
+  padding: 1rem;
+  border-radius: 4px;
+  line-height: 1.8;
+}
+
+.algorithm-line {
+  display: flex;
+  align-items: flex-start;
+  padding: 2px 0;
+  position: relative;
+  transition: all 0.2s ease;
+  border-radius: 2px;
+  min-height: 1.8em;
+  padding-right: 60px; /* Reserve space for markers on the right */
+  border-bottom: 2px solid transparent;
+}
+
+.algorithm-line:hover {
+  background-color: #f8f9fa;
+}
+
+.algorithm-line.highlighted {
+  border-bottom: 2px solid #ffc107;
+  background-color: rgba(255, 193, 7, 0.1);
+}
+
+.line-number {
+  display: inline-block;
+  width: 40px;
+  text-align: right;
+  margin-right: 1rem;
+  color: #6c757d;
+  font-size: 0.85rem;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.agent-markers {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  pointer-events: none; /* Allow clicking through markers to the text */
+  z-index: 10;
+}
+
+.agent-marker {
+  font-size: 16px;
+  opacity: 0.9;
+  animation: pulse 1.5s ease-in-out infinite;
+  font-weight: bold;
+  text-shadow: 0 0 3px rgba(255, 255, 255, 0.8); /* Add glow for better visibility */
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+.line-content {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+}
+
+/* Indentation guides - vertical lines to show block structure */
+.indent-guide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: #5c5c5c;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Dimmer guides for deeper indentation levels */
+.algorithm-line:hover .indent-guide {
+  background-color: #c0c0c0;
+}
+
+/* Syntax highlighting */
+.keyword {
+  color: #0033b3;
+  font-weight: 600;
+}
+
+.condition {
+  color: #067d17;
+}
+
+.command {
+  color: #9c27b0;
+  font-weight: 500;
+}
+
+.variable {
+  color: #0077aa;
+  font-style: italic;
+}
+
+.operator {
+  color: #c6c6ff;
+  font-weight: 800;
+}
+
+.value {
+  color: #067d17;
+}
+
+.procedure-name {
+  color: #795548;
+  font-weight: 600;
+}
+
+.punctuation {
+  color: #000000;
+}
+
+/* Line type specific styles */
+.line-type-if .line-content,
+.line-type-elseif .line-content,
+.line-type-else .line-content,
+.line-type-while .line-content {
+  font-weight: 500;
+}
+
+.line-type-return .line-content {
+  color: #d32f2f;
+  font-weight: 600;
+}
+
+.line-type-comment .line-content {
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Agent legend */
+.agent-legend {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #dee2e6;
+}
+
+.agent-legend h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #495057;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.agent-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+}
+
+.agent-color-box {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.agent-id {
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.agent-line {
+  color: #6c757d;
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+  .algorithm-viewer {
+    font-size: 12px;
+    padding: 0.75rem;
+  }
+  
+  .line-number {
+    width: 30px;
+    margin-right: 0.5rem;
+  }
+  
+  .algorithm-caption {
+    font-size: 1rem;
+  }
+}
+
+.agent-state-description {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 0.9em;
+  margin-left: 4px;
+}
+
+/* Dark mode support (optional) */
+@media (prefers-color-scheme: dark) {
+  .algorithm-viewer {
+    background-color: #1e1e1e;
+    border-color: #3e3e3e;
+    color: #d4d4d4;
+  }
+  
+  .algorithm-header {
+    border-bottom-color: #3e3e3e;
+  }
+  
+  .algorithm-caption {
+    color: #e4e4e4;
+  }
+  
+  .algorithm-body {
+    background-color: #2d2d2d;
+  }
+  
+  .algorithm-line:hover {
+    background-color: #3e3e3e;
+  }
+  
+  .algorithm-line.highlighted {
+    background-color: #3a3a2a;
+    border-left-color: #ffc107;
+  }
+  
+  .line-number {
+    color: #858585;
+  }
+  
+  .keyword {
+    color: #569cd6;
+  }
+  
+  .condition {
+    color: #4ec9b0;
+  }
+  
+  .command {
+    color: #c586c0;
+  }
+  
+  .variable {
+    color: #9cdcfe;
+  }
+  
+  .value {
+    color: #4ec9b0;
+  }
+  
+  .procedure-name {
+    color: #dcdcaa;
+  }
+  
+  .agent-legend {
+    border-top-color: #3e3e3e;
+  }
+
+  .agent-state-description {
+    color: #9ca3af;
+  }
+}

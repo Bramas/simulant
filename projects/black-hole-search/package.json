@@ -1,0 +1,31 @@
+{
+  "name": "@mobile-entities/project-black-hole-search",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "scripts": {
+    "dev:web": "vite web --config web/vite.config.ts",
+    "build:web": "vite build web --config web/vite.config.ts",
+    "serve:web": "vite preview web --config web/vite.config.ts"
+  },
+  "exports": {
+    ".": "./index.ts",
+    "./algo0": "./algo0.tsx",
+    "./algo1": "./algo1.tsx",
+    "./algo2": "./algo2.tsx",
+    "./algo3": "./algo3.tsx",
+    "./algo4": "./algo4.tsx",
+    "./algo5": "./algo5.tsx",
+    "./algo6": "./algo6.tsx"
+  },
+  "dependencies": {
+    "@mobile-entities/core": "workspace:*",
+    "@mobile-entities/simulator-ui": "workspace:*",
+    "solid-js": "^1.9.3"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0",
+    "typescript": "^5.7.2"
+  }
+}

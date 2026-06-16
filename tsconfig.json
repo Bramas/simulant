@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "baseUrl": ".",
+    "paths": {
+      "@mobile-entities/core/*": ["packages/core/src/*"],
+      "@mobile-entities/simulator-ui/*": ["packages/simulator-ui/src/*"],
+      "@mobile-entities/project-black-hole-search/*": ["projects/black-hole-search/*"],
+      "@mobile-entities/project-exploring-dynamic-rings": ["projects/exploring-dynamic-rings/src/index.tsx"],
+      "@mobile-entities/project-gathering-on-lines": ["projects/gathering-on-lines/src/index.tsx"],
+      "@mobile-entities/project-gathering-on-rings": ["projects/gathering-on-rings/src/index.tsx"]
+    }
+  },
+  "references": [
+    { "path": "./projects/black-hole-search/web" }
+  ]
+}

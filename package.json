@@ -1,0 +1,33 @@
+{
+  "name": "mobile-entities-workspace",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.22.0",
+  "workspaces": [
+    "packages/*",
+    "projects/*"
+  ],
+  "scripts": {
+    "start": "pnpm --filter @mobile-entities/project-black-hole-search dev:web",
+    "dev": "pnpm --filter @mobile-entities/project-black-hole-search dev:web",
+    "build": "pnpm --filter @mobile-entities/project-black-hole-search build:web",
+    "serve": "pnpm --filter @mobile-entities/project-black-hole-search serve:web",
+    "check": "tsx scripts/cli-checker.ts gathering-on-rings",
+    "convert-algorithms": "bash scripts/convert-all-algorithms.sh",
+    "convert-algo": "tsx scripts/latex-to-structured.ts",
+    "cli": "tsx scripts/cli.ts"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0"
+  },
+  "dependencies": {
+    "commander": "^14.0.2",
+    "solid-js": "^1.9.3"
+  }
+}

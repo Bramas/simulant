@@ -1,0 +1,16 @@
+node_modules
+dist
+.DS_Store
+
+# Local/generated artifacts
+*.tar
+*.sqlite
+db,sqlite
+graph.log
+graph.pdf
+graph.tex
+last-check.txt
+
+# Local private research projects, not meant for the public repository
+projects/private/
+private-projects/

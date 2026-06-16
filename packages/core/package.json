@@ -1,0 +1,16 @@
+{
+  "name": "@mobile-entities/core",
+  "version": "0.1.0",
+  "private": false,
+  "type": "module",
+  "exports": {
+    "./lib/algorithm-checker-exhaustive": "./src/lib/algorithm-checker-exhaustive.tsx",
+    "./lib/algorithm-checker-simple": "./src/lib/algorithm-checker-simple.tsx",
+    "./lib/*": "./src/lib/*.ts",
+    "./models/*": "./src/models/*.ts",
+    "./types/*": "./src/types/*.ts"
+  },
+  "peerDependencies": {
+    "solid-js": "^1.9.3"
+  }
+}

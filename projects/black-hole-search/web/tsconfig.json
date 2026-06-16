@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "strict": true,
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "types": ["vite/client"],
+    "noEmit": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@mobile-entities/core/*": ["../../../packages/core/src/*"],
+      "@mobile-entities/simulator-ui/*": ["../../../packages/simulator-ui/src/*"],
+      "@mobile-entities/project-black-hole-search/*": ["../*"]
+    }
+  },
+  "include": [
+    "src",
+    "../",
+    "../../../packages/core/src",
+    "../../../packages/simulator-ui/src"
+  ]
+}
