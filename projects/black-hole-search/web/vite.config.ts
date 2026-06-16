@@ -18,7 +18,7 @@ export default defineConfig({
     port: 3000,
   },
   build: {
-    outDir: '../../../dist',
+    outDir: '../../../dist/black-hole-search',
     emptyOutDir: true,
     target: 'es2022',
   },

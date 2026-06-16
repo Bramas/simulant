@@ -6,6 +6,7 @@
   "exports": {
     "./SimulatorApp": "./src/SimulatorApp.tsx",
     "./simulator.css": "./src/simulator.css",
+    "./pico.min.css": "./src/pico.min.css",
     "./components/*": "./src/components/*.tsx"
   },
   "dependencies": {

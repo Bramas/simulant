@@ -1,4 +1,6 @@
 
+@import './pico.min.css';
+
   :root {
     --pico-font-size: 100%;
   }

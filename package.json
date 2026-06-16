@@ -11,7 +11,7 @@
   "scripts": {
     "start": "pnpm --filter @mobile-entities/project-black-hole-search dev:web",
     "dev": "pnpm --filter @mobile-entities/project-black-hole-search dev:web",
-    "build": "pnpm --filter @mobile-entities/project-black-hole-search build:web",
+    "build": "node scripts/build-public-site.mjs",
     "serve": "pnpm --filter @mobile-entities/project-black-hole-search serve:web",
     "check": "tsx scripts/cli-checker.ts gathering-on-rings",
     "convert-algorithms": "bash scripts/convert-all-algorithms.sh",
