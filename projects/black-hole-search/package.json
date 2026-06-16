@@ -2,6 +2,7 @@
   "name": "@bramas/simulant-project-black-hole-search",
   "version": "0.1.0",
   "private": false,
+  "license": "CECILL-B",
   "type": "module",
   "scripts": {
     "dev:web": "vite web --config web/vite.config.ts",

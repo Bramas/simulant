@@ -19,7 +19,7 @@
     "convert-algo": "tsx scripts/latex-to-structured.ts",
     "cli": "tsx scripts/cli.ts"
   },
-  "license": "MIT",
+  "license": "CECILL-B",
   "devDependencies": {
     "@types/node": "^24.10.1",
     "tsx": "^4.7.0",

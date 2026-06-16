@@ -1,107 +1,201 @@
 # Simulant
 
-Monorepo for the reusable simulant simulator core, reusable simulator UI, and public research projects.
+Simulant is a small simulator toolkit for research on mobile entities and distributed algorithms.
 
-See [PUBLICATION.md](./PUBLICATION.md) for the versioning strategy used when publishing paper code.
+For a quick presentation, public project links, and a short explanation of the simulator internals, start with the project page:
 
-## Layout
+https://bramas.github.io/simulant/
+
+This repository contains the reusable simulator core, the reusable web interface, and public paper artifacts.
+
+## Repository Layout
 
 ```text
 apps/public-site/        public landing page and documentation site
 packages/core/           reusable simulator core package
-packages/simulator-ui/   reusable simulator interface components
-projects/                project and paper packages
-projects/black-hole-search/
-                          one package for the black-hole-search paper
-projects/black-hole-search/web/
-                          web page for the black-hole-search paper
+packages/simulator-ui/   reusable SolidJS simulator interface
+projects/                public project and paper packages
+projects/private/        local private projects, not published by the public site
 ```
 
-Each project has its own `package.json`; a project can also keep its generated page in a `web/` subfolder. During active development it can depend on local workspace packages with:
+Only projects listed in `apps/public-site/src/public-projects.mjs` are published on the website.
 
-```json
-"@bramas/simulant-core": "workspace:*",
-"@bramas/simulant-ui": "workspace:*"
-```
-
-For a frozen paper artifact, replace those dependencies with published versions, Git tag URLs, or archived source references.
-
-`workspace:*` is only for local development against the current checkout. It does not pin an old local version if `packages/core` is later bumped and changed.
-
-## Working From Private Projects
-
-For private paper projects, use the latest published simulator packages by default:
-
-```json
-"@bramas/simulant-core": "0.1.0",
-"@bramas/simulant-ui": "0.1.0"
-```
-
-Because the packages are published on GitHub Packages, private projects also need an `.npmrc` entry:
-
-```ini
-@bramas:registry=https://npm.pkg.github.com
-```
-
-For CI or private machines that need authentication to install from GitHub Packages, add a token with `read:packages`:
-
-```ini
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-When you want to develop a private project and the simulator at the same time, do not publish a temporary package version. Point the private project to your local checkout instead:
-
-```json
-"@bramas/simulant-core": "link:../simulant/packages/core",
-"@bramas/simulant-ui": "link:../simulant/packages/simulator-ui"
-```
-
-Then run `pnpm install` in the private project. Changes made in the local `simulant` checkout are immediately used by that private project. When the paper is ready to freeze, switch those `link:` dependencies back to exact published versions.
-
-If two private projects need two different simulator states at the same time, use two local simulator clones, for example `simulant-paper-a/` and `simulant-paper-b/`, and link each private project to the clone it needs.
-
-## Setup
+## Install
 
 ```bash
 pnpm install
 ```
 
-## Scripts
+## Common Commands
 
 ```bash
 pnpm dev      # run the black-hole-search simulator page locally
 pnpm build    # generate the full public static site in dist/
 ```
 
-The black-hole-search web page runs on [http://localhost:3000](http://localhost:3000).
+## Creating A Project With Published Packages
 
-## Public Site
+For a separate project, depend on the published simulator packages. With GitHub Packages, add this `.npmrc`:
 
-The public site source lives in `apps/public-site/`. It is a small Solid/Vite app that can contain landing-page content, simulator documentation, and links to published project pages.
-
-The root build is orchestrated by `scripts/build-public-site.mjs`. It builds every public project listed in `apps/public-site/src/public-projects.mjs`, then builds the public site into `dist/`:
-
-```text
-dist/index.html                    landing page
-dist/black-hole-search/            black-hole-search simulator page
+```ini
+@bramas:registry=https://npm.pkg.github.com
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-GitHub Pages deployment is configured in `.github/workflows/pages.yml`. On GitHub, set the repository Pages source to **GitHub Actions**; after that, every push to `main` will build `dist/` and publish it.
+Then use the released packages:
+
+```json
+{
+  "dependencies": {
+    "@bramas/simulant-core": "0.1.0",
+    "@bramas/simulant-ui": "0.1.0",
+    "solid-js": "^1.9.3"
+  }
+}
+```
+
+During local development, you can point a private project to a local simulator checkout instead of publishing temporary versions:
+
+```json
+{
+  "dependencies": {
+    "@bramas/simulant-core": "link:../simulant/packages/core",
+    "@bramas/simulant-ui": "link:../simulant/packages/simulator-ui",
+    "solid-js": "^1.9.3"
+  }
+}
+```
+
+Switch back to exact published versions when a paper artifact must be frozen.
+
+## Minimal Project Example
+
+This example uses the ring model from `@bramas/simulant-core@0.1.0`. A project exports a `projects` map; each entry exposes a `setup` function that returns a model instance.
+
+```ts
+// projects.ts
+import { Config } from '@bramas/simulant-core/lib/system';
+import Ring, {
+  Actions,
+  AbstractGraphAgent,
+  type RingConfigType,
+} from '@bramas/simulant-core/models/ring';
+import type { ProjectType } from '@bramas/simulant-core/types/project';
+
+type Memory = {
+  moving: boolean;
+};
+
+class Walker extends AbstractGraphAgent<Memory> {
+  moving = true;
+
+  constructor(id: number, position: number) {
+    super(id, position);
+  }
+
+  visibleMemory(): Memory {
+    return { moving: this.moving };
+  }
+
+  action_simpl(view: Memory[]): Actions {
+    return view.length > 0 ? Actions.IDLE : Actions.CLOCKWISE;
+  }
+
+  clone(): Walker {
+    const clone = new Walker(this._id, this._pos);
+    clone.moving = this.moving;
+    return clone;
+  }
+}
+
+type MyConfig = RingConfigType<Walker, Memory, null>;
+
+export const projects = {
+  'basic-ring-walk': {
+    setup: (settings: { N?: number }) => {
+      const N = settings.N ?? 8;
+      const agents = [new Walker(0, 0), new Walker(1, 3)];
+      const initialConfig = new Config() as MyConfig;
+
+      for (const agent of agents) {
+        initialConfig.addAgent(agent._pos, agent);
+      }
+
+      return Ring(N, agents, initialConfig);
+    },
+    editorSchema: {
+      fields: [{ key: 'N', label: 'Ring size', type: 'number', defaultValue: 8, min: 3 }],
+    },
+  },
+} satisfies Record<string, ProjectType<MyConfig>>;
+```
+
+For a web page using the default simulator UI:
+
+```tsx
+// web/src/App.tsx
+import { SimulatorApp } from '@bramas/simulant-ui/SimulatorApp';
+import { projects } from '../../projects';
+
+export default function App() {
+  return (
+    <SimulatorApp
+      title="Basic Ring Walk"
+      projects={projects}
+      createGraphWorker={() =>
+        new Worker(new URL('./workers/graph-worker.ts', import.meta.url), { type: 'module' })
+      }
+      storageKey="basic-ring-walk-settings-v1"
+    />
+  );
+}
+```
+
+```ts
+// web/src/workers/graph-worker.ts
+import { execute } from '@bramas/simulant-core/lib/system';
+import { projects } from '../../../projects';
+
+self.onmessage = (event) => {
+  const { project, settings, path } = event.data;
+  const model = projects[project].setup(settings);
+  const graph = execute(model);
+
+  self.postMessage({
+    config: graph.get(path),
+    childCount: graph.getChildrenCount(path),
+    siblingCount: graph.getSiblingCount(path),
+  });
+};
+```
+
+In practice, most papers also add `drawConfig`, `getAgentsRenderInfo`, `executionStatusChecker`, and presets, but the core contract is the same: define agents, choose a model, return a `SystemInfo`.
+
+## Publishing Public Pages
+
+The public site is generated by `scripts/build-public-site.mjs`. It builds every public project listed in `apps/public-site/src/public-projects.mjs`, then builds `apps/public-site/` into `dist/`.
+
+GitHub Pages deployment is configured in `.github/workflows/pages.yml`. In the GitHub repository settings, set Pages source to **GitHub Actions**.
 
 ## Package Releases
 
-`.github/workflows/release-packages.yml` publishes the two reusable simulator packages to GitHub Packages:
+`.github/workflows/release-packages.yml` publishes:
 
 - `@bramas/simulant-core`
 - `@bramas/simulant-ui`
 
 It runs manually from GitHub Actions or when pushing a tag matching `simulator-v*`. Before tagging a release, bump the package versions in `packages/core/package.json` and `packages/simulator-ui/package.json`.
 
-After a package release, a paper project can freeze its simulator dependency by replacing workspace dependencies with exact versions:
+## Author
 
-```json
-"@bramas/simulant-core": "0.1.0",
-"@bramas/simulant-ui": "0.1.0"
-```
+Simulant is developed by Quentin Bramas.
 
-For GitHub Packages, the package scope must match the GitHub owner or organization. Since the repository is `github.com/bramas/simulant`, the published package names use the `@bramas` scope.
+## License
+
+This software is distributed under the CeCILL-B free software license. See [LICENCE.txt](./LICENCE.txt).
+
+If you use this simulator or the black-hole-search artifact, please cite:
+
+> François Bonnet, Quentin Bramas, and Anissa Lamani. Searching for an Eventually-Emerging Black Hole in Rings. In 5th Symposium on Algorithmic Foundations of Dynamic Networks (SAND 2026).
+
+See [PUBLICATION.md](./PUBLICATION.md) for the versioning strategy used when publishing paper code.

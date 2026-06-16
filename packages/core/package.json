@@ -2,6 +2,7 @@
   "name": "@bramas/simulant-core",
   "version": "0.1.0",
   "private": false,
+  "license": "CECILL-B",
   "type": "module",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
