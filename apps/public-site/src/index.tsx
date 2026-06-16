@@ -4,10 +4,10 @@ import { publicProjects } from './public-projects.mjs';
 import './site.css';
 
 const highlightTypeScript = (code: string) => {
-  const parts = code.split(/(".*?"|'.*?'|`[\s\S]*?`|\/\/.*|=>|===|!==|[{}()[\].,;:]|\b(?:const|let|class|extends|constructor|super|return|new|for|of|if|else|export|null|true|false)\b|\b[A-Z][A-Za-z0-9_]*\b|\b\d+\b)/g);
+  const parts = code.split(/(".*?"|'.*?'|`[\s\S]*?`|\/\/.*|=>|===|!==|[{}()[\].,;:<>]|\b(?:const|let|type|class|extends|function|constructor|super|return|new|for|of|if|else|export|null|true|false|as|satisfies)\b|\b[A-Z][A-Za-z0-9_]*\b|\b\d+\b)/g);
 
   return parts.filter(Boolean).map((part) => {
-    if (/^(const|let|class|extends|constructor|super|return|new|for|of|if|else|export|null|true|false)$/.test(part)) {
+    if (/^(const|let|type|class|extends|function|constructor|super|return|new|for|of|if|else|export|null|true|false|as|satisfies)$/.test(part)) {
       return <span class="tok-keyword">{part}</span>;
     }
     if (/^(".*?"|'.*?'|`[\s\S]*?`)$/.test(part)) {
@@ -22,7 +22,7 @@ const highlightTypeScript = (code: string) => {
     if (/^\d+$/.test(part)) {
       return <span class="tok-number">{part}</span>;
     }
-    if (/^(=>|===|!==|[{}()[\].,;:])$/.test(part)) {
+    if (/^(=>|===|!==|[{}()[\].,;:<>])$/.test(part)) {
       return <span class="tok-punctuation">{part}</span>;
     }
     return part;
@@ -66,71 +66,138 @@ const coreSteps = [
 
 const codeExamples = [
   {
-    title: 'A tiny ring-like model',
+    title: 'A typed line model',
     caption:
-      'A model defines the local view and the simultaneous update rule. Swapping this file changes the world the agents live in.',
-    code: `const model = {
+      'A model fixes the meaning of positions, local locations, visible state, and updates. This is close to packages/core/src/models/line.ts.',
+    code: `type PositionState = null; // change if positions have states
+type PositionType = number; // a position on the line
+
+// Locations the agent can see or choose as a target.
+type LocationType = "here" | "left" | "right";
+
+// Visible memory published by an agent.
+type VisibleMemory = { id: number; energy: number };
+
+// What an agent sees at one local location.
+type LocationStateType = VisibleMemory[];
+
+// Extra action payload. Movement is already encoded by targetLocation.
+type ActionType = null;
+
+type LineConfig<AgentType extends LineAgent> = Config<
+  AgentType,
+  LocationType,
+  LocationStateType,
+  ActionType,
+  PositionType,
+  PositionState
+>;
+
+type LineSystem<AgentType extends LineAgent> = SystemInfo<
+  AgentType,
+  PositionState,
+  PositionType,
+  LocationType,
+  LocationStateType,
+  ActionType,
+  LineConfig<AgentType>
+>;
+
+function makeLineModel<AgentType extends LineAgent>(
+  agents: AgentType[],
+  initialConfig: LineConfig<AgentType>,
+): LineSystem<AgentType> {
+  return {
   Agents: agents,
   InitialConfig: initialConfig,
   View: (config, agent) => {
-    const here = config.get(agent._pos).agents;
+    const memoryAt = (pos: number) =>
+      config.get(pos).agents.map((a) => a.visibleMemory());
+
     const view = new Map([
-      [Actions.IDLE, here.filter((a) => a._id !== agent._id)],
+      ["left", null],
+      ["here", memoryAt(agent._pos)], // we only see here
+      ["right", null],
     ]);
 
     return {
       view,
-      inverse: (move) =>
-        move === Actions.CLOCKWISE ? agent._pos + 1 : agent._pos,
+      inverse: (location) =>
+        location === "left" ? agent._pos - 1 :
+        location === "right" ? agent._pos + 1 :
+        agent._pos,
     };
   },
   Update: (config, actions) => {
-    const next = new Config();
-    for (const [agent, pos] of actions) {
-      next.addAgent(pos, agent);
+    const next = new Config() as LineConfig<AgentType>;
+    for (const [agent, targetPosition] of actions) {
+      agent._pos = targetPosition;
+      next.addAgent(agent._pos, agent);
     }
     return next;
   },
-};`,
+  };
+}`,
   },
   {
-    title: 'A minimal agent',
+    title: 'An agent for that line',
     caption:
-      'An agent is just an object with an action method. The algorithm can be a simple rule, a generator, or a structured paper algorithm.',
-    code: `class Walker extends AbstractAgent {
-  constructor(id, position) {
+      'The agent type plugs into the model types. The algorithm sees only the local view and returns a local target.',
+    code: `class LineAgent extends AbstractAgent<
+  PositionType,
+  LocationType,
+  LocationStateType,
+  ActionType
+> {
+  energy = 3;
+
+  constructor(id: number, position: number) {
     super(id, position);
   }
 
-  action(view) {
-    const someoneHere = view.get(Actions.IDLE).length > 0;
+  visibleMemory(): VisibleMemory {
+    return { id: this._id, energy: this.energy };
+  }
+
+  action(view: Map<LocationType, LocationStateType>) {
+    const alone = view.get("here")?.length === 1;
+
     return {
-      targetLocation: someoneHere ? Actions.IDLE : Actions.CLOCKWISE,
+      targetLocation: alone || this.id == 0 ? "right" : "here",
       action: null,
     };
   }
 
-  clone() {
-    return new Walker(this._id, this._pos);
+  clone(): LineAgent {
+    const clone = new LineAgent(this._id, this._pos);
+    clone.energy = this.energy;
+    return clone;
   }
 }`,
   },
   {
-    title: 'A project binds them together',
+    title: 'A project runs agents in the model',
     caption:
-      'A project exports setup code for the simulator UI. Public pages list these projects and link to their generated app.',
+      'A project creates agents, an initial configuration, and returns the typed model from setup.',
     code: `export const projects = {
-  "basic-walk": {
-    setup: (settings) => {
-      const agents = [new Walker(0, 0), new Walker(1, 2)];
-      const initialConfig = new Config();
-      agents.forEach((agent) => initialConfig.addAgent(agent._pos, agent));
-      return makeRingModel(settings.N, agents, initialConfig);
+  "line-walk": {
+    setup: () => {
+      const agents = [
+        new LineAgent(0, 0),
+        new LineAgent(1, 2),
+      ];
+      const initialConfig = new Config() as LineConfig<LineAgent>;
+
+      for (const agent of agents) {
+        initialConfig.addAgent(agent._pos, agent);
+      }
+
+      return makeLineModel(agents, initialConfig);
     },
     drawConfig,
     editorSchema,
   },
-};`,
+} satisfies Record<string, ProjectType<LineConfig<LineAgent>>>;`,
   },
 ];
 
