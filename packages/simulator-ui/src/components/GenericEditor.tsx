@@ -3,7 +3,7 @@ import { createEffect, For, Match, Switch } from "solid-js";
 import { createStore } from "solid-js/store"
 import type { SetStoreFunction } from "solid-js/store"
 
-import type { EditorSchema, EditorField } from "@mobile-entities/core/types/editor-schema";
+import type { EditorSchema, EditorField } from "@bramas/simulant-core/types/editor-schema";
 
 export interface GenericEditorProps {
   schema: EditorSchema;

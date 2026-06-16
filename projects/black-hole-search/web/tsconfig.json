@@ -13,9 +13,9 @@
     "isolatedModules": true,
     "baseUrl": ".",
     "paths": {
-      "@mobile-entities/core/*": ["../../../packages/core/src/*"],
-      "@mobile-entities/simulator-ui/*": ["../../../packages/simulator-ui/src/*"],
-      "@mobile-entities/project-black-hole-search/*": ["../*"]
+      "@bramas/simulant-core/*": ["../../../packages/core/src/*"],
+      "@bramas/simulant-ui/*": ["../../../packages/simulator-ui/src/*"],
+      "@bramas/simulant-project-black-hole-search/*": ["../*"]
     }
   },
   "include": [

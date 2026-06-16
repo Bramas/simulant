@@ -4,7 +4,7 @@
  */
 
 import { For, createMemo, Show, createEffect } from 'solid-js';
-import type { AlgorithmStructure, AlgorithmLine } from '@mobile-entities/core/types/algorithm-structure';
+import type { AlgorithmStructure, AlgorithmLine } from '@bramas/simulant-core/types/algorithm-structure';
 import './AlgorithmViewer.css';
 
 export interface AgentExecutionState {

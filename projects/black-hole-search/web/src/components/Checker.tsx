@@ -1,10 +1,10 @@
 import { createSignal, Show, Suspense, type Component } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 
-import * as BlackHoleSearchAlgo1 from '@mobile-entities/project-black-hole-search/algo1';
-import * as BlackHoleSearchAlgo4 from '@mobile-entities/project-black-hole-search/algo4';
-import * as BlackHoleSearchAlgo2 from '@mobile-entities/project-black-hole-search/algo2';
-import * as BlackHoleSearchAlgo3 from '@mobile-entities/project-black-hole-search/algo3';
+import * as BlackHoleSearchAlgo1 from '@bramas/simulant-project-black-hole-search/algo1';
+import * as BlackHoleSearchAlgo4 from '@bramas/simulant-project-black-hole-search/algo4';
+import * as BlackHoleSearchAlgo2 from '@bramas/simulant-project-black-hole-search/algo2';
+import * as BlackHoleSearchAlgo3 from '@bramas/simulant-project-black-hole-search/algo3';
 
 // Map of available projects and their checkers
 const CheckerProjects = {

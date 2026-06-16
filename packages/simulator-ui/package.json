@@ -1,8 +1,11 @@
 {
-  "name": "@mobile-entities/simulator-ui",
+  "name": "@bramas/simulant-ui",
   "version": "0.1.0",
   "private": false,
   "type": "module",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "exports": {
     "./SimulatorApp": "./src/SimulatorApp.tsx",
     "./simulator.css": "./src/simulator.css",
@@ -10,7 +13,7 @@
     "./components/*": "./src/components/*.tsx"
   },
   "dependencies": {
-    "@mobile-entities/core": "workspace:*"
+    "@bramas/simulant-core": "workspace:*"
   },
   "peerDependencies": {
     "solid-js": "^1.9.3"

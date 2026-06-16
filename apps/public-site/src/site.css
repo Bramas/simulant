@@ -1,0 +1,373 @@
+:root {
+  color: #1d241f;
+  background: #fbfaf6;
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #fbfaf6;
+}
+
+a {
+  color: inherit;
+}
+
+code {
+  border: 1px solid #d8d4c8;
+  background: #f2efe7;
+  color: #28352d;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.site-header {
+  border-bottom: 1px solid #ddd8cb;
+  padding: 0 clamp(18px, 4vw, 56px) clamp(34px, 5vw, 58px);
+}
+
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px max(clamp(18px, 4vw, 56px), calc((100vw - 1080px) / 2));
+  border-bottom: 1px solid rgba(216, 212, 200, 0.8);
+  background: rgba(251, 250, 246, 0.92);
+  backdrop-filter: blur(12px);
+  font-size: 0.92rem;
+}
+
+.brand {
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+
+.nav-links a {
+  color: #536159;
+  text-decoration: none;
+}
+
+.nav-links a:hover {
+  color: #1d241f;
+}
+
+.intro {
+  max-width: 1080px;
+  margin: clamp(34px, 7vw, 72px) auto 0;
+}
+
+.eyebrow {
+  margin: 0 0 12px;
+  color: #8c4f2f;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  max-width: 760px;
+  margin-bottom: 16px;
+  font-family: Charter, "Iowan Old Style", Georgia, serif;
+  font-size: clamp(2rem, 4.8vw, 4.1rem);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.02;
+}
+
+h2 {
+  margin-bottom: 0;
+  font-family: Charter, "Iowan Old Style", Georgia, serif;
+  font-size: clamp(1.7rem, 3.2vw, 3.1rem);
+  line-height: 1.02;
+}
+
+h3 {
+  margin-bottom: 10px;
+  font-size: 1.08rem;
+  line-height: 1.2;
+}
+
+.lead {
+  max-width: 720px;
+  color: #46534b;
+  font-size: clamp(1rem, 1.45vw, 1.18rem);
+}
+
+.section {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: clamp(48px, 8vw, 84px) clamp(18px, 4vw, 56px);
+}
+
+.section + .section {
+  border-top: 1px solid #e3dfd4;
+}
+
+.section-heading {
+  display: grid;
+  grid-template-columns: minmax(170px, 0.28fr) minmax(0, 0.36fr) minmax(240px, 0.36fr);
+  gap: 24px;
+  align-items: start;
+  margin-bottom: 30px;
+}
+
+.section-heading.compact {
+  grid-template-columns: minmax(170px, 0.28fr) minmax(0, 0.28fr) minmax(240px, 0.44fr);
+}
+
+.section-heading p:not(.eyebrow) {
+  color: #526056;
+  font-size: 1rem;
+}
+
+.project-list {
+  border-top: 1px solid #d8d4c8;
+}
+
+.project-row {
+  display: grid;
+  grid-template-columns: 56px minmax(210px, 0.34fr) minmax(0, 0.66fr);
+  gap: 24px;
+  align-items: start;
+  padding: 22px 0;
+  border-bottom: 1px solid #d8d4c8;
+  text-decoration: none;
+}
+
+.project-row:hover strong {
+  color: #8c4f2f;
+}
+
+.project-index {
+  color: #8c4f2f;
+  font-weight: 800;
+}
+
+.project-row strong,
+.project-row small {
+  display: block;
+}
+
+.project-row small,
+.project-description,
+.round-left p,
+.code-card p,
+.command-list p {
+  color: #526056;
+}
+
+.project-row small {
+  margin-top: 5px;
+  font-size: 0.86rem;
+}
+
+.round-table {
+  border-top: 1px solid #d8d4c8;
+}
+
+.round-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.58fr) minmax(280px, 0.42fr);
+  gap: 28px;
+  padding: 22px 0;
+  border-bottom: 1px solid #d8d4c8;
+}
+
+.round-left {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 6px 18px;
+}
+
+.round-left span {
+  grid-row: span 2;
+  color: #8c4f2f;
+  font-weight: 800;
+}
+
+.round-left strong,
+.round-right strong {
+  display: block;
+}
+
+.round-left p {
+  grid-column: 2;
+  margin-bottom: 0;
+}
+
+.round-right {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  padding-left: 24px;
+  border-left: 1px solid #e3dfd4;
+}
+
+.round-right code {
+  display: block;
+  padding: 10px;
+  overflow-wrap: anywhere;
+}
+
+.code-examples {
+  display: grid;
+  gap: 16px;
+}
+
+.code-card {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.34fr) minmax(0, 0.66fr);
+  gap: 24px;
+  align-items: start;
+  padding: 20px;
+  border: 1px solid #d8d4c8;
+  background: #fffefb;
+}
+
+.code-card h3 {
+  margin-bottom: 8px;
+}
+
+.code-card p {
+  margin-bottom: 0;
+}
+
+.code-card pre {
+  margin: 0;
+  overflow-x: auto;
+}
+
+.code-card pre code {
+  display: block;
+  min-width: 0;
+  padding: 14px;
+  white-space: pre;
+}
+
+.tok-keyword {
+  color: #9b3b2e;
+  font-weight: 700;
+}
+
+.tok-string {
+  color: #597022;
+}
+
+.tok-comment {
+  color: #7d827a;
+  font-style: italic;
+}
+
+.tok-type {
+  color: #245f73;
+  font-weight: 650;
+}
+
+.tok-number {
+  color: #8c4f2f;
+}
+
+.tok-punctuation {
+  color: #6b6258;
+}
+
+.command-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #d8d4c8;
+  list-style: none;
+  counter-reset: commands;
+}
+
+.command-list li {
+  counter-increment: commands;
+  display: grid;
+  grid-template-columns: 52px minmax(260px, 0.45fr) minmax(0, 0.55fr);
+  gap: 20px;
+  align-items: start;
+  padding: 18px 0;
+  border-bottom: 1px solid #d8d4c8;
+}
+
+.command-list li::before {
+  content: counter(commands, decimal-leading-zero);
+  color: #8c4f2f;
+  font-weight: 800;
+}
+
+.command-list code {
+  display: block;
+  padding: 10px;
+  overflow-wrap: anywhere;
+}
+
+.command-list p {
+  margin-bottom: 0;
+}
+
+@media (max-width: 900px) {
+  .section-heading,
+  .section-heading.compact,
+  .project-row,
+  .round-row,
+  .code-card,
+  .command-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .round-right {
+    padding-left: 0;
+    border-left: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .site-header {
+    padding-bottom: 44px;
+  }
+
+  .section {
+    padding-top: 42px;
+    padding-bottom: 42px;
+  }
+}

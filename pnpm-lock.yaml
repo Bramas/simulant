@@ -31,6 +31,22 @@ importers:
         specifier: ^2.11.0
         version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
 
+  apps/public-site:
+    dependencies:
+      solid-js:
+        specifier: ^1.9.3
+        version: 1.9.3
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.7.2
+      vite:
+        specifier: ^6.0.0
+        version: 6.0.2(@types/node@24.10.1)(tsx@4.20.6)
+      vite-plugin-solid:
+        specifier: ^2.11.0
+        version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
+
   packages/core:
     dependencies:
       solid-js:
@@ -39,7 +55,7 @@ importers:
 
   packages/simulator-ui:
     dependencies:
-      '@mobile-entities/core':
+      '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../core
       solid-js:
@@ -48,10 +64,10 @@ importers:
 
   projects/black-hole-search:
     dependencies:
-      '@mobile-entities/core':
+      '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@mobile-entities/simulator-ui':
+      '@bramas/simulant-ui':
         specifier: workspace:*
         version: link:../../packages/simulator-ui
       solid-js:
@@ -70,10 +86,10 @@ importers:
 
   projects/exploring-dynamic-rings:
     dependencies:
-      '@mobile-entities/core':
+      '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@mobile-entities/simulator-ui':
+      '@bramas/simulant-ui':
         specifier: workspace:*
         version: link:../../packages/simulator-ui
       solid-js:
@@ -92,10 +108,10 @@ importers:
 
   projects/gathering-on-lines:
     dependencies:
-      '@mobile-entities/core':
+      '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@mobile-entities/simulator-ui':
+      '@bramas/simulant-ui':
         specifier: workspace:*
         version: link:../../packages/simulator-ui
       solid-js:
@@ -114,10 +130,10 @@ importers:
 
   projects/gathering-on-rings:
     dependencies:
-      '@mobile-entities/core':
+      '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@mobile-entities/simulator-ui':
+      '@bramas/simulant-ui':
         specifier: workspace:*
         version: link:../../packages/simulator-ui
       solid-js:

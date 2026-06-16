@@ -1,7 +1,7 @@
 import { createMemo, createSignal, onCleanup, onMount, Show, type Component, createEffect, For, Switch, Match } from 'solid-js';
-import { execute } from '@mobile-entities/core/lib/system';
+import { execute } from '@bramas/simulant-core/lib/system';
 import { Dynamic } from 'solid-js/web';
-import { ProjectType } from '@mobile-entities/core/types/project';
+import { ProjectType } from '@bramas/simulant-core/types/project';
 import { ConfigGraphGenerator } from './components/ConfigGraphGenerator';
 import { GenericEditor } from './components/GenericEditor';
 import { AlgorithmViewer } from './components/AlgorithmViewer';
@@ -398,7 +398,7 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
       <main class="container">
         <article>
           <header style={{"margin-bottom": '2em'}}>
-            <h1>{props.title ?? 'Mobile Entities'}</h1>
+            <h1>{props.title ?? 'Simulant'}</h1>
             <div style={{"display": 'flex', "align-items": 'center', "gap": '1em'}}>
               <select value={project()} onChange={(e) => {
                 setExecutionPath([0]);

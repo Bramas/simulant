@@ -4,7 +4,7 @@
  * Generation date: 2026-02-03T17:18:48.145Z
  */
 
-import type { AlgorithmStructure } from '@mobile-entities/core/types/algorithm-structure';
+import type { AlgorithmStructure } from '@bramas/simulant-core/types/algorithm-structure';
 
 export const algo3: AlgorithmStructure = {
   "id": "algo3",

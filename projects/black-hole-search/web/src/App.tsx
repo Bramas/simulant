@@ -1,4 +1,4 @@
-import { SimulatorApp } from '@mobile-entities/simulator-ui/SimulatorApp';
+import { SimulatorApp } from '@bramas/simulant-ui/SimulatorApp';
 
 import Checker from './components/Checker';
 import { getPredefinedSettings, projects } from '../../projects';

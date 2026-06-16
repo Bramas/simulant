@@ -1,10 +1,10 @@
 import { createMemo, createSignal, Show, Suspense, type Component } from 'solid-js';
 import { Dynamic } from 'solid-js/web';
 
-import * as GatheringOnRings from '@mobile-entities/project-gathering-on-rings';
+import * as GatheringOnRings from '@bramas/simulant-project-gathering-on-rings';
 // Import additional project modules here as needed
-// import * as GatheringOnLines from '@mobile-entities/project-gathering-on-lines';
-// import * as BlackHoleSearch from '@mobile-entities/project-black-hole-search';
+// import * as GatheringOnLines from '@bramas/simulant-project-gathering-on-lines';
+// import * as BlackHoleSearch from '@bramas/simulant-project-black-hole-search';
 
 // Map of available projects and their checkers
 const CheckerProjects = {
@@ -25,7 +25,7 @@ const Checker: Component = () => {
         <header>
           <div style={{"display": "flex", "justify-content": "space-between", "align-items": "center"}}>
             <h1>Algorithm Checker</h1>
-            <a href="/" class="contrast">← Back to Mobile Entities</a>
+            <a href="/" class="contrast">← Back to Simulant</a>
           </div>
           <p>Test algorithms with multiple settings to find edge cases and verify correctness</p>
           <select value={selectedProject()} onChange={(e) => {

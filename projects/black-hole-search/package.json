@@ -1,5 +1,5 @@
 {
-  "name": "@mobile-entities/project-black-hole-search",
+  "name": "@bramas/simulant-project-black-hole-search",
   "version": "0.1.0",
   "private": false,
   "type": "module",
@@ -19,8 +19,8 @@
     "./algo6": "./algo6.tsx"
   },
   "dependencies": {
-    "@mobile-entities/core": "workspace:*",
-    "@mobile-entities/simulator-ui": "workspace:*",
+    "@bramas/simulant-core": "workspace:*",
+    "@bramas/simulant-ui": "workspace:*",
     "solid-js": "^1.9.3"
   },
   "devDependencies": {

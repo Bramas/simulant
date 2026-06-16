@@ -1,13 +1,13 @@
-import { Config, SystemInfo, ViewType, execute } from "@mobile-entities/core/lib/system";
+import { Config, SystemInfo, ViewType, execute } from "@bramas/simulant-core/lib/system";
 
-import { SequenceHelper } from "@mobile-entities/core/lib/helpers";
+import { SequenceHelper } from "@bramas/simulant-core/lib/helpers";
 
-import { default as Ring, AbstractGraphAgent, RingConfigType, RingViewType, RingModel, LocationStateType } from "@mobile-entities/core/models/ring-pebble";
-import { Movements, PebbleActions } from "@mobile-entities/core/models/ring-pebble";
-import RingPebbleWithEmergingBH, { PositionState } from "@mobile-entities/core/models/ring_pebble_with_emerging_bh";
-import { Actions } from "@mobile-entities/core/models/ring";
+import { default as Ring, AbstractGraphAgent, RingConfigType, RingViewType, RingModel, LocationStateType } from "@bramas/simulant-core/models/ring-pebble";
+import { Movements, PebbleActions } from "@bramas/simulant-core/models/ring-pebble";
+import RingPebbleWithEmergingBH, { PositionState } from "@bramas/simulant-core/models/ring_pebble_with_emerging_bh";
+import { Actions } from "@bramas/simulant-core/models/ring";
 import { algo6, proc2 } from "./algorithms";
-import type { AlgorithmStructure } from "@mobile-entities/core/types/algorithm-structure";
+import type { AlgorithmStructure } from "@bramas/simulant-core/types/algorithm-structure";
 
 type VisibleMemory = {
     id: number, 

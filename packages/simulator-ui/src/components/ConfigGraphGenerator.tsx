@@ -1,5 +1,5 @@
 import { createSignal, For, Show, createEffect, onMount, onCleanup } from "solid-js";
-import { execute } from "@mobile-entities/core/lib/system";
+import { execute } from "@bramas/simulant-core/lib/system";
 
 export type ExecutionStatus = 'success' | 'failure' | 'inProgress';
 

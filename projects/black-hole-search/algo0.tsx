@@ -1,12 +1,12 @@
-import { Config, SystemInfo, execute } from "@mobile-entities/core/lib/system";
+import { Config, SystemInfo, execute } from "@bramas/simulant-core/lib/system";
 
-import { SequenceHelper } from "@mobile-entities/core/lib/helpers";
-import { AlgorithmChecker } from "@mobile-entities/core/lib/algorithm-checker-simple";
+import { SequenceHelper } from "@bramas/simulant-core/lib/helpers";
+import { AlgorithmChecker } from "@bramas/simulant-core/lib/algorithm-checker-simple";
 
-import { Actions, default as Ring, AbstractGraphAgent, RingConfigType, RingViewType, RingModel, LocationStateType } from "@mobile-entities/core/models/ring";
-import EmergingRing, { PositionState } from "@mobile-entities/core/models/ring_with_emerging_bh";
+import { Actions, default as Ring, AbstractGraphAgent, RingConfigType, RingViewType, RingModel, LocationStateType } from "@bramas/simulant-core/models/ring";
+import EmergingRing, { PositionState } from "@bramas/simulant-core/models/ring_with_emerging_bh";
 import { algo0, algo4, proc1 } from "./algorithms";
-import type { AlgorithmStructure } from "@mobile-entities/core/types/algorithm-structure";
+import type { AlgorithmStructure } from "@bramas/simulant-core/types/algorithm-structure";
 
 type Role = 'TRAVELER' | 'WAITER' | 'NEXT-TRAVELER'
 

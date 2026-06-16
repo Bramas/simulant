@@ -1,5 +1,5 @@
-import type { PredefinedSetting } from '@mobile-entities/simulator-ui/SimulatorApp';
-import type { ProjectType } from '@mobile-entities/core/types/project';
+import type { PredefinedSetting } from '@bramas/simulant-ui/SimulatorApp';
+import type { ProjectType } from '@bramas/simulant-core/types/project';
 
 import * as BHSearchAlgo6 from './algo6';
 import * as BHSearchAlgo5 from './algo5';

@@ -9,9 +9,9 @@ export default defineConfig({
   plugins: [solidPlugin()],
   resolve: {
     alias: {
-      '@mobile-entities/core': fromRoot('packages/core/src'),
-      '@mobile-entities/simulator-ui': fromRoot('packages/simulator-ui/src'),
-      '@mobile-entities/project-black-hole-search': fromRoot('projects/black-hole-search'),
+      '@bramas/simulant-core': fromRoot('packages/core/src'),
+      '@bramas/simulant-ui': fromRoot('packages/simulator-ui/src'),
+      '@bramas/simulant-project-black-hole-search': fromRoot('projects/black-hole-search'),
     },
   },
   server: {

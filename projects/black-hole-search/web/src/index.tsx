@@ -1,7 +1,7 @@
 /* @refresh reload */
 import { render } from 'solid-js/web';
 
-import '@mobile-entities/simulator-ui/simulator.css';
+import '@bramas/simulant-ui/simulator.css';
 import App from './App';
 
 const root = document.getElementById('root');

@@ -15,7 +15,7 @@ The application and CLI keep the public project names stable:
 The paper web page lives in `web/`. This package chooses its simulator interface dependency through `package.json`:
 
 ```json
-"@mobile-entities/simulator-ui": "workspace:*"
+"@bramas/simulant-ui": "workspace:*"
 ```
 
 Before publishing or archiving the paper code, replace workspace dependencies with exact versions or Git tags, then create a repository tag for the exact simulator version used by the experiments.

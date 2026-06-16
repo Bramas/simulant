@@ -8,7 +8,7 @@ if (typeof window === 'undefined') {
   globalThis.window = globalThis;
 }
 
-import { execute } from '@mobile-entities/core/lib/system';
+import { execute } from '@bramas/simulant-core/lib/system';
 import { projects as Projects } from '../../../projects';
 
 
