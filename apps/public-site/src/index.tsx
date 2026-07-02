@@ -207,9 +207,9 @@ const createSteps = [
     detail: 'Clone the public simulator and install dependencies with pnpm install.',
   },
   {
-    command: 'cp -R projects/black-hole-search projects/my-project',
+    command: 'cp -R projects/example projects/my-project && cd projects/my-project',
     detail:
-      'Start from an existing project or create a package that exports a projects.ts file and optional web/ app.',
+      'Copy the small ring example, enter your new project, then adapt its agents, settings, and web page.',
   },
   {
     command: 'pnpm dev',

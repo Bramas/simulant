@@ -5,9 +5,9 @@
   "license": "CECILL-B",
   "type": "module",
   "scripts": {
-    "dev:web": "vite web --config web/vite.config.ts",
-    "build:web": "vite build web --config web/vite.config.ts",
-    "serve:web": "vite preview web --config web/vite.config.ts"
+    "dev": "vite web --config web/vite.config.ts",
+    "build": "vite build web --config web/vite.config.ts",
+    "serve": "vite preview web --config web/vite.config.ts"
   },
   "exports": {
     ".": "./index.ts",

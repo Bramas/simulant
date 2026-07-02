@@ -4,6 +4,7 @@ Each folder under `projects/` is a project or paper package. A project package c
 
 Current workspace packages:
 
+- `example/`: a small starter project with agents moving around a ring.
 - `black-hole-search/`: all black-hole-search variants and its paper web page.
 
 Only projects listed in `apps/public-site/src/public-projects.mjs` are published on the public site.
@@ -44,7 +45,7 @@ pnpm build
 To include a project in the public site:
 
 1. Add a `web/` app in the project package.
-2. Add a `build:web` script to that project's `package.json`.
+2. Add a `build` script to that project's `package.json`.
 3. Configure the Vite `outDir` to write into `dist/<project-slug>`.
 4. Add the project metadata to `apps/public-site/src/public-projects.mjs`.
 

@@ -17,7 +17,7 @@ await rm('dist', { recursive: true, force: true });
 await mkdir('dist', { recursive: true });
 
 for (const project of publicProjects) {
-  run('pnpm', ['--filter', project.packageName, 'build:web']);
+  run('pnpm', ['--filter', project.packageName, 'build']);
 }
 
 await writeFile('dist/public-projects.json', `${JSON.stringify(publicProjects, null, 2)}\n`);

@@ -10,10 +10,10 @@
     "projects/*"
   ],
   "scripts": {
-    "start": "pnpm --filter @bramas/simulant-project-black-hole-search dev:web",
-    "dev": "pnpm --filter @bramas/simulant-project-black-hole-search dev:web",
+    "start": "pnpm --filter @bramas/simulant-project-example dev",
+    "dev": "pnpm --filter @bramas/simulant-project-example dev",
     "build": "node scripts/build-public-site.mjs",
-    "serve": "pnpm --filter @bramas/simulant-project-black-hole-search serve:web",
+    "serve": "pnpm --filter @bramas/simulant-project-example serve",
     "check": "tsx scripts/cli-checker.ts gathering-on-rings",
     "convert-algorithms": "bash scripts/convert-all-algorithms.sh",
     "convert-algo": "tsx scripts/latex-to-structured.ts",

@@ -84,7 +84,7 @@ importers:
         specifier: ^2.11.0
         version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
 
-  projects/exploring-dynamic-rings:
+  projects/example:
     dependencies:
       '@bramas/simulant-core':
         specifier: workspace:*
@@ -106,14 +106,14 @@ importers:
         specifier: ^2.11.0
         version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
 
-  projects/gathering-on-lines:
+  projects/private/dynamic-ring-black-hole:
     dependencies:
       '@bramas/simulant-core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../../packages/core
       '@bramas/simulant-ui':
         specifier: workspace:*
-        version: link:../../packages/simulator-ui
+        version: link:../../../packages/simulator-ui
       solid-js:
         specifier: ^1.9.3
         version: 1.9.3
@@ -128,14 +128,58 @@ importers:
         specifier: ^2.11.0
         version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
 
-  projects/gathering-on-rings:
+  projects/private/exploring-dynamic-rings:
     dependencies:
       '@bramas/simulant-core':
         specifier: workspace:*
-        version: link:../../packages/core
+        version: link:../../../packages/core
       '@bramas/simulant-ui':
         specifier: workspace:*
-        version: link:../../packages/simulator-ui
+        version: link:../../../packages/simulator-ui
+      solid-js:
+        specifier: ^1.9.3
+        version: 1.9.3
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.7.2
+      vite:
+        specifier: ^6.0.0
+        version: 6.0.2(@types/node@24.10.1)(tsx@4.20.6)
+      vite-plugin-solid:
+        specifier: ^2.11.0
+        version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
+
+  projects/private/gathering-on-lines:
+    dependencies:
+      '@bramas/simulant-core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@bramas/simulant-ui':
+        specifier: workspace:*
+        version: link:../../../packages/simulator-ui
+      solid-js:
+        specifier: ^1.9.3
+        version: 1.9.3
+    devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.7.2
+      vite:
+        specifier: ^6.0.0
+        version: 6.0.2(@types/node@24.10.1)(tsx@4.20.6)
+      vite-plugin-solid:
+        specifier: ^2.11.0
+        version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
+
+  projects/private/gathering-on-rings:
+    dependencies:
+      '@bramas/simulant-core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@bramas/simulant-ui':
+        specifier: workspace:*
+        version: link:../../../packages/simulator-ui
       solid-js:
         specifier: ^1.9.3
         version: 1.9.3

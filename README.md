@@ -29,7 +29,7 @@ pnpm install
 ## Common Commands
 
 ```bash
-pnpm dev      # run the black-hole-search simulator page locally
+pnpm dev      # run the starter ring project locally
 pnpm build    # generate the full public static site in dist/
 ```
 
