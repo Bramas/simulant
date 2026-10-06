@@ -1,19 +1,15 @@
 import { createMemo, createSignal, onCleanup, onMount, Show, type Component, createEffect, For, Switch, Match } from 'solid-js';
 import { execute } from '@bramas/simulant-core/lib/system';
 import { Dynamic } from 'solid-js/web';
-import { ProjectType } from '@bramas/simulant-core/types/project';
+import type { ProjectType, PredefinedSetting } from '@bramas/simulant-core/types/project';
 import { ConfigGraphGenerator } from './components/ConfigGraphGenerator';
 import { GenericEditor } from './components/GenericEditor';
 import { AlgorithmViewer } from './components/AlgorithmViewer';
 
-export type PredefinedSetting = {
-  name: string;
-  settings: any;
-  path?: number[];
-};
+export type { PredefinedSetting } from '@bramas/simulant-core/types/project';
 
 export interface SimulatorAppProps {
-  projects: Record<string, ProjectType<any>>;
+  projects: Record<string, ProjectType<any, any>>;
   title?: string;
   checker?: Component;
   storageKey?: string;
@@ -188,6 +184,11 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
       console.error('Error getting config at path', executionPath(), e);
       return null;
     }
+  });
+
+  const algorithmViewInfo = createMemo(() => {
+    const currentConfig = config();
+    return currentConfig ? Projects[project()].getAlgorithmViewInfo?.(currentConfig) : undefined;
   });
   
   // Effect to draw on canvas when config changes
@@ -510,9 +511,8 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
                 </div>
                 <Show when={config()}>
                   <div>
-                    <Show when={Projects[project()].getAlgorithmViewInfo && Projects[project()].getAlgorithmViewInfo!(config()!)}>
+                    <Show when={algorithmViewInfo()}>
                     {(viewInfo) => {
-                      console.log('Rendering AlgorithmViewer for project', viewInfo);
                       return (
                         <AlgorithmViewer 
                           algorithm={viewInfo().algorithm}

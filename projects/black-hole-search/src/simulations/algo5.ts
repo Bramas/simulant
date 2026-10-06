@@ -4,7 +4,7 @@ import { SequenceHelper } from "@bramas/simulant-core/lib/helpers";
 
 import { Actions, default as Ring, AbstractGraphAgent, RingConfigType, RingViewType, RingModel, LocationStateType } from "@bramas/simulant-core/models/ring";
 import EmergingRing, { PositionState } from "@bramas/simulant-core/models/ring_with_emerging_bh";
-import { algo5, proc1 } from "./algorithms";
+import { algo5, proc1 } from "../algorithms";
 import type { AlgorithmStructure } from "@bramas/simulant-core/types/algorithm-structure";
 
 type Role = 'TRAVELER' | 'WAITER' | 'NEXT-TRAVELER'
@@ -330,7 +330,7 @@ export function* settingsGenerator(): Generator<BlackHoleSettings> {
 
 // Check if the execution is successful (BH found), failed (all agents lost), or still in progress
 export function checkExecutionStatus(config: any, model: any, configHistory: any[]): 'success' | 'failure' | 'inProgress' {
-    const agents = config.clone_agents();
+    const agents = config.agents();
     const N = model.N as number;
     const BH_node = model.BH_node as number;
     const bhActive = (config.get(BH_node).state as any).isBH;
@@ -378,7 +378,7 @@ export { checkExecutionStatus as executionStatusChecker };
 
 // Informations pour l'affichage de l'algorithme
 export function getAlgorithmViewInfo(config: MyConfig) {
-    const agents = config.clone_agents();
+    const agents = config.agents();
     const agentStates = agents
         .sort((a, b) => a._id - b._id)
         .map(agent => ({

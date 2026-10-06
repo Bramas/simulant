@@ -9,7 +9,8 @@
     "serve": "vite preview web --config web/vite.config.ts"
   },
   "exports": {
-    ".": "./index.ts"
+    ".": "./src/index.ts",
+    "./projects": "./src/index.ts"
   },
   "dependencies": {
     "@bramas/simulant-core": "workspace:*",

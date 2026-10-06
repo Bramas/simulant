@@ -1,19 +1,12 @@
 {
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "strict": true,
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "node",
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "types": ["vite/client"],
-    "noEmit": true,
-    "isolatedModules": true,
-    "baseUrl": ".",
-    "paths": {
-      "@bramas/simulant-core/*": ["../../../packages/core/src/*"],
-      "@bramas/simulant-ui/*": ["../../../packages/simulator-ui/src/*"]
-    }
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src", "../index.ts", "../../../packages/core/src", "../../../packages/simulator-ui/src"]
+  "include": [
+    "src",
+    "../src"
+  ]
 }

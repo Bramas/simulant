@@ -10,14 +10,15 @@
     "serve": "vite preview web --config web/vite.config.ts"
   },
   "exports": {
-    ".": "./index.ts",
-    "./algo0": "./algo0.tsx",
-    "./algo1": "./algo1.tsx",
-    "./algo2": "./algo2.tsx",
-    "./algo3": "./algo3.tsx",
-    "./algo4": "./algo4.tsx",
-    "./algo5": "./algo5.tsx",
-    "./algo6": "./algo6.tsx"
+    ".": "./src/index.ts",
+    "./projects": "./src/projects.ts",
+    "./algo0": "./src/simulations/algo0.ts",
+    "./algo1": "./src/simulations/algo1.ts",
+    "./algo2": "./src/simulations/algo2.ts",
+    "./algo3": "./src/simulations/algo3.ts",
+    "./algo4": "./src/simulations/algo4.ts",
+    "./algo5": "./src/simulations/algo5.ts",
+    "./algo6": "./src/simulations/algo6.ts"
   },
   "dependencies": {
     "@bramas/simulant-core": "workspace:*",

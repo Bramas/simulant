@@ -1,13 +1,13 @@
-import type { PredefinedSetting } from '@bramas/simulant-ui/SimulatorApp';
+import type { PredefinedSetting } from '@bramas/simulant-core/types/project';
 import type { ProjectType } from '@bramas/simulant-core/types/project';
 
-import * as BHSearchAlgo6 from './algo6';
-import * as BHSearchAlgo5 from './algo5';
-import * as BHSearchAlgo4 from './algo4';
-import * as BHSearchAlgo3 from './algo3';
-import * as BHSearchAlgo2 from './algo2';
-import * as BHSearchAlgo1 from './algo1';
-import * as BHSearchAlgo0 from './algo0';
+import * as BHSearchAlgo6 from './simulations/algo6';
+import * as BHSearchAlgo5 from './simulations/algo5';
+import * as BHSearchAlgo4 from './simulations/algo4';
+import * as BHSearchAlgo3 from './simulations/algo3';
+import * as BHSearchAlgo2 from './simulations/algo2';
+import * as BHSearchAlgo1 from './simulations/algo1';
+import * as BHSearchAlgo0 from './simulations/algo0';
 
 export const projects = {
   'black-hole-search-algo0': BHSearchAlgo0,
@@ -17,7 +17,7 @@ export const projects = {
   'black-hole-search-algo4': BHSearchAlgo4,
   'black-hole-search-algo5': BHSearchAlgo5,
   'black-hole-search-algo6': BHSearchAlgo6,
-} as unknown as Record<string, ProjectType<any>>;
+} satisfies Record<string, ProjectType<any, any>>;
 
 export function getPredefinedSettings(project: string): PredefinedSetting[] {
   switch (project) {

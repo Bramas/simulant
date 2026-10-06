@@ -6,7 +6,7 @@ import { default as Ring, AbstractGraphAgent, RingConfigType, RingViewType, Ring
 import { Movements, PebbleActions } from "@bramas/simulant-core/models/ring-pebble";
 import RingPebbleWithEmergingBH, { PositionState } from "@bramas/simulant-core/models/ring_pebble_with_emerging_bh";
 import { Actions } from "@bramas/simulant-core/models/ring";
-import { algo6, proc2 } from "./algorithms";
+import { algo6, proc2 } from "../algorithms";
 import type { AlgorithmStructure } from "@bramas/simulant-core/types/algorithm-structure";
 
 type VisibleMemory = {
@@ -596,7 +596,7 @@ export function* settingsGenerator(): Generator<BlackHoleSettings> {
 
 // Check if the execution is successful (BH found), failed (all agents lost), or still in progress
 export function checkExecutionStatus(config: any, model: any, configHistory: any[]): 'success' | 'failure' | 'inProgress' {
-    const agents = config.clone_agents();
+    const agents = config.agents();
     const N = model.N as number;
     const BH_node = model.BH_node as number;
     const bhActive = config.get(BH_node).state?.isBH;
@@ -644,7 +644,7 @@ export { checkExecutionStatus as executionStatusChecker };
 
 // Informations pour l'affichage de l'algorithme
 export function getAlgorithmViewInfo(config: MyConfig) {
-    const agents = config.clone_agents();
+    const agents = config.agents();
     const agentStates = agents
         .sort((a, b) => a._id - b._id)
         .map(agent => ({

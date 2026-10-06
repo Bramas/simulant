@@ -1,0 +1,25 @@
+{
+  "name": "@bramas/simulant-cli",
+  "version": "0.1.0",
+  "private": false,
+  "license": "CECILL-B",
+  "type": "module",
+  "engines": {
+    "node": ">=20.6.0"
+  },
+  "bin": {
+    "simulant": "./bin/simulant.mjs"
+  },
+  "files": [
+    "bin",
+    "src"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "dependencies": {
+    "@bramas/simulant-core": "workspace:*",
+    "commander": "^14.0.2",
+    "tsx": "^4.20.6"
+  }
+}

@@ -7,15 +7,8 @@ import { For, createMemo, Show, createEffect } from 'solid-js';
 import type { AlgorithmStructure, AlgorithmLine } from '@bramas/simulant-core/types/algorithm-structure';
 import './AlgorithmViewer.css';
 
-export interface AgentExecutionState {
-  agentId: string;
-  currentLine: number;
-  color: string;
-  /** ID of the algorithm/procedure currently executing (e.g., "algo1", "cautious-walk") */
-  currentAlgorithm: string;
-  /** Optional string representation of the agent's internal state */
-  stateDescription?: string;
-}
+import type { AgentExecutionState } from '@bramas/simulant-core/types/project';
+export type { AgentExecutionState } from '@bramas/simulant-core/types/project';
 
 export interface AlgorithmViewerProps {
   /** Main algorithm to display */

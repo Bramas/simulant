@@ -1,19 +1,24 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "node",
-    "baseUrl": ".",
-    "paths": {
-      "@bramas/simulant-core/*": ["packages/core/src/*"],
-      "@bramas/simulant-ui/*": ["packages/simulator-ui/src/*"],
-      "@bramas/simulant-project-black-hole-search/*": ["projects/black-hole-search/*"],
-      "@bramas/simulant-project-exploring-dynamic-rings": ["projects/exploring-dynamic-rings/src/index.tsx"],
-      "@bramas/simulant-project-gathering-on-lines": ["projects/gathering-on-lines/src/index.tsx"],
-      "@bramas/simulant-project-gathering-on-rings": ["projects/gathering-on-rings/src/index.tsx"]
-    }
+    "types": [
+      "node",
+      "vite/client"
+    ]
   },
-  "references": [
-    { "path": "./projects/black-hole-search/web" }
+  "include": [
+    "packages/*/src",
+    "projects/example/src",
+    "projects/example/web",
+    "projects/black-hole-search/src",
+    "projects/black-hole-search/web",
+    "apps/public-site",
+    "scripts",
+    "tests"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "projects/private"
   ]
 }

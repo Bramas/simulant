@@ -3,6 +3,9 @@ dist
 .DS_Store
 
 # Local/generated artifacts
+.pnpm-store/
+.git-old/
+*.aux
 *.tar
 *.sqlite
 db,sqlite

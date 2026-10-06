@@ -40,7 +40,7 @@ export function AlgorithmChecker<T>(props: AlgorithmCheckerProps<T>) {
   // Test a single setting
   const testSettings = async (settings: T, generator: Generator<T>) => {
     try {
-      setCurrentSettings(settings);
+      setCurrentSettings(() => settings);
       const model = props.setup(settings);
       const execution = execute(model);
 
@@ -50,9 +50,10 @@ export function AlgorithmChecker<T>(props: AlgorithmCheckerProps<T>) {
       // Execute up to maxIterationsPerExecution or until terminal state
       const maxIterations = props.maxIterationsPerExecution || 1000;
       let status: ExecutionStatus = 'inProgress';
+      const path = [0];
       
       for (let i = 0; i < maxIterations; i++) {
-        const config = execution.get(i);
+        const config = execution.get(path);
         configs.push(config);
 
         // Check the status of the execution
@@ -61,6 +62,10 @@ export function AlgorithmChecker<T>(props: AlgorithmCheckerProps<T>) {
         // If we've reached a terminal state, break
         if (status !== 'inProgress') {
           break;
+        }
+        if (i + 1 < maxIterations) {
+          if (execution.getChildrenCount(path) === 0) break;
+          path.push(0);
         }
       }
 

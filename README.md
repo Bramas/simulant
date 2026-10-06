@@ -1,48 +1,92 @@
 # Simulant
 
-Simulant is a small simulator toolkit for research on mobile entities and distributed algorithms.
+Simulant is a simulator toolkit for research on mobile entities and distributed algorithms, developed by Quentin Bramas. It provides an execution engine, a SolidJS web interface, and command-line tools for checking simulations.
 
-For a quick presentation, public project links, and a short explanation of the simulator internals, start with the project page:
+[Visit the project website](https://bramas.github.io/simulant/) for a presentation and public paper artifacts.
 
-https://bramas.github.io/simulant/
+## Getting started
 
-This repository contains the reusable simulator core, the reusable web interface, and public paper artifacts.
-
-## Repository Layout
-
-```text
-apps/public-site/        public landing page and documentation site
-packages/core/           reusable simulator core package
-packages/simulator-ui/   reusable SolidJS simulator interface
-projects/                public project and paper packages
-projects/private/        local private projects, not published by the public site
-```
-
-Only projects listed in `apps/public-site/src/public-projects.mjs` are published on the website.
-
-## Install
+Use Node.js 22 (as in CI) or newer and pnpm 10.22.0.
 
 ```bash
 pnpm install
+pnpm dev
 ```
 
-## Common Commands
+The default development page runs the starter project: two agents moving in opposite directions on a ring. Edit [projects/example/src/index.ts](projects/example/src/index.ts) to change the simulation and [its App component](projects/example/web/src/App.tsx) to change the page.
+
+| Command | Purpose |
+| --- | --- |
+| `pnpm dev` | Run the starter project |
+| `pnpm --filter @bramas/simulant-project-black-hole-search dev` | Run the black-hole-search paper page |
+| `pnpm build` | Build the public website into `dist/` |
+| `pnpm serve` | Preview the built starter project; build it with its package's `build` command first |
+| `pnpm typecheck` | Check the public workspace's TypeScript |
+| `pnpm test` | Run regression tests, including CLI integration tests |
+
+## Repository layout
+
+```text
+apps/public-site/        public landing page
+packages/core/           execution engine, models, and shared types
+packages/simulator-ui/   reusable SolidJS interface
+packages/cli/            shared simulant command
+projects/example/        starter ring simulation
+projects/black-hole-search/
+  src/simulations/       implementations: algo0.ts through algo6.ts
+  src/algorithms/        structured pseudocode displayed in the UI
+  src/projects.ts       named simulations and presets
+  src/index.ts          package exports
+  web/                  paper's web application
+projects/private/        optional local private research repository, ignored by Git
+scripts/                 public-site build, shared Vite defaults, and conversion tools
+```
+
+Black-hole-search exposes the stable simulation names `black-hole-search-algo0` through `black-hole-search-algo6`. Package imports such as `@bramas/simulant-project-black-hole-search/algo1` remain available.
+
+Private projects are excluded from the public build and root typecheck. Only projects explicitly listed in [public-projects.mjs](apps/public-site/src/public-projects.mjs) are published on the website.
+
+## Checking simulations with the CLI
+
+The reusable `@bramas/simulant-cli` package provides the `simulant` executable. In this workspace, run it through `pnpm cli`:
 
 ```bash
-pnpm dev      # run the starter ring project locally
-pnpm build    # generate the full public static site in dist/
+pnpm cli list-projects
+pnpm cli check-config -p black-hole-search-algo1 -s '{"N":5,"BH_node":2}' -d 10
+pnpm cli check-all -p black-hole-search-algo1 --max-configs 10 -d 20
+pnpm check black-hole-search-algo1
+pnpm cli generate-config-graph -p black-hole-search-algo1 -s '{"N":5,"BH_node":2}' -d 5 -o graph.tex
+pnpm cli --help
 ```
 
-## Creating A Project With Published Packages
+- `check-config` explores execution branches for one set of settings, up to the depth limit.
+- `check-all` repeats that check for settings from `settingsGenerator()`. `--max-configs` limits the settings tested.
+- `check` follows the first branch at each step for each generated setting, as a smoke check. `pnpm check <name>` invokes this command.
+- `generate-config-graph` exports a configuration graph as TikZ; include it with `\input{graph.tex}` in a LaTeX document using the `tikz` package.
 
-For a separate project, depend on the published simulator packages. With GitHub Packages, add this `.npmrc`:
+Exhaustive checks return **0** when the tested configurations pass, **1** for a failure or command error, and **2** for incomplete exploration, such as reaching the depth limit or an unfinished state with no successors. A limited check covers only the explored settings and paths.
+
+Discovery uses the calling directory: the current package, `projects/*`, and `projects/private/*`. Registries declare a `./projects` package export; older packages with `projects.ts` or `src/projects.ts` also work. Simulation names must be unique across the workspace.
+
+In a separate project with the CLI installed, use `pnpm exec simulant` instead of `pnpm cli`. Select a different directory or an explicit registry when needed:
+
+```bash
+pnpm exec simulant --registry ./src/projects.ts list-projects
+pnpm exec simulant --root ../other-paper --registry ./src/projects.ts check-config -p my-simulation -s '{"N":8}' -d 20
+```
+
+The CLI supports TypeScript registries and includes its own loader; it requires Node.js 20.6 or newer.
+
+## Using Simulant in a separate project
+
+Configure GitHub Packages in your project's `.npmrc`:
 
 ```ini
 @bramas:registry=https://npm.pkg.github.com
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 ```
 
-Then use the released packages:
+Use released package versions for reproducible projects:
 
 ```json
 {
@@ -54,148 +98,109 @@ Then use the released packages:
 }
 ```
 
-During local development, you can point a private project to a local simulator checkout instead of publishing temporary versions:
+The CLI is prepared for release but has not yet been published. Once released, install it with `pnpm add -D @bramas/simulant-cli`. Before release, create local CLI and core tarballs and install them together in the consuming project:
+
+```bash
+# From the Simulant workspace
+pnpm --filter @bramas/simulant-core pack --pack-destination /tmp/simulant-packages
+pnpm --filter @bramas/simulant-cli pack --pack-destination /tmp/simulant-packages
+
+# From the consuming project
+pnpm add -D /tmp/simulant-packages/bramas-simulant-core-0.1.0.tgz /tmp/simulant-packages/bramas-simulant-cli-0.1.0.tgz
+```
+
+During development, core and UI dependencies can point to a local checkout with `link:../simulant/packages/core` and `link:../simulant/packages/simulator-ui`. Run `pnpm install` after changing dependencies and restart the web development server. Keep unpublished research in separate private repositories and use exact released versions when freezing a paper artifact.
+
+## Creating a project
+
+Keep simulation code in `src/` and the optional web interface in `web/`:
+
+```text
+projects/<paper>/
+  package.json
+  src/index.ts           package exports
+  src/projects.ts        simulation registry and presets
+  src/simulations/       agents and model setup
+  src/algorithms/        structured pseudocode (optional)
+  web/src/App.tsx
+  web/src/workers/graph-worker.ts
+  web/tsconfig.json
+  web/vite.config.ts
+  web/index.html
+```
+
+Start from [the example project](projects/example/src/index.ts). A small project can export its registry directly from `src/index.ts`. Use `.ts` for simulation code and `.tsx` for JSX components.
+
+Export a map of named simulations:
+
+```ts
+// src/projects.ts
+import * as MySimulation from './simulations/my-simulation';
+export const projects = { 'my-simulation': MySimulation };
+```
+
+Declare the registry in `package.json` so the CLI can discover it:
 
 ```json
 {
-  "dependencies": {
-    "@bramas/simulant-core": "link:../simulant/packages/core",
-    "@bramas/simulant-ui": "link:../simulant/packages/simulator-ui",
-    "solid-js": "^1.9.3"
+  "exports": {
+    ".": "./src/index.ts",
+    "./projects": "./src/projects.ts"
   }
 }
 ```
 
-Switch back to exact published versions when a paper artifact must be frozen.
+Each simulation follows [ProjectType](packages/core/src/types/project.ts):
 
-## Minimal Project Example
+| Export | Purpose |
+| --- | --- |
+| `setup(settings)` | Required: create agents and return a model with its initial configuration |
+| `executionStatusChecker(config, model, history)` | Return `success`, `failure`, or `inProgress`; required for checks and configuration graphs |
+| `settingsGenerator()` | Generate settings for `check` and `check-all` |
+| `drawConfig(ctx, config, model, options)` | Draw a configuration on a canvas; options include its center, radius, agent/node sizes, and labels |
+| `getAgentsRenderInfo(...)` | Provide agent positions and identifiers for selection |
+| `debugConfig(config, model)` | Describe a configuration; required for CLI graph export |
+| `editorSchema` | Describe editable settings and defaults |
+| `getAlgorithmViewInfo(config)` | Provide structured pseudocode and agent line highlights |
 
-This example uses the ring model from `@bramas/simulant-core@0.1.0`. A project exports a `projects` map; each entry exposes a `setup` function that returns a model instance.
+For a web interface, use `SimulatorApp` from `@bramas/simulant-ui/SimulatorApp`, passing `projects`, a title, and a project-specific `storageKey`. The [black-hole-search App](projects/black-hole-search/web/src/App.tsx) shows how to add presets and a graph worker. Its [worker](projects/black-hole-search/web/src/workers/graph-worker.ts) delegates traversal to the shared `handleGraphRequest` function from `@bramas/simulant-core/lib/config-graph`.
+
+Workspace web apps share Vite defaults:
 
 ```ts
-// projects.ts
-import { Config } from '@bramas/simulant-core/lib/system';
-import Ring, {
-  Actions,
-  AbstractGraphAgent,
-  type RingConfigType,
-} from '@bramas/simulant-core/models/ring';
-import type { ProjectType } from '@bramas/simulant-core/types/project';
-
-type Memory = {
-  moving: boolean;
-};
-
-class Walker extends AbstractGraphAgent<Memory> {
-  moving = true;
-
-  constructor(id: number, position: number) {
-    super(id, position);
-  }
-
-  visibleMemory(): Memory {
-    return { moving: this.moving };
-  }
-
-  action_simpl(view: Memory[]): Actions {
-    return view.length > 0 ? Actions.IDLE : Actions.CLOCKWISE;
-  }
-
-  clone(): Walker {
-    const clone = new Walker(this._id, this._pos);
-    clone.moving = this.moving;
-    return clone;
-  }
-}
-
-type MyConfig = RingConfigType<Walker, Memory, null>;
-
-export const projects = {
-  'basic-ring-walk': {
-    setup: (settings: { N?: number }) => {
-      const N = settings.N ?? 8;
-      const agents = [new Walker(0, 0), new Walker(1, 3)];
-      const initialConfig = new Config() as MyConfig;
-
-      for (const agent of agents) {
-        initialConfig.addAgent(agent._pos, agent);
-      }
-
-      return Ring(N, agents, initialConfig);
-    },
-    editorSchema: {
-      fields: [{ key: 'N', label: 'Ring size', type: 'number', defaultValue: 8, min: 3 }],
-    },
-  },
-} satisfies Record<string, ProjectType<MyConfig>>;
+// web/vite.config.ts
+import { projectViteConfig } from '../../../scripts/project-vite-config';
+export default projectViteConfig('my-paper');
 ```
 
-For a web page using the default simulator UI:
-
-```tsx
-// web/src/App.tsx
-import { SimulatorApp } from '@bramas/simulant-ui/SimulatorApp';
-import { projects } from '../../projects';
-
-export default function App() {
-  return (
-    <SimulatorApp
-      title="Basic Ring Walk"
-      projects={projects}
-      createGraphWorker={() =>
-        new Worker(new URL('./workers/graph-worker.ts', import.meta.url), { type: 'module' })
-      }
-      storageKey="basic-ring-walk-settings-v1"
-    />
-  );
+```json
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": { "types": ["vite/client"] },
+  "include": ["src", "../src"]
 }
 ```
 
-```ts
-// web/src/workers/graph-worker.ts
-import { execute } from '@bramas/simulant-core/lib/system';
-import { projects } from '../../../projects';
+Private projects one level deeper use `../../../../` for these relative paths and `projectViteConfig('private/my-paper')` for a separate output directory. Independent repositories use their own build configuration and depend on the simulator packages.
 
-self.onmessage = (event) => {
-  const { project, settings, path } = event.data;
-  const model = projects[project].setup(settings);
-  const graph = execute(model);
+Rendering and status checks should read `config.agents()`. `clone_agents()` can replay generator histories and should be reserved for advancing the simulation. Graph rendering caches its execution across pan and zoom changes. Graph generation can prune repeated states using `debugConfig`; that output must distinguish relevant states. Repeated unfinished states remain `inProgress`. Graph node `childrenCount` reports explored children, with zero for terminal, repeated, and depth-limited nodes.
 
-  self.postMessage({
-    config: graph.get(path),
-    childCount: graph.getChildrenCount(path),
-    siblingCount: graph.getSiblingCount(path),
-  });
-};
-```
+To regenerate structured pseudocode from the local `latex-algo/` sources, run `pnpm convert-algorithms`. Convert one file with `pnpm convert-algo <input.tex> <output.ts>`. The black-hole-search output lives in `projects/black-hole-search/src/algorithms/`.
 
-In practice, most papers also add `drawConfig`, `getAgentsRenderInfo`, `executionStatusChecker`, and presets, but the core contract is the same: define agents, choose a model, return a `SystemInfo`.
+## Publishing and reproducibility
 
-## Publishing Public Pages
+To publish a project's web page, add a `web/` app and a package `build` script, use `projectViteConfig(<slug>)` to build into `dist/<slug>`, and add its metadata to [public-projects.mjs](apps/public-site/src/public-projects.mjs). `pnpm build` builds the listed projects and the landing page into `dist/`.
 
-The public site is generated by `scripts/build-public-site.mjs`. It builds every public project listed in `apps/public-site/src/public-projects.mjs`, then builds `apps/public-site/` into `dist/`.
+[The Pages workflow](.github/workflows/pages.yml) deploys `dist/` to GitHub Pages. Set the repository's Pages source to **GitHub Actions**.
 
-GitHub Pages deployment is configured in `.github/workflows/pages.yml`. In the GitHub repository settings, set Pages source to **GitHub Actions**.
+[The package release workflow](.github/workflows/release-packages.yml) publishes core, UI, and CLI packages to GitHub Packages. It runs manually or on tags matching `simulator-v*`, after typechecking and tests. Update package versions under `packages/` and the lockfile before releasing changed contents.
 
-## Package Releases
+For a paper artifact, record exact package versions or commits and tag the repository state, for example `paper-black-hole-search-v1`. `workspace:*` tracks the current local package; it does not preserve an older simulator version. Keep old artifacts reproducible through exact external package versions or their repository tag.
 
-`.github/workflows/release-packages.yml` publishes:
+## License and citation
 
-- `@bramas/simulant-core`
-- `@bramas/simulant-ui`
-
-It runs manually from GitHub Actions or when pushing a tag matching `simulator-v*`. Before tagging a release, bump the package versions in `packages/core/package.json` and `packages/simulator-ui/package.json`.
-
-## Author
-
-Simulant is developed by Quentin Bramas.
-
-## License
-
-This software is distributed under the CeCILL-B free software license. See [LICENCE.txt](./LICENCE.txt).
+Simulant is distributed under the CeCILL-B license. See [LICENCE.txt](LICENCE.txt).
 
 If you use this simulator or the black-hole-search artifact, please cite:
 
 > François Bonnet, Quentin Bramas, and Anissa Lamani. Searching for an Eventually-Emerging Black Hole in Rings. In 5th Symposium on Algorithmic Foundations of Dynamic Networks (SAND 2026).
-
-See [PUBLICATION.md](./PUBLICATION.md) for the versioning strategy used when publishing paper code.

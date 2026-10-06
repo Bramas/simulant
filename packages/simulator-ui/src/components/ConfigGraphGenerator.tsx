@@ -1,39 +1,10 @@
-import { createSignal, For, Show, createEffect, onMount, onCleanup } from "solid-js";
+import { createMemo, createSignal, For, Show, createEffect, onMount, onCleanup } from "solid-js";
 import { execute } from "@bramas/simulant-core/lib/system";
 
 export type ExecutionStatus = 'success' | 'failure' | 'inProgress';
 
-export type GraphNode = {
-  path: number[];
-  status: 'success' | 'failure' | 'inProgress';
-  depth: number;
-  childrenCount: number;
-  x?: number;
-  y?: number;
-  configKey?: string;
-};
-
-export type WorkerRequest = {
-  type: 'generate';
-  maxDepth: number;
-  horizontalSpacing: number;
-  verticalSpacing: number;
-  settings: any;
-  projectName: string;
-};
-
-export type WorkerResponse = {
-  type: 'progress' | 'complete' | 'error';
-  nodes?: GraphNode[];
-  stats?: {
-    totalNodes: number;
-    successNodes: number;
-    failureNodes: number;
-    inProgressNodes: number;
-    maxDepthReached: number;
-  };
-  error?: string;
-};
+import type { GraphNode, WorkerRequest, WorkerResponse } from '@bramas/simulant-core/lib/config-graph';
+export type { GraphNode, WorkerRequest, WorkerResponse } from '@bramas/simulant-core/lib/config-graph';
 
 export interface ConfigGraphGeneratorProps<T, ConfigType, ModelType> {
   settings: T;
@@ -54,7 +25,7 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
   const [maxDepth, setMaxDepth] = createSignal(10);
   const [isGenerating, setIsGenerating] = createSignal(false);
   const [graph, setGraph] = createSignal<GraphNode[]>([]);
-  const [graphSettings, setGraphSettings] = createSignal<T | null>(null); // Settings used to generate the current graph
+  const [graphSettings, setGraphSettings] = createSignal<{ settings: T } | null>(null); // Settings used to generate the current graph
   const [viewMode, setViewMode] = createSignal<'list' | 'tree' | 'visual'>('list');
   const [selectedNode, setSelectedNode] = createSignal<GraphNode | null>(null);
   const [stats, setStats] = createSignal({
@@ -91,9 +62,12 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
   });
 
   const generateGraph = async () => {
+    worker?.terminate();
+    worker = undefined;
+    setSelectedNode(null);
     setIsGenerating(true);
     setGraph([]);
-    setGraphSettings(() => props.settings); // Store settings used for this graph
+    setGraphSettings({ settings: props.settings }); // Store settings used for this graph
     
     // Use worker if projectName is provided
     if (props.projectName) {
@@ -163,7 +137,7 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
   
   const exportGraph = () => {
     const data = {
-      settings: props.settings,
+      settings: graphSettings()?.settings,
       maxDepth: maxDepth(),
       stats: stats(),
       nodes: graph()
@@ -179,7 +153,7 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
   };
   
   const renderTree = (path: number[], indent: string = ''): any => {
-    const node = graph().find(n => n.path.join('-') === path.join('-'));
+    const node = nodesByPath().get(path.join('-'));
     if (!node) return null;
     
     const statusIcon = 
@@ -204,6 +178,17 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
     );
   };
   
+  const nodesByPath = createMemo(() => new Map(graph().map(node => [node.path.join('-'), node])));
+
+  // Keep the execution cache across redraws; panning and zooming only change canvas coordinates.
+  const graphExecution = createMemo(() => {
+    const saved = graphSettings();
+    if (!saved || !props.drawConfig) return null;
+    const model = props.setup(saved.settings);
+    // @ts-ignore - ModelType is supplied by the project.
+    return { model, execution: execute(model) };
+  });
+
   // Draw the visual graph on canvas
   createEffect(() => {
     const currentGraph = graph();
@@ -257,7 +242,7 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
       
       // Find parent
       const parentPath = node.path.slice(0, -1);
-      const parent = currentGraph.find(n => n.path.join('-') === parentPath.join('-'));
+      const parent = nodesByPath().get(parentPath.join('-'));
       
       if (parent && node.x !== undefined && node.y !== undefined && parent.x !== undefined && parent.y !== undefined) {
         // Only draw if parent or child is visible
@@ -290,13 +275,10 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(
     // Draw nodes - only if drawConfig is provided
     if (props.drawConfig) {
       // Use the settings that were used to generate the graph, not the current props.settings
-      const currentGraphSettings = graphSettings();
-      if (!currentGraphSettings) return;
-      
       try {
-        const model = props.setup(currentGraphSettings);
-        // @ts-ignore
-        const execution = execute(model);
+        const session = graphExecution();
+        if (!session) return;
+        const { model, execution } = session;
         
         for (const node of visibleNodes) {
           if (node.x === undefined || node.y === undefined) continue;

@@ -7,17 +7,20 @@
   "workspaces": [
     "apps/*",
     "packages/*",
-    "projects/*"
+    "projects/*",
+    "projects/private/*"
   ],
   "scripts": {
     "start": "pnpm --filter @bramas/simulant-project-example dev",
     "dev": "pnpm --filter @bramas/simulant-project-example dev",
     "build": "node scripts/build-public-site.mjs",
     "serve": "pnpm --filter @bramas/simulant-project-example serve",
-    "check": "tsx scripts/cli-checker.ts gathering-on-rings",
+    "check": "node packages/cli/bin/simulant.mjs check",
     "convert-algorithms": "bash scripts/convert-all-algorithms.sh",
     "convert-algo": "tsx scripts/latex-to-structured.ts",
-    "cli": "tsx scripts/cli.ts"
+    "cli": "node packages/cli/bin/simulant.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-isolation=none tests/*.test.ts"
   },
   "license": "CECILL-B",
   "devDependencies": {
@@ -25,10 +28,10 @@
     "tsx": "^4.7.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.0",
-    "vite-plugin-solid": "^2.11.0"
+    "vite-plugin-solid": "^2.11.0",
+    "@bramas/simulant-cli": "workspace:*"
   },
   "dependencies": {
-    "commander": "^14.0.2",
     "solid-js": "^1.9.3"
   }
 }

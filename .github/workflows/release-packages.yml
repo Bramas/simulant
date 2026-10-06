@@ -32,7 +32,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Publish core and simulator-ui
-        run: pnpm -r --filter @bramas/simulant-core --filter @bramas/simulant-ui publish --no-git-checks
+      - name: Validate workspace
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      - name: Publish core, simulator-ui, and CLI
+        run: pnpm -r --filter @bramas/simulant-core --filter @bramas/simulant-ui --filter @bramas/simulant-cli publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

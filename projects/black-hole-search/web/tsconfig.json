@@ -1,27 +1,12 @@
 {
+  "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "strict": true,
-    "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "node",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "jsx": "preserve",
-    "jsxImportSource": "solid-js",
-    "types": ["vite/client"],
-    "noEmit": true,
-    "isolatedModules": true,
-    "baseUrl": ".",
-    "paths": {
-      "@bramas/simulant-core/*": ["../../../packages/core/src/*"],
-      "@bramas/simulant-ui/*": ["../../../packages/simulator-ui/src/*"],
-      "@bramas/simulant-project-black-hole-search/*": ["../*"]
-    }
+    "types": [
+      "vite/client"
+    ]
   },
   "include": [
     "src",
-    "../",
-    "../../../packages/core/src",
-    "../../../packages/simulator-ui/src"
+    "../src"
   ]
 }
