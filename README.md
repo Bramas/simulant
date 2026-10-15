@@ -6,7 +6,7 @@ Simulant is a simulator toolkit for research on mobile entities and distributed 
 
 ## Getting started
 
-Use Node.js 22 (as in CI) or newer and pnpm 10.22.0.
+Use Node.js 24 (as in CI) or newer and pnpm 10.22.0.
 
 ```bash
 pnpm install

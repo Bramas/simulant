@@ -4,6 +4,8 @@ Read the [architecture](architecture.md), [language reference](sim-language.md) 
 
 ## Verification
 
+Use Node.js 24 or newer and pnpm 10.22.0 for workspace development. The published CLI's runtime requirement is separate from the workspace test requirement.
+
 Run commands from the repository root unless a working directory is shown. Node tests load TypeScript and `.sim` imports through the registered hooks.
 
 ```bash
