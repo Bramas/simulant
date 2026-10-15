@@ -1,5 +1,5 @@
 import { access, readFile, readdir } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { ProjectType } from '@bramas/simulant-core/types/project';
 
@@ -80,12 +80,28 @@ export async function listProjects(source: ProjectSourceOptions = {}): Promise<s
 
 /** Prefer the matching package so an unrelated private project cannot break a public command. */
 export async function loadProject(name: string, source: ProjectSourceOptions = {}): Promise<ProjectType<any, any>> {
+  return (await locateProject(name, source)).project;
+}
+
+/** A simulation and the directory of the package that registers it (its `package.json`). */
+export async function locateProject(name: string, source: ProjectSourceOptions = {}): Promise<{ project: ProjectType<any, any>; directory: string }> {
   const packages = await discoverProjectPackages(source);
   const matching = packages.filter(pkg => name === pkg.slug || name.startsWith(`${pkg.slug}-`));
   const candidates = matching.length ? matching : packages;
   for (const pkg of candidates) {
     const registry = await loadRegistry(pkg);
-    if (Object.hasOwn(registry, name)) return registry[name];
+    if (Object.hasOwn(registry, name)) return { project: registry[name], directory: await packageDirectory(pkg.registry) };
   }
   throw new Error(`Unknown project "${name}". Run simulant list-projects to see available simulations.`);
+}
+
+async function packageDirectory(registry: string): Promise<string> {
+  for (let dir = dirname(registry); ; dir = dirname(dir)) {
+    try {
+      await access(join(dir, 'package.json'));
+      return dir;
+    } catch {
+      if (dirname(dir) === dir) return dirname(registry);
+    }
+  }
 }

@@ -17,6 +17,21 @@
       ],
       "@bramas/simulant-ui/*": [
         "packages/simulator-ui/src/*"
+      ],
+      "@bramas/simulant-lang/*": [
+        "packages/lang/src/*"
+      ],
+      "@bramas/simulant-engine/*": [
+        "packages/engine/src/*"
+      ],
+      "@bramas/simulant-lean-gen/*": [
+        "packages/lean-gen/src/*"
+      ],
+      "@bramas/simulant-vite-plugin": [
+        "packages/vite-plugin/src/index.ts"
+      ],
+      "@bramas/simulant-vite-plugin/*": [
+        "packages/vite-plugin/src/*"
       ]
     },
     "allowJs": true

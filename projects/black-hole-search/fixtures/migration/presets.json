@@ -1,0 +1,371 @@
+{
+ "black-hole-search-algo0": [
+  {
+   "name": "Standard Ring (N=10)",
+   "settings": {
+    "N": 10,
+    "BH_node": 3
+   }
+  }
+ ],
+ "black-hole-search-algo1": [
+  {
+   "name": "Black hole at u3 round 7",
+   "settings": {
+    "N": 10,
+    "BH_node": 3
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null],[3,0,null]]]",
+    "[false,[[0,1,null],[1,1,null],[2,9,null],[3,9,null]]]",
+    "[false,[[0,2,null],[1,1,null],[2,0,null],[3,9,null]]]",
+    "[false,[[0,1,null],[1,1,null],[2,9,null],[3,9,null]]]",
+    "[false,[[0,2,null],[1,2,null],[2,0,null],[3,0,null]]]",
+    "[false,[[0,3,null],[1,2,null],[2,1,null],[3,0,null]]]",
+    "[false,[[0,2,null],[1,2,null],[2,0,null],[3,0,null]]]",
+    "[true,[[2,1,null],[3,1,null]]]"
+   ]
+  }
+ ],
+ "black-hole-search-algo2": [
+  {
+   "name": "Case 1",
+   "settings": {
+    "N": 10,
+    "BH_node": 0
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[true,[[1,2,null],[2,2,null]],[]]"
+   ]
+  },
+  {
+   "name": "Case 2",
+   "settings": {
+    "N": 10,
+    "BH_node": 2
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[true,[[0,0,null]],[]]"
+   ]
+  },
+  {
+   "name": "Case 3",
+   "settings": {
+    "N": 10,
+    "BH_node": 1
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[false,[[0,0,null],[1,2,null],[2,2,null]],[]]",
+    "[true,[[2,3,null]],[0]]"
+   ]
+  },
+  {
+   "name": "Case 4",
+   "settings": {
+    "N": 10,
+    "BH_node": 3
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[false,[[0,0,null],[1,2,null],[2,2,null]],[]]",
+    "[true,[[0,1,null],[1,1,null]],[0]]"
+   ]
+  },
+  {
+   "name": "Case 5",
+   "settings": {
+    "N": 10,
+    "BH_node": 0
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[false,[[0,0,null],[1,2,null],[2,2,null]],[]]",
+    "[false,[[0,1,null],[1,1,null],[2,3,null]],[0]]",
+    "[true,[[1,2,null],[2,3,null]],[0]]"
+   ]
+  },
+  {
+   "name": "Case 6",
+   "settings": {
+    "N": 10,
+    "BH_node": 2
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[false,[[0,0,null],[1,2,null],[2,2,null]],[]]",
+    "[false,[[0,1,null],[1,1,null],[2,3,null]],[0]]",
+    "[true,[[0,0,null],[2,3,null]],[0]]"
+   ]
+  },
+  {
+   "name": "Case 7",
+   "settings": {
+    "N": 10,
+    "BH_node": 3
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]],[]]",
+    "[false,[[0,9,null],[1,1,null],[2,1,null]],[]]",
+    "[false,[[0,0,null],[1,0,null],[2,2,null]],[9]]",
+    "[false,[[0,9,null],[1,1,null],[2,2,null]],[9]]",
+    "[false,[[0,0,null],[1,2,null],[2,2,null]],[]]",
+    "[false,[[0,1,null],[1,1,null],[2,3,null]],[0]]",
+    "[true,[[0,0,null],[1,2,null]],[0]]"
+   ]
+  }
+ ],
+ "black-hole-search-algo3": [
+  {
+   "name": "Black hole on traveler",
+   "settings": {
+    "N": 10,
+    "BH_node": 4
+   },
+   "path": [
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[false,[[0,1,null],[1,0,null],[2,0,null]]]"
+   ]
+  },
+  {
+   "name": "Black hole on waiter",
+   "settings": {
+    "N": 10,
+    "BH_node": 9
+   },
+   "path": [
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[false,[[0,1,null],[1,0,null],[2,0,null]]]",
+    "[true,[[0,2,null],[1,0,null]]]"
+   ]
+  },
+  {
+   "name": "Black hole on 2 agents",
+   "settings": {
+    "N": 10,
+    "BH_node": 0
+   },
+   "path": [
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[true,[[0,1,null]]]"
+   ]
+  }
+ ],
+ "black-hole-search-algo4": [
+  {
+   "name": "Black hole on a_3",
+   "settings": {
+    "N": 10,
+    "BH_node": 4
+   },
+   "path": [
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]"
+   ]
+  },
+  {
+   "name": "Black hole on a_1",
+   "settings": {
+    "N": 10,
+    "BH_node": 8
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]",
+    "[false,[[0,8,null],[1,0,null],[2,1,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]"
+   ]
+  },
+  {
+   "name": "Black hole on a_1 and a_2",
+   "settings": {
+    "N": 10,
+    "BH_node": 9
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]",
+    "[false,[[0,8,null],[1,0,null],[2,1,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]",
+    "[true,[[2,0,null]]]"
+   ]
+  },
+  {
+   "name": "Black hole on a_2 and a_3",
+   "settings": {
+    "N": 10,
+    "BH_node": 0
+   },
+   "path": [
+    0,
+    0,
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]",
+    "[false,[[0,8,null],[1,0,null],[2,1,null]]]",
+    "[false,[[0,9,null],[1,0,null],[2,1,null]]]",
+    "[true,[[0,9,null],[1,9,null]]]"
+   ]
+  }
+ ],
+ "black-hole-search-algo5": [
+  {
+   "name": "Black hole on u_4",
+   "settings": {
+    "N": 10,
+    "BH_node": 4
+   },
+   "path": [
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null],[3,0,null],[4,0,null],[5,0,null],[6,0,null],[7,0,null],[8,0,null],[9,0,null]]]",
+    "[false,[[0,1,0],[1,0,1],[2,1,2],[3,0,3],[4,1,4],[5,0,5],[6,1,6],[7,0,7],[8,1,8],[9,0,9]]]"
+   ]
+  }
+ ],
+ "black-hole-search-algo6": [
+  {
+   "name": "Black hole on u_4",
+   "settings": {
+    "N": 10,
+    "BH_node": 4
+   },
+   "path": [
+    0,
+    0,
+    1
+   ],
+   "views": [
+    "[false,[[0,0,null],[1,0,null],[2,0,null],[3,0,null]],[]]",
+    "[false,[[0,1,null],[1,1,null],[2,0,null],[3,0,null]],[]]"
+   ]
+  }
+ ]
+}

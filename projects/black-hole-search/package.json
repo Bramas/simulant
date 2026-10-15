@@ -11,14 +11,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
-    "./projects": "./src/projects.ts",
-    "./algo0": "./src/simulations/algo0.ts",
-    "./algo1": "./src/simulations/algo1.ts",
-    "./algo2": "./src/simulations/algo2.ts",
-    "./algo3": "./src/simulations/algo3.ts",
-    "./algo4": "./src/simulations/algo4.ts",
-    "./algo5": "./src/simulations/algo5.ts",
-    "./algo6": "./src/simulations/algo6.ts"
+    "./projects": "./src/projects.ts"
   },
   "dependencies": {
     "@bramas/simulant-core": "workspace:*",

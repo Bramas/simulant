@@ -1,0 +1,157 @@
+/-! Algorithm 0 of the black-hole-search paper (Small Rings): on a ring of 2 nodes, the agents
+find out from who they meet, and identify the hole there; otherwise a₁, a₂ and a₃ run
+Algorithm 4, and a₄ waits. Migrated from `src/simulations/algo0.ts` (plan, Phase 7), whose
+behaviour it follows (its Algorithm 4 differs slightly from
+`sim/algo4.sim`: a₁ and a₃ have already moved, and a₂ does not wait first). -/
+
+import "std/models.sim"
+import "std/tasks.sim"
+
+algorithm SmallRings uses otherStates where
+  Pub := { id : Nat, foundN : Bool, bhDir : Option Move, bhSteps : Nat }
+  output claimDir := pub.bhDir
+  output claimSteps := pub.bhSteps
+  init i := { pub := { id := i, foundN := false, bhDir := none, bhSteps := 0 } }
+
+  def lead (dir : Move) :=
+    repeat
+      move dir
+      move dir.opposite
+      move dir
+
+  def follow (leader : Nat) (dir : Move) :=
+    repeat
+      stay
+      stay
+      if !(otherStates.any (·.id = leader)) then
+        pub := { pub with bhDir := some dir, bhSteps := 1 }
+        halt
+      move dir
+
+  /-- Algorithm 4 as agent a₁. -/
+  def asA1 :=
+    let rl : Nat := 1
+    repeat
+      if !otherStates.isEmpty then
+        lead .ccw
+      move .ccw
+      wait rl - 1
+      if !otherStates.isEmpty then
+        pub := { pub with foundN := true }
+      wait rl - 1
+      move .cw
+      stay
+      if otherStates.isEmpty then
+        pub := { pub with bhDir := some .cw, bhSteps := 1 }
+        halt
+      stay
+      stay
+      if !pub.foundN then
+        rl := rl + 1
+
+  /-- Algorithm 4 as agent a₂. -/
+  def asA2 :=
+    let rl : Nat := 1
+    repeat
+      wait 2 * rl
+      move .ccw
+      if otherStates.isEmpty then
+        pub := { pub with bhDir := some .ccw, bhSteps := 2 }
+        move .cw
+        halt
+      if otherStates.any (·.foundN) then
+        pub := { pub with foundN := true }
+      move .cw
+      if otherStates.isEmpty then
+        move .ccw
+        follow 0 .ccw
+      stay
+      if !pub.foundN then
+        rl := rl + 1
+
+  /-- Algorithm 4 as agent a₃. -/
+  def asA3 :=
+    let rl : Nat := 1
+    let k : Nat := 0
+    repeat
+      k := 0
+      while k + 1 < rl
+        k := k + 1
+        move .cw
+      stay
+      if !otherStates.isEmpty then
+        pub := { pub with foundN := true }
+      stay
+      k := 0
+      while k + 1 < rl
+        k := k + 1
+        move .ccw
+      move .ccw
+      stay
+      if otherStates.isEmpty then
+        pub := { pub with bhDir := some .ccw, bhSteps := 1 }
+        halt
+      if otherStates.any (·.bhDir.isSome) then
+        -- Adopt the claim of an agent here (it is on the same node, so it holds for me too); if
+        -- several differ, the counterclockwise one first, then the farthest, whatever their order.
+        let ccw := otherStates.any (·.bhDir = some .ccw)
+        let far := otherStates.any (fun o => o.bhDir = some .ccw ∧ o.bhSteps = 2)
+        pub := { pub with bhDir := some (if ccw then Move.ccw else Move.cw), bhSteps := if far then 2 else 1 }
+        halt
+      move .cw
+      if !pub.foundN then
+        rl := rl + 1
+
+  main :=
+    let collocated : Nat := 0
+    if pub.id = 0 then
+      move .ccw
+      -- Meeting a₃ alone: the ring has 2 nodes.
+      if otherStates.length = 1 then
+        pub := { pub with foundN := true }
+        repeat
+          move .ccw
+      stay
+      asA1
+    else if pub.id = 1 then
+      stay
+      collocated := otherStates.length
+      stay
+      if otherStates.length > collocated then
+        stay
+        repeat
+          stay
+          if otherStates.length = collocated then
+            -- On 2 nodes, the hole is the other node.
+            pub := { pub with bhDir := some .cw, bhSteps := 1 }
+            halt
+          stay
+      asA2
+    else if pub.id = 2 then
+      move .cw
+      if otherStates.length = 1 then
+        pub := { pub with foundN := true }
+        stay
+        repeat
+          stay
+          if otherStates.isEmpty then
+            pub := { pub with bhDir := some .cw, bhSteps := 1 }
+            halt
+          stay
+      stay
+      asA3
+    else
+      halt
+
+/-- The settings of the paper's checks: rings of 2 to 4 nodes, the hole anywhere. -/
+experiment algo0 where
+  model := blackHoleRing .mayEmerge .unknown
+  algorithm := SmallRings
+  task := IdentifyEmergingBlackHoleAt
+  param N : Nat := (range 5).filter (· ≥ 2)
+  param site : Node := (range N).map node
+  agents := 4
+  position i := node 0
+  -- When an agent disappears before a₁ and a₃ meet, their exploration limit grows forever:
+  -- the state space is infinite, and checks explore at most this many states.
+  limits := { states := 100000 }

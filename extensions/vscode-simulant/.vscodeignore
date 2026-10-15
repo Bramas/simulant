@@ -1,0 +1,8 @@
+src/**
+scripts/**
+test/**
+node_modules/**
+*.vsix
+dist/*.vsix
+dist/language-service.mjs*
+dist/*.map

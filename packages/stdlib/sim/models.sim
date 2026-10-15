@@ -1,0 +1,32 @@
+/-! Model families of the reference projects (plan, Sections 1.1 and 3.7). -/
+
+import "./sensors.sim"
+import "./components.sim"
+
+inductive SizeKnowledge | unknown | known
+
+/-- The black-hole family: three hole policies, known or unknown size, any extra components. -/
+def blackHoleRing (policy : HolePolicy) (size : SizeKnowledge) (extra : List Component := [])
+    (topology : Topology := Ring) (view : Sensor := otherStates) (round : Round := .fsync) : Model where
+  topology := topology
+  sensors := [view] ++ (if size = .known then [ringSize] else [])
+  components := [Hazards.BlackHole policy] ++ extra
+  round := round
+
+/-- Oblivious robots with a global view. -/
+def obliviousRing (topology : Topology := Ring) (view : Sensor := ringPresence)
+    (frame : FrameModel := Frames.dynamicReflection) (components : List Component := [])
+    (round : Round := .fsync) : Model where
+  topology := topology
+  sensors := [view]
+  memory := .oblivious
+  frame := frame
+  components := components
+  round := round
+
+def gatheringWithCrash : Model := obliviousRing (components := [Faults.CrashAtNode])
+
+def dynamicRingRobots (components : List Component := []) : Model :=
+  obliviousRing (topology := DynamicRing 1) (view := ringCount) (frame := Frames.common) (components := components)
+
+def dynamicRingBH : Model := blackHoleRing .mayEmerge .unknown (topology := DynamicRing 1)

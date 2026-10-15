@@ -1,118 +1,200 @@
-import { createMemo, createSignal, onCleanup, onMount, Show, type Component, createEffect, For, Switch, Match } from 'solid-js';
-import { execute } from '@bramas/simulant-core/lib/system';
-import { Dynamic } from 'solid-js/web';
-import type { ProjectType, PredefinedSetting } from '@bramas/simulant-core/types/project';
+/**
+ * The simulator page, in two views. The simulation: an execution of the selected experiment,
+ * step by step. The execution toolbar is on top (rounds, the adversary's choices, the path), the
+ * configuration and its state on the left, the algorithm on the right, the settings and saved
+ * settings below, then the configuration graph. The model (`#model`): the experiment's semantics
+ * and the declarations it is built from, as written, to compare with the paper.
+ */
+import { batch, createEffect, createMemo, createSignal, For, onCleanup, onMount, Show, type Component } from 'solid-js';
+import type { ExecutionLike, ProjectType, PredefinedSetting } from '@bramas/simulant-core/types/project';
 import { ConfigGraphGenerator } from './components/ConfigGraphGenerator';
-import { GenericEditor } from './components/GenericEditor';
+import { formValues, GenericEditor } from './components/GenericEditor';
 import { AlgorithmViewer } from './components/AlgorithmViewer';
+import { StateInspector } from './components/StateInspector';
+import { ModelView } from './components/ModelView';
+import { SettingsLibrary, type SavedSetting } from './components/SettingsLibrary';
+import { BranchPicker, type Branch } from './components/BranchPicker';
+import { distinguishing, distinguishingChoices } from './sim/branches';
 
 export type { PredefinedSetting } from '@bramas/simulant-core/types/project';
 
 export interface SimulatorAppProps {
   projects: Record<string, ProjectType<any, any>>;
   title?: string;
-  checker?: Component;
   storageKey?: string;
   getPredefinedSettings?: (project: string) => PredefinedSetting[];
   createGraphWorker?: () => Worker;
 }
 
 const DEFAULT_STORAGE_KEY = 'project_settings_v2';
+const THEME_KEY = 'simulant-theme';
+const CANVAS = { width: 500, height: 300 };
 
-function getSavedSettings(storageKey: string, project: string) {
-  const all = JSON.parse(localStorage.getItem(storageKey) || '{}');
-  return all[project] || [];
-}
-
-function saveSettings(storageKey: string, project: string, name: string, settings: any, path?: number[]) {
-  const all = JSON.parse(localStorage.getItem(storageKey) || '{}');
-  if (!all[project]) all[project] = [];
-  let baseName = name;
-  let counter = 1;
-  let newName = baseName;
-  const existingNames = all[project].map((s: any) => s.name);
-  while (existingNames.includes(newName)) {
-    newName = `${baseName} (${counter})`;
-    counter++;
-  }
-  all[project].push({ name: newName, settings, path });
-  localStorage.setItem(storageKey, JSON.stringify(all));
-}
-
-function deleteSettings(storageKey: string, project: string, name: string) {
-  const all = JSON.parse(localStorage.getItem(storageKey) || '{}');
-  if (!all[project]) return;
-  all[project] = all[project].filter((s: any) => s.name !== name);
-  localStorage.setItem(storageKey, JSON.stringify(all));
-}
-
-function encodeSettingForUrl(project: string, settings: any, path?: number[]) {
-  const payload = JSON.stringify({ project, settings, path });
-  return btoa(encodeURIComponent(payload));
-}
-
-function decodeSettingFromUrl(encoded: string) {
+// Browser storage may be unavailable (private windows, blocked site data): the page works without it.
+function readStorage(key: string): any {
   try {
-    const decoded = decodeURIComponent(atob(encoded));
-    return JSON.parse(decoded);
+    return JSON.parse(localStorage.getItem(key) || 'null');
   } catch {
     return null;
   }
 }
+function writeStorage(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Not saved: nothing else to do.
+  }
+}
+
+function getSavedSettings(storageKey: string, project: string): SavedSetting[] {
+  return (readStorage(storageKey) ?? {})[project] ?? [];
+}
+
+function saveSettings(storageKey: string, project: string, name: string, settings: any, path?: number[]) {
+  const all = readStorage(storageKey) ?? {};
+  const existing: SavedSetting[] = all[project] ?? [];
+  let unique = name;
+  for (let counter = 1; existing.some(s => s.name === unique); counter++) unique = `${name} (${counter})`;
+  all[project] = [...existing, { name: unique, settings, path }];
+  writeStorage(storageKey, all);
+}
+
+function deleteSettings(storageKey: string, project: string, name: string) {
+  const all = readStorage(storageKey) ?? {};
+  if (!all[project]) return;
+  all[project] = all[project].filter((s: SavedSetting) => s.name !== name);
+  writeStorage(storageKey, all);
+}
+
+function encodeSettingForUrl(project: string, settings: any, path?: number[]) {
+  return btoa(encodeURIComponent(JSON.stringify({ project, settings, path })));
+}
+
+function decodeSettingFromUrl(encoded: string) {
+  try {
+    return JSON.parse(decodeURIComponent(atob(encoded)));
+  } catch {
+    return null;
+  }
+}
+
+/** Whether a key press belongs to a form field rather than to the page's shortcuts. */
+const typing = (e: KeyboardEvent) => {
+  const t = e.target as HTMLElement | null;
+  return !!t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
+};
+
+const VERDICT_TEXT = { success: 'success', failure: 'failure', inProgress: 'not yet' } as const;
+/** What a configuration's verdict says about the execution, under each goal of the task. */
+const VERDICT_TITLE = {
+  eventually: {
+    success: 'The task is achieved: the execution succeeds here.',
+    failure: 'The task fails in this configuration.',
+    inProgress: 'The task is not achieved yet.',
+  },
+  eventuallyAlways: {
+    success: 'The task holds in this configuration; the execution succeeds if it keeps holding from some round on.',
+    failure: 'The task fails in this configuration.',
+    inProgress: 'The task does not hold in this configuration (yet).',
+  },
+  safety: {
+    success: 'No failure in this configuration.',
+    failure: 'The task fails in this configuration.',
+    inProgress: 'No failure in this configuration.',
+  },
+} as const;
 
 export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
   const Projects = props.projects;
   const projectKeys = Object.keys(Projects);
   const storageKey = props.storageKey ?? DEFAULT_STORAGE_KEY;
   const getPredefinedSettings = props.getPredefinedSettings ?? (() => []);
-  const Checker = props.checker;
-
-  const [projectUserSettings, setProjectUserSettings] = createSignal(null);
-  
-  // Tab selection state
-  const [activeTab, setActiveTab] = createSignal<'simulator' | 'checker'>('simulator');
-  
-  // Track the path in the execution tree: [0, childIndex1, childIndex2, ...]
-  // [0] is the root, [0, 2] is the 3rd child of root, etc.
-  const [executionPath, setExecutionPath] = createSignal<number[]>([0]);
-  const [indexInPath, setIndexInPath] = createSignal<number>(0);
-  
-  // Canvas and agent selection
-  const [selectedAgent, setSelectedAgent] = createSignal<any>(null);
-  const [showConfigGraph, setShowConfigGraph] = createSignal(false);
-
-  let canvas: HTMLCanvasElement | undefined;
 
   const [project, setProject] = createSignal(projectKeys[0]);
+  const [projectUserSettings, setProjectUserSettings] = createSignal<any>(null);
+  // The path in the execution tree: [initial configuration, child index, child index, ...].
+  const [executionPath, setExecutionPath] = createSignal<number[]>([0]);
+  const [indexInPath, setIndexInPath] = createSignal(0);
+  const [selectedAgent, setSelectedAgent] = createSignal<any>(null);
+  // The view, in the URL's hash so that a link can open the model.
+  const viewOfHash = () => window.location.hash === '#model' ? 'model' as const : 'simulation' as const;
+  const [view, setView] = createSignal(viewOfHash());
+  const showView = (v: 'simulation' | 'model') => {
+    setView(v);
+    history.replaceState(null, '', `${window.location.pathname}${window.location.search}${v === 'model' ? '#model' : ''}`);
+  };
+  const onHash = () => setView(viewOfHash());
+  window.addEventListener('hashchange', onHash);
+  onCleanup(() => window.removeEventListener('hashchange', onHash));
+  const [showConfigGraph, setShowConfigGraph] = createSignal(false);
   const [setupLog, setSetupLog] = createSignal('');
+  const [toast, setToast] = createSignal('');
+  let canvas: HTMLCanvasElement | undefined;
 
-  const [darkMode, setDarkMode] = createSignal(false);
-  
-  const [showGraphGenerator, setShowGraphGenerator] = createSignal(false);
+  const goTo = (path: number[], index = 0) => batch(() => {
+    setExecutionPath(path.length ? path : [0]);
+    setIndexInPath(Math.min(index, Math.max(0, path.length - 1)));
+    setSelectedAgent(null);
+  });
 
-  function toggleDarkMode() {
-    setDarkMode(v => {
-      const newVal = !v;
-      // set attribute to html, data-theme="light" or data-theme="dark"
-      document.documentElement.setAttribute('data-theme', newVal ? 'dark' : 'light');
-      return newVal;
+  // Theme: the system's, unless the user picked one (remembered).
+  const systemDark = () => !!window.matchMedia?.('(prefers-color-scheme: dark)').matches;
+  const [theme, setTheme] = createSignal<'light' | 'dark' | null>(readStorage(THEME_KEY));
+  const dark = () => (theme() ?? (systemDark() ? 'dark' : 'light')) === 'dark';
+  createEffect(() => {
+    const t = theme();
+    if (t) document.documentElement.setAttribute('data-theme', t);
+    else document.documentElement.removeAttribute('data-theme');
+  });
+  const toggleTheme = () => {
+    const next = dark() ? 'light' : 'dark';
+    setTheme(next);
+    writeStorage(THEME_KEY, next);
+  };
+
+  let toastTimer: ReturnType<typeof setTimeout> | undefined;
+  const notify = (text: string) => {
+    setToast(text);
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => setToast(''), 2500);
+  };
+  onCleanup(() => clearTimeout(toastTimer));
+
+  // Development updates of the sources (plan, Section 6.7): `projectRevision` restarts the
+  // project, `redrawTick` redraws the current configuration, `updateNotice` says what happened.
+  const [projectRevision, setProjectRevision] = createSignal(0);
+  const [redrawTick, setRedrawTick] = createSignal(0);
+  const [updateNotice, setUpdateNotice] = createSignal<{ outOfDate: boolean; text: string } | null>(null);
+  createEffect(() => {
+    const current = Projects[project()];
+    setUpdateNotice(null);
+    if (!current.subscribe) return;
+    const unsubscribe = current.subscribe(update => {
+      if (update.kind === 'redraw') {
+        setUpdateNotice(n => n?.outOfDate ? null : n);
+        setRedrawTick(t => t + 1);
+      } else if (update.kind === 'failed') {
+        setUpdateNotice({ outOfDate: true, text: update.diagnostics.join('\n') });
+      } else {
+        const { settings, notes } = update.adjust(projectUserSettings());
+        batch(() => {
+          setUpdateNotice(notes.length ? { outOfDate: false, text: notes.join('\n') } : null);
+          setProjectUserSettings(settings);
+          goTo([0]);
+          setProjectRevision(r => r + 1);
+        });
+      }
     });
-  }
-
-  onMount(() => {
-    // Set initial mode based on prefers-color-scheme
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    setDarkMode(prefersDark);
-    document.body.classList.toggle('dark-mode', prefersDark);
+    onCleanup(unsubscribe);
   });
 
   const startedProject = createMemo(() => {
+    projectRevision();
     try {
-      const baseModel = Projects[project()].setup(projectUserSettings());
+      const current = Projects[project()];
+      const baseModel = current.setup(projectUserSettings());
       setSetupLog('');
-      // @ts-ignore - Different projects use different agent types
-      const execution = execute(baseModel);
-      return { baseModel, execution };
+      return { baseModel, execution: current.execute(baseModel) };
     } catch (e) {
       console.error('Project setup failed:', e);
       setSetupLog(e instanceof Error ? e.message : String(e));
@@ -120,529 +202,443 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
     }
   });
 
-  const [savedSettings, setSavedSettings] = createSignal(getSavedSettings(storageKey, project()));
-
-  const predefinedSettings = createMemo(() => getPredefinedSettings(project()));
-
-  // Update savedSettings when project changes
-  createMemo(() => {
-    setSavedSettings(getSavedSettings(storageKey, project()));
-    return project();
-  });
-
-  function handleSaveSettings() {
-    const name = prompt('Enter a name for these settings:');
-    if (!name) return;
-    const pathToSave = executionPath().slice(0, indexInPath() + 1);
-    saveSettings(storageKey, project(), name, projectUserSettings(), pathToSave);
-    setSavedSettings(getSavedSettings(storageKey, project()));
-  }
-
-  function handleLoadSettings(settingsData: any) {
-    console.log('Loading settings:', settingsData);
-    if (settingsData.settings !== undefined) {
-      // New format with path
-      setProjectUserSettings(settingsData.settings);
-      if (settingsData.path && Array.isArray(settingsData.path)) {
-        setExecutionPath(settingsData.path);
-        setIndexInPath(0);
-      } else {
-        setExecutionPath([0]);
-        setIndexInPath(0);
-      }
-    } else {
-      // Old format - just settings
-      setProjectUserSettings(settingsData);
-      setExecutionPath([0]);
-      setIndexInPath(0);
-    }
-  }
-
-  function handleDeleteSettings(name: string) {
-    if (confirm('Delete saved settings "' + name + '"?')) {
-      deleteSettings(storageKey, project(), name);
-      setSavedSettings(getSavedSettings(storageKey, project()));
-    }
-  }
-
-  function handleShareSettings(project: string, settingsData: any) {
-    const settings = settingsData.settings !== undefined ? settingsData.settings : settingsData;
-    const path = settingsData.path;
-    const encoded = encodeSettingForUrl(project, settings, path);
-    const url = `${window.location.origin}${window.location.pathname}?shared=${encoded}`;
-    window.prompt('Share this URL:', url);
-  }
+  const canExplore = createMemo(() => !updateNotice()?.outOfDate && !!startedProject().execution);
+  const currentPath = () => executionPath().slice(0, indexInPath() + 1);
 
   const config = createMemo(() => {
-    if(!startedProject().baseModel || !startedProject().execution) return null;
-    
+    const { execution } = startedProject();
+    if (!execution) return null;
     try {
-      const pathToIndex = executionPath().slice(0, indexInPath() + 1);
-      // @ts-ignore
-      return startedProject().execution.get(pathToIndex);
+      return execution.get(currentPath());
     } catch (e) {
       console.error('Error getting config at path', executionPath(), e);
       return null;
     }
   });
 
-  const algorithmViewInfo = createMemo(() => {
-    const currentConfig = config();
-    return currentConfig ? Projects[project()].getAlgorithmViewInfo?.(currentConfig) : undefined;
+  // The settings the execution runs: the form's defaults, overridden by the user's.
+  const editorSchema = createMemo(() => (projectRevision(), Projects[project()].editorSchema));
+  const effectiveSettings = createMemo(() => {
+    const schema = editorSchema();
+    return schema ? formValues(schema, projectUserSettings()) : projectUserSettings() ?? {};
   });
-  
-  // Effect to draw on canvas when config changes
+
+  /** The task's verdict on the current configuration, with what it means under the task's goal. */
+  const verdict = createMemo(() => {
+    redrawTick();
+    const c = config();
+    const { execution, baseModel } = startedProject();
+    const current = Projects[project()];
+    if (!c || !execution) return undefined;
+    try {
+      if (current.verdict) {
+        const { verdict: v, goal } = current.verdict(c, baseModel);
+        return { status: v, text: VERDICT_TEXT[v], title: VERDICT_TITLE[goal][v] };
+      }
+      const path = currentPath();
+      const v = current.executionStatusChecker?.(c, baseModel, path.map((_, i) => execution.get(path.slice(0, i + 1))));
+      return v && { status: v, text: VERDICT_TEXT[v], title: "The task's verdict on this configuration" };
+    } catch {
+      return undefined;
+    }
+  });
+
+  const childCount = createMemo(() => {
+    const { execution } = startedProject();
+    if (!execution || !config()) return 0;
+    try {
+      return execution.getChildrenCount(currentPath());
+    } catch {
+      return 0;
+    }
+  });
+
+  /** The branches of the step that leads to `path`: its siblings, with their witnesses. */
+  const branchesAt = (path: number[], withVerdicts = true): Branch[] => {
+    const { execution, baseModel } = startedProject();
+    if (!execution) return [];
+    try {
+      const count = execution.getSiblingCount(path);
+      const parent = path.slice(0, -1);
+      const labels = Array.from({ length: count }, (_, i) =>
+        parent.length ? execution.getEdgeLabel?.([...parent, i]) || '' : `initial configuration ${i}`);
+      const witness = execution.getEdgeWitness;
+      const shorts = parent.length && witness
+        ? distinguishingChoices(Array.from({ length: count }, (_, i) => witness([...parent, i])))
+        : distinguishing(labels);
+      const verdict = Projects[project()].verdict;
+      return labels.map((label, i) => ({
+        index: i, label, short: shorts[i],
+        verdict: verdict && withVerdicts && count <= 200 ?verdict(execution.get([...parent, i]), baseModel).verdict : undefined,
+      }));
+    } catch {
+      return [];
+    }
+  };
+  const branches = createMemo(() => (redrawTick(), config() ? branchesAt(currentPath()) : []));
+  const [pickingBranch, setPickingBranch] = createSignal(false);
+  /** What distinguishes the step to round `i` from the other branches of that round. */
+  const stepLabel = (i: number) => {
+    if (i === 0) return 'initial configuration';
+    const path = executionPath().slice(0, i + 1);
+    const b = branchesAt(path, false)[path[i]];
+    return b ? b.short : '';
+  };
+  /** Draws a branch of the current step, small. */
+  const drawBranch = (index: number, ctx: CanvasRenderingContext2D, size: number) => {
+    const { execution, baseModel } = startedProject();
+    const draw = Projects[project()].drawConfig;
+    if (!execution || !draw) return;
+    const c = execution.get([...currentPath().slice(0, -1), index]);
+    draw(ctx, c, baseModel, { centerX: size / 2, centerY: size / 2, radius: size * 0.34, nodeRadius: 4, agentRadius: 4, showNodeLabels: false });
+  };
+
+  const inspected = createMemo(() => {
+    redrawTick();
+    const c = config();
+    const model = startedProject().baseModel;
+    return c && model ? Projects[project()].inspect?.(c, model) : undefined;
+  });
+
+  const algorithmViewInfo = createMemo(() => {
+    redrawTick();
+    const c = config();
+    const info = c ? Projects[project()].getAlgorithmViewInfo?.(c) : undefined;
+    if (!info) return undefined;
+    // Why each agent took its decision in the step that led here.
+    let explanations: ReturnType<NonNullable<ExecutionLike['explain']>> = [];
+    try {
+      explanations = startedProject().execution?.explain?.(currentPath()) ?? [];
+    } catch (e) {
+      console.error('Error explaining the step:', e);
+    }
+    return { ...info, agents: info.agents.map(a => ({ ...a, explanation: a.index !== undefined ? explanations[a.index] : undefined })) };
+  });
+
+  // Drawing, at the screen's resolution (renderers draw in CSS pixels).
   createEffect(() => {
-    const currentConfig = config();
+    redrawTick();
+    const c = config();
     const baseModel = startedProject().baseModel;
-    if (!canvas || !currentConfig || !baseModel) return;
-    
+    if (!canvas || !c || !baseModel) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    
-    // Clear canvas
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Use the project's drawConfig function if available
-    const currentProject = Projects[project()];
-    if (currentProject.drawConfig) {
-      try {
-        // @ts-ignore
-        currentProject.drawConfig(ctx, currentConfig, baseModel, {
-          centerX: 250,
-          centerY: 150,
-          radius: 100,
-          showNodeLabels: true
-        });
-      } catch (e) {
-        console.error('Error drawing config:', e);
-      }
+    const ratio = window.devicePixelRatio || 1;
+    if (canvas.width !== CANVAS.width * ratio) {
+      canvas.width = CANVAS.width * ratio;
+      canvas.height = CANVAS.height * ratio;
     }
-  });
-  
-  // Handle canvas clicks to select agents
-  const handleCanvasClick = (e: MouseEvent) => {
-    const currentConfig = config();
-    const baseModel = startedProject().baseModel;
-    if (!canvas || !currentConfig || !baseModel) return;
-    
-    const currentProject = Projects[project()];
-    if (!currentProject.getAgentsRenderInfo) return;
-    
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, CANVAS.width, CANVAS.height);
+    const current = Projects[project()];
     try {
-      // @ts-ignore
-      const agentsInfo = currentProject.getAgentsRenderInfo(
-        currentConfig,
-        baseModel,
-        250,
-        150,
-        100
-      );
-      
-      // Find clicked agent
-      for (const agentInfo of agentsInfo) {
-        const dx = x - agentInfo.position.x;
-        const dy = y - agentInfo.position.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distance <= 10) { // Click tolerance
-          // Get full agent details from config
-          // @ts-ignore
-          const node = currentConfig.get(agentInfo.nodeIndex);
-          const agent = node.agents.find((a: any) => a._id === agentInfo.agentId);
-          
-          setSelectedAgent({
-            ...agentInfo,
-            agent: agent,
-            round: indexInPath()
-          });
-          return;
-        }
-      }
-      
-      // Click outside agents - deselect
-      setSelectedAgent(null);
+      current.drawConfig?.(ctx, c, baseModel, { centerX: 250, centerY: 150, radius: 100, showNodeLabels: true });
     } catch (e) {
-      console.error('Error handling canvas click:', e);
+      console.error('Error drawing config:', e);
     }
-  };
-  
-  // Get the number of possible branches at the current step (siblings of current config)
-  const branchCount = createMemo(() => {
+  });
 
-    if (!startedProject().execution || executionPath().length === 0) return 1;
-    const pathToIndex = executionPath().slice(0, indexInPath() + 1);
-
+  // Clicking an agent selects it in the state inspector.
+  const handleCanvasClick = (e: MouseEvent) => {
+    const c = config();
+    const baseModel = startedProject().baseModel;
+    const current = Projects[project()];
+    if (!canvas || !c || !baseModel || !current.getAgentsRenderInfo) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = (e.clientX - rect.left) * CANVAS.width / rect.width;
+    const y = (e.clientY - rect.top) * CANVAS.height / rect.height;
     try {
-      // @ts-ignore
-      return startedProject().execution.getSiblingCount(pathToIndex);
-    } catch {
-      return 1;
+      const hit = current.getAgentsRenderInfo(c, baseModel, 250, 150, 100)
+        .find(a => Math.hypot(x - a.position.x, y - a.position.y) <= 10);
+      setSelectedAgent(hit ?? null);
+    } catch (err) {
+      console.error('Error handling canvas click:', err);
     }
-  });
-  
-  // Get the current branch index (last element of the path)
-  const currentBranchIndex = createMemo(() => {
-    const path = executionPath().slice(0, indexInPath() + 1);
-    return path.length > 1 ? path[path.length - 1] : 0;
-  });
-  
-  // Helper to go to next step
+  };
+
+  // Navigation
   const onNext = () => {
-    const path = executionPath();
-    if (indexInPath() < path.length - 1) {
-      setIndexInPath(v => v + 1);
-      return;
+    if (!canExplore()) return;
+    if (indexInPath() < executionPath().length - 1) {
+      setIndexInPath(i => i + 1);
+    } else if (childCount() > 0) {
+      batch(() => {
+        setExecutionPath(p => [...p, 0]);
+        setIndexInPath(i => i + 1);
+      });
     }
-
-    // Choose a random child ---> for now, always choose the first child
-    const randomChildIndex = 0 //startedProject().execution?.getRandomChildIndex(path) || 0;
-    setExecutionPath([...path, randomChildIndex]);
-    setIndexInPath(v => v + 1);
   };
-  
-  // Helper to go to previous step
   const onPrevious = () => {
-    if (indexInPath() >= 1) {
-      setIndexInPath(v => v - 1);
-    }
+    if (canExplore() && indexInPath() > 0) setIndexInPath(i => i - 1);
   };
-  
-  // Helper to change the branch at current step
-  const setBranchIndex = (index: number) => {
-    // changet the value at executionPath()[indexInPath()] to index
-    const path = executionPath().slice(0, indexInPath());
-    if (path.length > 0) {
-      setExecutionPath([...path, index]);
-    }
+  const setChoice = (index: number) => {
+    if (!canExplore()) return;
+    // A different choice at this step: the steps after it no longer apply.
+    setExecutionPath([...executionPath().slice(0, indexInPath()), index]);
   };
-  
-  // Keyboard navigation
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowRight') {
-      onNext();
-      e.preventDefault();
-    } else if (e.key === 'ArrowLeft') {
-      onPrevious();
-      e.preventDefault();
-    }
-  });
-  onCleanup(() => {
-    window.removeEventListener('keydown', onNext);
-    window.removeEventListener('keydown', onPrevious);
+  const onKey = (e: KeyboardEvent) => {
+    if (modelShown() || typing(e) || e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === 'ArrowRight') { onNext(); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { onPrevious(); e.preventDefault(); }
+  };
+  window.addEventListener('keydown', onKey);
+  onCleanup(() => window.removeEventListener('keydown', onKey));
+
+  // Settings
+  const [savedSettings, setSavedSettings] = createSignal<SavedSetting[]>([]);
+  createEffect(() => setSavedSettings(getSavedSettings(storageKey, project())));
+  const predefinedSettings = createMemo(() => getPredefinedSettings(project()));
+
+  // Settings saved or shared by an older version of a project may use older parameter names.
+  const loadedSettings = (name: string, settings: any) => Projects[name]?.normalizeSettings?.(settings) ?? settings;
+
+  const loadSettings = (s: SavedSetting) => batch(() => {
+    setProjectUserSettings(loadedSettings(project(), s.settings));
+    goTo(Array.isArray(s.path) ? s.path : [0]);
   });
 
-  // On mount, check for shared setting in URL or counter example in localStorage
+  const shareLink = (settings: any, path?: number[]) =>
+    `${window.location.origin}${window.location.pathname}?shared=${encodeSettingForUrl(project(), settings, path)}`;
+  const copy = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      notify('Link copied to the clipboard');
+    } catch {
+      window.prompt('Copy this link:', url);
+    }
+  };
+
   onMount(() => {
-    // Check URL params
-    const params = new URLSearchParams(window.location.search);
-    const shared = params.get('shared');
-    if (shared) {
-      const data = decodeSettingFromUrl(shared);
-      if (data && data.project && data.settings) {
+    const shared = new URLSearchParams(window.location.search).get('shared');
+    const data = shared && decodeSettingFromUrl(shared);
+    if (data && data.project in Projects && data.settings) {
+      batch(() => {
         setProject(data.project);
-        setProjectUserSettings(data.settings);
-        if (data.path && Array.isArray(data.path)) {
-          setExecutionPath(data.path);
-          setIndexInPath(0);
-        } else {
-          setExecutionPath([0]);
-          setIndexInPath(0);
-        }
-      }
+        setProjectUserSettings(loadedSettings(data.project, data.settings));
+        const path = Array.isArray(data.path) ? data.path : [0];
+        // A shared link opens at the end of its path.
+        goTo(path, path.length - 1);
+      });
     }
-    
-    // Check for counter example in localStorage
-    const counterExampleData = localStorage.getItem('runCounterExample');
-    if (counterExampleData) {
-      try {
-        const data = JSON.parse(counterExampleData);
-        if (data.project && data.settings) {
-          setProject(data.project as keyof typeof Projects);
-          setProjectUserSettings(data.settings);
-          if (data.path && Array.isArray(data.path)) {
-            setExecutionPath(data.path);
-            setIndexInPath(0);
-          } else {
-            setExecutionPath([0]);
-            setIndexInPath(0);
-          }
-          setActiveTab('simulator');
-          
-          // Clear the localStorage item after loading it
-          localStorage.removeItem('runCounterExample');
-        }
-      } catch (err) {
-        console.error('Error loading counter example:', err);
-      }
-    }
-    
-    // Add event listener for switching to simulator tab
-    window.addEventListener('switchToSimulatorTab', ((event: CustomEvent) => {
-      setActiveTab('simulator');
-      if (event.detail?.projectId) {
-            setProject(event.detail.projectId);
-      }
-    }) as EventListener);
   });
-  
-  onCleanup(() => {
-    window.removeEventListener('switchToSimulatorTab', (() => {}) as EventListener);
+
+  /** The model view's description of the experiment (redone when the sources change). */
+  const description = createMemo(() => {
+    projectRevision();
+    redrawTick();
+    try {
+      return Projects[project()].describe?.();
+    } catch (e) {
+      console.error('Error describing the model:', e);
+      return undefined;
+    }
+  });
+
+  const modelShown = () => view() === 'model' && !!description();
+
+  const chooseProject = (name: string) => batch(() => {
+    setProjectUserSettings(null);
+    goTo([0]);
+    setProject(name);
   });
 
   return (
-    <div>
-      <main class="container">
-        <article>
-          <header style={{"margin-bottom": '2em'}}>
-            <h1>{props.title ?? 'Simulant'}</h1>
-            <div style={{"display": 'flex', "align-items": 'center', "gap": '1em'}}>
-              <select value={project()} onChange={(e) => {
-                setExecutionPath([0]);
-                setIndexInPath(0);
-                setProjectUserSettings(null);
-                setProject(e.currentTarget.value as keyof typeof Projects);
-              }}>
-                {projectKeys.map((p) => (
-                  <option value={p}>{p}</option>
-                ))}
-              </select>
-              <div role="tablist" class="tabs">
-                <button 
-                  role="tab"
-                  onClick={() => setActiveTab('simulator')}
-                  aria-selected={activeTab() === 'simulator'}
-                >
-                  Simulator
-                </button>
-                <Show when={Checker}>
-                  <button 
-                    role="tab"
-                    onClick={() => setActiveTab('checker')}
-                    aria-selected={activeTab() === 'checker'}
-                  >
-                    Algorithm Checker
-                  </button>
-                </Show>
-              </div>
-              <button class="theme-toggle" onClick={toggleDarkMode}>
-                {darkMode() ? '☀' : '🌙'}
-              </button>
+    <div class="sim-app">
+      <header class="sim-header">
+        <h1>{props.title ?? 'Simulant'}</h1>
+        <select value={project()} onChange={(e) => chooseProject(e.currentTarget.value)} aria-label="Simulation">
+          <For each={projectKeys}>{(p) => <option value={p}>{p}</option>}</For>
+        </select>
+        <Show when={description()}>
+          <div class="sim-tabs" role="tablist">
+            <button role="tab" aria-selected={view() === 'simulation'} class={view() === 'simulation' ? 'sim-tab sim-tab-current' : 'sim-tab'} onClick={() => showView('simulation')}>Simulation</button>
+            <button role="tab" aria-selected={view() === 'model'} class={view() === 'model' ? 'sim-tab sim-tab-current' : 'sim-tab'} onClick={() => showView('model')} title="The model and the experiment, as defined">Model</button>
+          </div>
+        </Show>
+        <span class="sim-spacer" />
+        <button class="sim-ghost theme-toggle" onClick={toggleTheme} title={dark() ? 'Light theme' : 'Dark theme'}>
+          {dark() ? '☀' : '🌙'}
+        </button>
+      </header>
+
+      <Show when={updateNotice()}>
+        {notice => (
+          <pre class={`sim-notice${notice().outOfDate ? ' sim-error' : ''}`}>
+            {notice().outOfDate ? 'Out of date: the sources do not compile; showing the last version that did.\n' : 'Sources updated; the execution restarted.\n'}
+            {notice().text}
+          </pre>
+        )}
+      </Show>
+      <Show when={setupLog()}>
+        <div class="sim-notice sim-error"><mark>{setupLog()}</mark></div>
+      </Show>
+
+      <Show when={modelShown() && description()}>
+        {d => <ModelView description={d()} simulation={project()} onCopyLink={() => copy(`${shareLink(effectiveSettings(), currentPath())}#model`)} />}
+      </Show>
+
+      <div class="sim-simulation" style={{ display: modelShown() ? 'none' : undefined }}>
+        <Show when={description()}>
+          {d => (
+            <button class="sim-model-strip" onClick={() => showView('model')} title="Show the model and the experiment as defined">
+              <span class="sim-model-strip-label">Model</span>
+              <For each={d().summary}>{c => <span class="sim-model-strip-item">{c}</span>}</For>
+              <span class="sim-model-strip-more">details →</span>
+            </button>
+          )}
+        </Show>
+
+        <section class="sim-card">
+          <div class="sim-toolbar">
+            <div class="sim-group">
+              <button class="sim-ghost sim-icon" onClick={() => setIndexInPath(0)} disabled={indexInPath() === 0 || !canExplore()} title="First step">«</button>
+              <button onClick={onPrevious} disabled={indexInPath() === 0 || !canExplore()} title="Previous step (←)">Previous {'<'}</button>
+              <span class="sim-round">Round {indexInPath()}</span>
+              <button onClick={onNext} disabled={!canExplore() || (indexInPath() === executionPath().length - 1 && childCount() === 0)} title="Next step (→)">{'>'} Next</button>
+              <button class="sim-ghost sim-icon" onClick={() => setIndexInPath(executionPath().length - 1)} disabled={indexInPath() === executionPath().length - 1 || !canExplore()} title="Last step of the path">»</button>
             </div>
-          </header>
-          
-          <Switch>
-            <Match when={activeTab() === 'simulator'}>
-              <section>
-                <div style={{"display": "flex", "gap": "1em", "align-items": "center", "flex-wrap": "wrap"}}>
-                  <div>
-                    <strong>Round {indexInPath()}</strong>
-                    {' '}
-                    <button onClick={onPrevious} disabled={indexInPath() === 0}>Previous {'<'}</button>
-                    {' '}
-                    <button onClick={onNext}>{'>'} Next</button>
-                  </div>
-                  
-                  <Show when={branchCount() > 1}>
-                    <div style={{"border-left": "2px solid #ccc", "padding-left": "1em"}}>
-                      <strong>Branch {currentBranchIndex()} ∈ [0, {branchCount() - 1}]</strong>
-                      {' '}
-                      <button 
-                        onClick={() => setBranchIndex(Math.max(currentBranchIndex() - 1, 0))}
-                        disabled={currentBranchIndex() === 0}
-                      >
-                        {'<'}
-                      </button>
-                      {' '}
-                      <button 
-                        onClick={() => setBranchIndex(Math.min(currentBranchIndex() + 1, branchCount() - 1))}
-                        disabled={currentBranchIndex() >= branchCount() - 1}
-                      >
-                        {'>'}
-                      </button>
-                    </div>
-                  </Show>
-                  <div style={{"font-size": "0.9em", "color": "#666"}}>
-                    {branchCount() === 1 ? 
-                      'Single execution path' : 
-                      `${branchCount()} possible execution paths`
-                    }
-                  </div>
-                </div>
-                <div style={{"margin-top": "0.5em", "font-family": "monospace", "font-size": "0.9em"}}>
-                  <strong>Path:</strong> [
-                    <For each={executionPath()}>
-                    {(step, idx) => (
-                      <span 
-                        style={{
-                          color: idx() <= indexInPath() ? 'inherit' : '#999',
-                          "text-decoration": idx() <= indexInPath() ? 'none' : 'line-through',
-                          cursor: idx() <= indexInPath() ? 'pointer' : 'default',
-                          "text-decoration-color": idx() <= indexInPath() ? 'transparent' : '#999'
-                        }}
-                        onClick={() => idx() <= indexInPath() && setIndexInPath(idx())}
-                        title={idx() <= indexInPath() ? `Jump to step ${idx()}` : ''}
-                      >
-                        {idx() > 0 ? ', ' : ''}{step}
-                      </span>
-                    )}
-                  </For>
-                  ]
-                </div>
-              </section>
-              <section style={{ display: 'grid', 'grid-template-columns': '500px 1fr', gap: '2rem', 'align-items': 'start' }}>
-                <div style={{ position: 'sticky', top: '1rem', 'align-self': 'start' }}>
-                  <canvas 
-                    ref={canvas} 
-                    width="500" 
-                    height="300"
-                    onClick={handleCanvasClick}
-                    style={{ cursor: 'pointer', border: '1px solid #ccc' }}
-                  />
-                  <Show when={config() && startedProject().baseModel &&  Projects[project()].debugConfig}>
-                    <pre style={{"text-align": "left", width:"500px", margin: "1rem 0"}}>
-                      {Projects[project()].debugConfig!(config()!, startedProject().baseModel!)}
-                    </pre>
-                  </Show>
-                </div>
-                <Show when={config()}>
-                  <div>
-                    <Show when={algorithmViewInfo()}>
-                    {(viewInfo) => {
-                      return (
-                        <AlgorithmViewer 
-                          algorithm={viewInfo().algorithm}
-                          procedures={viewInfo().procedures}
-                          agentStates={viewInfo().agentStates}
-                        />
-                      );
-                    }}
-                    </Show>
-                  </div>
-                </Show>
-              </section>
-              <section>
-                <Show when={selectedAgent()}>
-                  <div style={{ "padding": "1em", "background-color": "#f5f5f5", "border-radius": "4px" }}>
-                    <h3>Agent Details</h3>
-                    <p><strong>Agent ID:</strong> {selectedAgent()!.agentId}</p>
-                    <p><strong>Node Position:</strong> {selectedAgent()!.nodeIndex}</p>
-                    <p><strong>Status:</strong> {selectedAgent()!.isCrashed ? '❌ Crashed' : '✓ Active'}</p>
-                    <p><strong>Round:</strong> {selectedAgent()!.round}</p>
-                    <Show when={selectedAgent()!.agent}>
-                      <details>
-                        <summary style={{ cursor: 'pointer', "font-weight": 'bold' }}>Full Agent State</summary>
-                        <pre style={{ "font-size": "0.8em", "overflow": "auto" }}>
-                          {JSON.stringify(selectedAgent()!.agent, null, 2)}
-                        </pre>
-                      </details>
-                    </Show>
-                    <button onClick={() => setSelectedAgent(null)} style={{ "margin-top": "0.5em" }}>
-                      Clear Selection
-                    </button>
-                  </div>
-                </Show>
-              </section>
-              <section class="grid">
-                <div>
-                  <h3>Current Settings</h3>
-                  <Show when={Projects[project()].editorSchema}>
-                    <GenericEditor 
-                        schema={Projects[project()].editorSchema!}
-                        onInput={(v: any) => {
-                          setExecutionPath([0]);
-                          setIndexInPath(0);
-                          setProjectUserSettings(v);
-                        }} 
-                        value={projectUserSettings()} 
-                      />
-                  </Show>
-                  <div>
-                    <button onClick={handleSaveSettings} disabled={!projectUserSettings()}>Save Settings</button>
-                  </div>
-                </div>
-                <div>
-                  <Show when={predefinedSettings().length > 0}>
-                    <h3>Predefined Settings</h3>
-                    <ul>
-                      <For each={predefinedSettings()}>
-                      {(s: any) => (
-                        <li style={{"margin-bottom": '0.5em'}}>
-                          <b>{s.name}</b>
-                          <button class="outline" style={{"margin-left": '1em'}} onClick={() => handleLoadSettings(s)}>Load</button>
-                          <button class="outline" style={{"margin-left": '0.5em'}} onClick={() => handleDeleteSettings(s.name)}>Delete</button>
-                          <button class="outline" style={{"margin-left": '0.5em'}} onClick={() => handleShareSettings(project(), s)}>Share</button>
-                        </li>
-                      )}
-                      </For>
-                    </ul>
-                  </Show>
-                  <h3>Saved Settings (in your locale storage)</h3>
-                  <Show when={savedSettings().length > 0}
-                    fallback={<div>No saved settings.</div>}
-                    >
-                    <ul>
-                      <For each={savedSettings()}>
-                        {(s: any) => (
-                          <li style={{"margin-bottom": '0.5em'}}>
-                            <b>{s.name}</b>
-                            <button class="outline" style={{"margin-left": '1em'}} onClick={() => handleLoadSettings(s)}>Load</button>
-                            <button class="outline" style={{"margin-left": '0.5em'}} onClick={() => handleDeleteSettings(s.name)}>Delete</button>
-                            <button class="outline" style={{"margin-left": '0.5em'}} onClick={() => handleShareSettings(project(), s)}>Share</button>
-                          </li>
-                        )}
-                      </For>
-                    </ul>
-                  </Show>
-                </div>
-              </section>
-              
-              <Show when={'executionStatusChecker' in Projects[project()] && projectUserSettings()}>
-                <section>
-                  <h3>Configuration Graph</h3>
-                  <p style={{"font-size": "0.9em", "color": "#666"}}>
-                    Visualize and explore the execution graph for the current configuration.
-                  </p>
-                  
-                  <button onClick={() => setShowConfigGraph(!showConfigGraph())}>
-                    {showConfigGraph() ? 'Hide Configuration Graph' : 'Show Configuration Graph'}
-                  </button>
-                  
-                  <Show when={showConfigGraph()}>
-                    <ConfigGraphGenerator
-                      settings={projectUserSettings()}
-                      setup={Projects[project()].setup}
-                      executionStatusChecker={Projects[project()].executionStatusChecker!}
-                      drawConfig={Projects[project()].drawConfig}
-                      projectName={project()}
-                      createWorker={props.createGraphWorker}
-                      configRadius={50}
-                      horizontalSpacing={140}
-                      verticalSpacing={150}
-                    />
-                  </Show>
-                </section>
-              </Show>
-              
-              <section>
-                {setupLog() && <mark>{setupLog()}</mark>}
-              </section>
-            </Match>
-          
-            <Match when={activeTab() === 'checker'}>
-              <section>
-                <Show when={Checker}>
-                  {(CheckerComponent) => <Dynamic component={CheckerComponent()} />}
-                </Show>
-              </section>
-            </Match>
-          </Switch> 
-        </article>
-      </main>
+            <Show when={verdict()}>
+              {v => <span class={`sim-chip sim-${v().status}`} title={v().title}>task: {v().text}</span>}
+            </Show>
+            <Show when={config() && childCount() === 0}>
+              <span class="sim-chip" title="No successor: the execution ends here">end of execution</span>
+            </Show>
+            <Show when={branches().length > 1}>
+              <span class="sim-divider" />
+              <div class="sim-group sim-choices">
+                <button class="sim-ghost sim-icon" onClick={() => setChoice((currentPath().at(-1)! + branches().length - 1) % branches().length)} disabled={!canExplore()} title="Previous branch">‹</button>
+                <span class="sim-branch">Branch {currentPath().at(-1)} ∈ [0, {branches().length - 1}]</span>
+                <button class="sim-ghost sim-icon" onClick={() => setChoice((currentPath().at(-1)! + 1) % branches().length)} disabled={!canExplore()} title="Next branch">›</button>
+                <span class="sim-step-label sim-branch-label" title={branches()[currentPath().at(-1)!]?.label}>{branches()[currentPath().at(-1)!]?.short}</span>
+                <button class="sim-ghost" onClick={() => setPickingBranch(true)} disabled={!canExplore()} title="See every branch of this step and pick one">All branches</button>
+              </div>
+            </Show>
+            <span class="sim-spacer" style={{ flex: 1 }} />
+            <button class="sim-ghost" onClick={() => copy(shareLink(effectiveSettings(), currentPath()))} title="Copy a link to these settings and this path">Share</button>
+          </div>
+          <div class="sim-path">
+            <span class="sim-path-label">Path</span>
+            <For each={executionPath()}>
+              {(step, i) => (
+                <button
+                  class={`sim-step${i() === indexInPath() ? ' sim-current' : ''}${i() > indexInPath() ? ' sim-future' : ''}`}
+                  onClick={() => setIndexInPath(i())}
+                  title={`Round ${i()}: ${stepLabel(i())}`}
+                >
+                  {step}
+                </button>
+              )}
+            </For>
+            <Show when={indexInPath() > 0 && stepLabel(indexInPath())}>
+              <span class="sim-step-label">last step: {stepLabel(indexInPath())}</span>
+            </Show>
+          </div>
+        </section>
+
+        <div class="sim-main">
+          <div class="sim-left">
+            <canvas
+              ref={canvas}
+              class="sim-canvas"
+              style={{ width: `${CANVAS.width}px`, height: `${CANVAS.height}px` }}
+              onClick={handleCanvasClick}
+            />
+            <Show when={inspected()}>
+              {state => <StateInspector state={state()} selected={selectedAgent()?.agentId ?? null} onClearSelection={() => setSelectedAgent(null)} />}
+            </Show>
+          </div>
+          <Show when={config() && algorithmViewInfo()}>
+            {info => <AlgorithmViewer source={info().source} agents={info().agents} />}
+          </Show>
+        </div>
+
+        <div class="sim-panels">
+          <section class="sim-card">
+            <h3>
+              Settings
+              <span class="sim-spacer" style={{ flex: 1 }} />
+              <button class="sim-ghost" onClick={() => batch(() => { setProjectUserSettings(null); goTo([0]); })} disabled={!projectUserSettings()}>Reset to defaults</button>
+            </h3>
+            <Show when={editorSchema()} keyed>
+              {schema => (
+                <GenericEditor
+                  schema={schema}
+                  value={projectUserSettings()}
+                  onInput={(v: any) => batch(() => { setProjectUserSettings(v); goTo([0]); })}
+                />
+              )}
+            </Show>
+          </section>
+          <section class="sim-card">
+            <h3>Saved settings</h3>
+            <SettingsLibrary
+              presets={predefinedSettings()}
+              saved={savedSettings()}
+              current={effectiveSettings()}
+              onLoad={loadSettings}
+              onShare={s => copy(shareLink(loadedSettings(project(), s.settings), s.path))}
+              onDelete={name => {
+                deleteSettings(storageKey, project(), name);
+                setSavedSettings(getSavedSettings(storageKey, project()));
+              }}
+              onSave={name => {
+                saveSettings(storageKey, project(), name, effectiveSettings(), currentPath());
+                setSavedSettings(getSavedSettings(storageKey, project()));
+                notify(`Saved "${name}"`);
+              }}
+            />
+          </section>
+        </div>
+
+        <Show when={Projects[project()].executionStatusChecker}>
+          <section class="sim-card sim-section">
+            <h3>
+              Configuration graph
+              <span class="sim-muted">every execution from these settings, round by round</span>
+              <span class="sim-spacer" style={{ flex: 1 }} />
+              <button class={showConfigGraph() ? 'sim-ghost' : ''} onClick={() => setShowConfigGraph(v => !v)}>
+                {showConfigGraph() ? 'Hide Configuration Graph' : 'Show Configuration Graph'}
+              </button>
+            </h3>
+            <Show when={showConfigGraph() && !updateNotice()?.outOfDate && projectRevision() + 1} keyed>
+              <ConfigGraphGenerator
+                revision={Projects[project()].revision?.()}
+                settings={effectiveSettings()}
+                setup={Projects[project()].setup}
+                execute={Projects[project()].execute}
+                executionStatusChecker={Projects[project()].executionStatusChecker!}
+                drawConfig={Projects[project()].drawConfig}
+                projectName={project()}
+                createWorker={props.createGraphWorker}
+                currentPath={currentPath()}
+                onOpen={(settings, path) => batch(() => {
+                  setProjectUserSettings(settings);
+                  goTo(path, path.length - 1);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                })}
+                configRadius={50}
+                horizontalSpacing={140}
+                verticalSpacing={150}
+              />
+            </Show>
+          </section>
+        </Show>
+
+      </div>
+
+      <Show when={pickingBranch() && branches().length > 1}>
+        <BranchPicker
+          branches={branches()}
+          current={currentPath().at(-1)!}
+          draw={Projects[project()].drawConfig ? drawBranch : undefined}
+          onPick={i => { setChoice(i); setPickingBranch(false); }}
+          onClose={() => setPickingBranch(false)}
+        />
+      </Show>
+
+      <Show when={toast()}>
+        <div class="sim-toast" role="status">{toast()}</div>
+      </Show>
     </div>
   );
 };

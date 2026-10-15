@@ -7,20 +7,23 @@
   "workspaces": [
     "apps/*",
     "packages/*",
+    "extensions/*",
     "projects/*",
     "projects/private/*"
   ],
   "scripts": {
-    "start": "pnpm --filter @bramas/simulant-project-example dev",
-    "dev": "pnpm --filter @bramas/simulant-project-example dev",
+    "start": "pnpm --filter @bramas/simulant-project-starter dev",
+    "dev": "pnpm --filter @bramas/simulant-project-starter dev",
     "build": "node scripts/build-public-site.mjs",
-    "serve": "pnpm --filter @bramas/simulant-project-example serve",
+    "serve": "pnpm --filter @bramas/simulant-project-starter serve",
     "check": "node packages/cli/bin/simulant.mjs check",
-    "convert-algorithms": "bash scripts/convert-all-algorithms.sh",
-    "convert-algo": "tsx scripts/latex-to-structured.ts",
     "cli": "node packages/cli/bin/simulant.mjs",
-    "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test --test-isolation=none tests/*.test.ts"
+    "typecheck": "tsx scripts/sim-types.ts && tsc --noEmit",
+    "test": "node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/*.test.ts packages/*/test/*.test.ts apps/*/test/*.test.ts extensions/*/test/*.test.ts",
+    "editor:build": "pnpm --filter simulant build",
+    "editor:package": "pnpm --filter simulant package",
+    "sim-types": "tsx scripts/sim-types.ts",
+    "test:browser": "node --import tsx --test --test-isolation=none --test-concurrency=1 tests/browser/*.test.ts"
   },
   "license": "CECILL-B",
   "devDependencies": {

@@ -1,0 +1,13 @@
+name = "simulant"
+version = "0.1.0"
+defaultTargets = ["Simulant"]
+
+# The semantic core and the component library (plan, Section 5.1).
+[[lean_lib]]
+name = "Simulant"
+globs = ["Simulant.+"]
+
+# Generated model files and their proofs, for the Phase 2 prototype.
+[[lean_lib]]
+name = "Examples"
+globs = ["Examples.+"]

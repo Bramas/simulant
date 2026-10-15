@@ -1,7 +1,6 @@
-// Composant générique de génération de formulaires basé sur un schéma
+// A form generated from an editor schema (the settings of a project).
 import { createEffect, For, Match, Switch } from "solid-js";
 import { createStore } from "solid-js/store"
-import type { SetStoreFunction } from "solid-js/store"
 
 import type { EditorSchema, EditorField } from "@bramas/simulant-core/types/editor-schema";
 
@@ -247,21 +246,22 @@ function CodeEditor(props: {
   );
 }
 
+type SetField = (key: string, value: any) => void;
+
 function renderTextArea(
   field: Extract<EditorField, { type: 'text' | 'textarea' | 'code' }>,
   fieldStore: { [key: string]: any; },
-  setFieldStore: SetStoreFunction<{ [key: string]: any; }>
+  setFieldStore: SetField
 ) {
   const isCodeEditor = field.type === 'code';
 
   return (
-    <div>
+    <div class="sim-field sim-field-wide">
       <label>
         {field.label}:{' '}
         {'placeholder' in field && field.placeholder && (
-          <span style={{ "font-size": "0.9em", color: "#666" }}>({field.placeholder})</span>
+          <span class="sim-muted">({field.placeholder})</span>
         )}
-        <br/>
         {isCodeEditor ? (
           <CodeEditor
             value={fieldStore[field.key] ?? ''}
@@ -279,51 +279,52 @@ function renderTextArea(
           />
         )}
       </label>
-      <br/>
     </div>
   );
 }
 
-function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any;}, setFieldStore: SetStoreFunction<{[key: string]: any;}>}) {
+function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any;}, setFieldStore: SetField}) {
 
     return (
       <Switch>
         <Match when={props.field.type === 'number' && props.field}>
           {(f) => (
-            <div>
+            <div class="sim-field">
               <label>
                 {f().label}:{' '}
-                <input 
-                  type="number" 
-                  value={props.fieldStore[props.field.key]} 
-                  onInput={(e) => props.setFieldStore(props.field.key, parseFloat(e.currentTarget.value) || props.field.defaultValue)}
+                <input
+                  type="number"
+                  value={props.fieldStore[props.field.key]}
+                  onInput={(e) => {
+                    // An empty or partial number is not a value yet: wait for the next keystroke.
+                    const n = e.currentTarget.valueAsNumber;
+                    if (!Number.isNaN(n)) props.setFieldStore(props.field.key, n);
+                  }}
                   min={'min' in props.field ? props.field.min : undefined}
                   max={'max' in props.field ? props.field.max : undefined}
                   step={'step' in props.field ? props.field.step : undefined}
                 />
               </label>
-              <br/>
             </div>
           )}
         </Match>
-        
+
         <Match when={props.field.type === 'text' && props.field && !('multiline' in props.field && props.field.multiline)}>
-          <div>
+          <div class="sim-field sim-field-wide">
             <label>
               {props.field.label}:{' '}
               {'placeholder' in props.field && props.field.placeholder && (
-                <span style={{ "font-size": "0.9em", color: "#666" }}>({props.field.placeholder})</span>
+                <span class="sim-muted">({props.field.placeholder})</span>
               )}
-              <br/>
-              <input 
+              <input
                 type="text" 
                 value={props.fieldStore[props.field.key] ?? ''} 
                 onInput={(e) => props.setFieldStore(props.field.key, e.currentTarget.value)}
                 placeholder={'placeholder' in props.field ? props.field.placeholder : undefined}
                 pattern={'pattern' in props.field ? props.field.pattern : undefined}
+                spellcheck={false}
               />
             </label>
-            <br/>
           </div>
         </Match>
 
@@ -337,23 +338,22 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
         
         <Match when={props.field.type === 'boolean' && props.field}>
           {(f) => (
-            <div>
+            <div class="sim-field">
               <label>
-                <input 
-                  type="checkbox" 
-                  checked={props.fieldStore[props.field.key]} 
+                <input
+                  type="checkbox"
+                  checked={props.fieldStore[props.field.key]}
                   onInput={(e) => props.setFieldStore(props.field.key, e.currentTarget.checked)}
                 />
                 {' '}{props.field.label}
               </label>
-              <br/>
             </div>
           )}
         </Match>
-        
+
         <Match when={props.field.type === 'select' && props.field}>
           {(f) => (
-            <div>
+            <div class="sim-field">
               <label>
                 {props.field.label}:{' '}
                 <select 
@@ -369,7 +369,6 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
                   </For>
                 </select>
               </label>
-              <br/>
             </div>
           )}
         </Match>
@@ -378,39 +377,35 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
   };
 
 
+/** The values the form shows: the schema's defaults, overridden by `value`. */
+export function formValues(schema: EditorSchema, value?: any): Record<string, any> {
+  const result: Record<string, any> = {};
+  for (const field of schema.fields) {
+    result[field.key] = value && value[field.key] !== undefined ? value[field.key] : (field as any).defaultValue;
+  }
+  return result;
+}
+
 export function GenericEditor(props: GenericEditorProps) {
 
   const [fieldStore, setFieldStore] = createStore<{[key: string]: any}>({});
-  
-  // Update store when props.value changes
-  createEffect(() => {
-    const result: any = {};
-    for (const field of props.schema.fields) {
-      result[field.key] = (field as any).defaultValue;
-      if (props.value && props.value[field.key] !== undefined) {
-        result[field.key] = props.value[field.key];
-      }
-    }
-    setFieldStore(result);
-  });
-  
-  // Emit changes when any field changes
-  createEffect(() => {
-    const result: any = {};
-    for (const [key, value] of Object.entries(fieldStore)) {
-      result[key] = value;
-    }
-    props.onInput(result);
-  });
-  
-  
+
+  // Show `props.value` (loading settings does not count as an edit).
+  createEffect(() => setFieldStore(formValues(props.schema, props.value)));
+
+  // Only the user's edits are reported.
+  const setField: SetField = (key, value) => {
+    setFieldStore(key, value);
+    props.onInput({ ...fieldStore });
+  };
+
   return (
-    <div>
+    <div class="sim-form">
       <For each={props.schema.fields}>
-        {(field) => <RenderField 
-          field={field} 
-          fieldStore={fieldStore} 
-          setFieldStore={setFieldStore} />
+        {(field) => <RenderField
+          field={field}
+          fieldStore={fieldStore}
+          setFieldStore={setField} />
         }
       </For>
     </div>

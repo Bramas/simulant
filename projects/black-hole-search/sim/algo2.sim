@@ -1,0 +1,79 @@
+/-! Algorithm 2 of the black-hole-search paper (Three-Agent EBS Solution with one pebble):
+a₁ marks its position with the pebble while it probes the next node; a₂ checks on a₁; a₃
+follows a₂, or searches for the pebble when a₂ disappears. Migrated from
+`src/simulations/algo2.ts` (plan, Phase 7), whose behaviour it follows: `detection` is
+public for the one round in which a₂ announces it, and a₂ and a₃ then walk cautiously
+counterclockwise. -/
+
+import "std/models.sim"
+import "std/tasks.sim"
+
+algorithm ThreeAgentOnePebble uses otherStates, pebblesHere where
+  Pub := { id : Nat, bh : Option Move, detection : Bool }
+  output claim := pub.bh
+  init i := { pub := { id := i, bh := none, detection := false } }
+
+  /-- The leader's side of the cautious walk (it does not announce a detection any more). -/
+  def lead (dir : Move) :=
+    pub := { pub with detection := false }
+    repeat
+      move dir
+      move dir.opposite
+      move dir
+
+  /-- The follower's side: wait for anyone to come back, or declare the hole. -/
+  def follow (dir : Move) :=
+    repeat
+      stay
+      stay
+      if otherStates.isEmpty then
+        pub := { pub with bh := some dir }
+        halt
+      move dir
+
+  main :=
+    if pub.id = 0 then
+      move .ccw
+      repeat
+        move .cw with { pebble := .drop }
+        if otherStates.isEmpty then
+          pub := { pub with bh := some .cw }
+          halt
+        move .ccw
+        move .cw with { pebble := .pick }
+    else if pub.id = 1 then
+      move .cw
+      repeat
+        move .ccw
+        if otherStates.isEmpty then
+          move .cw
+          pub := { pub with detection := true }
+          move .cw
+          lead .ccw
+        move .cw
+        move .cw
+    else
+      move .cw
+      repeat
+        if otherStates.isEmpty then
+          move .cw
+          repeat
+            if pebblesHere > 0 then
+              pub := { pub with bh := some .cw }
+              halt
+            move .cw
+        if otherStates.any (·.detection) then
+          follow .ccw
+        move .cw
+        stay
+        stay
+
+/-- The settings of the paper's checks: rings of 5 to 12 nodes, the hole anywhere. -/
+experiment algo2 where
+  model := blackHoleRing .mayEmerge .unknown (extra := [Storage.Pebbles])
+  algorithm := ThreeAgentOnePebble
+  task := IdentifyEmergingBlackHole
+  param N : Nat := (range 13).filter (· ≥ 5)
+  param site : Node := (range N).map node
+  agents := 3
+  position i := node 0

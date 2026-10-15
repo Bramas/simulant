@@ -1,0 +1,90 @@
+{
+  "name": "simulant",
+  "displayName": "Simulant",
+  "description": "Syntax highlighting and language intelligence for Simulant .sim models and algorithms.",
+  "version": "0.1.0",
+  "publisher": "bramas",
+  "private": true,
+  "license": "CECILL-B",
+  "engines": {
+    "vscode": "^1.91.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onLanguage:simulant"
+  ],
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "vscode:prepublish": "pnpm build",
+    "package": "vsce package --no-dependencies --allow-missing-repository --out dist/simulant.vsix"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "simulant",
+        "aliases": [
+          "Simulant",
+          "sim"
+        ],
+        "extensions": [
+          ".sim"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "simulant",
+        "scopeName": "source.simulant",
+        "path": "./syntaxes/simulant.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "simulant",
+        "path": "./snippets/simulant.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "simulant.restartLanguageServer",
+        "title": "Simulant: Restart Language Server"
+      }
+    ],
+    "configuration": {
+      "title": "Simulant",
+      "properties": {
+        "simulant.stdlibPath": {
+          "type": "string",
+          "default": "",
+          "scope": "window",
+          "description": "Path to a standard library sim directory. Relative paths use the first workspace folder; empty uses the workspace library when present, otherwise the bundled library."
+        },
+        "simulant.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace language-server communication."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "10.1.2"
+  },
+  "devDependencies": {
+    "@types/vscode": "1.91.0",
+    "@vscode/vsce": "3.6.2",
+    "esbuild": "0.25.12",
+    "vscode-textmate": "9.2.0",
+    "vscode-oniguruma": "2.0.1",
+    "vscode-languageserver-protocol": "3.18.4"
+  }
+}

@@ -1,0 +1,56 @@
+/-! Library tasks (plan, Section 3.9). -/
+
+/-- Every correct agent claims the direction of the black hole from its node
+(`pub.bh : Option Move`). Fails when no agent is correct. Directions are global, which
+holds under common chirality. -/
+@[equivariant rotations]
+task IdentifyBlackHole (C : Config) : Verdict :=
+  let alive := C.agents.filter correct
+  if alive.isEmpty then .failure
+  else if alive.all fun a => a.pub.bh.isSome ∧ target a.pos (a.pub.bh.getD .stay) = C.world.site then .success
+  else .inProgress
+
+goal IdentifyBlackHole := eventually always .success
+
+/-- Every present robot is on the same node, eventually. -/
+@[equivariant rotations reflections]
+task Gathering (C : Config) : Verdict :=
+  let robots := C.agents.filter present
+  if robots.all fun a => robots.all fun b => a.pos = b.pos then .success else .inProgress
+
+goal Gathering := eventually .success
+
+/-- Every node has been visited, eventually. Needs the `Monitors.Visited` component. -/
+@[equivariant rotations reflections]
+task Exploration (C : Config) : Verdict :=
+  if C.nodes.all fun n => C.world.visited.contains n then .success else .inProgress
+
+goal Exploration := eventually .success
+
+/-- Black-hole search with a hole that may emerge: once the hole is active, every correct
+agent eventually claims it, forever; an execution in which the hole never activates
+succeeds (no fairness forces it to appear, plan 3.10). Fails when no agent is correct.
+Reads the algorithm's output `claim : Option Move` (a global direction). -/
+@[equivariant rotations]
+task IdentifyEmergingBlackHole (C : Config) : Verdict :=
+  let alive := C.agents.filter correct
+  if alive.isEmpty then .failure
+  else if !C.world.active then .success
+  else if alive.all fun a => a.claim.isSome ∧ target a.pos (a.claim.getD .stay) = C.world.site then .success
+  else .inProgress
+
+goal IdentifyEmergingBlackHole := eventually always .success
+
+/-- As `IdentifyEmergingBlackHole`, for algorithms that locate the hole at any distance: the
+outputs `claimDir : Option Move` and `claimSteps : Nat` say that the hole is `claimSteps`
+nodes away from the agent in direction `claimDir` (directions are global, which holds under
+common chirality). -/
+@[equivariant rotations]
+task IdentifyEmergingBlackHoleAt (C : Config) : Verdict :=
+  let alive := C.agents.filter correct
+  if alive.isEmpty then .failure
+  else if !C.world.active then .success
+  else if alive.all fun a => a.claimDir.isSome ∧ advance a.pos (a.claimDir.getD .stay) a.claimSteps = C.world.site then .success
+  else .inProgress
+
+goal IdentifyEmergingBlackHoleAt := eventually always .success

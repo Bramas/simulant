@@ -1,0 +1,49 @@
+/-! Small algorithms and experiments, used by tests and as examples of the language.
+They are not paper algorithms. -/
+
+import "./models.sim"
+import "./tasks.sim"
+
+inductive PC | probe | back | advance | wait1 | wait2 | check | halted
+
+/-- A cautious walk of two agents: agent 0 probes the next node and comes back; agent 1
+waits, and declares the hole in direction `cw` if agent 0 does not come back. Written as
+an explicit state machine (structured algorithms come with Phase 4). -/
+algorithm CautiousPair uses otherStates where
+  Pub := { id : Nat, bh : Option Move }
+  Mem := { pc : PC }
+  init i := { pub := { id := i, bh := none }, mem := { pc := if i = 0 then .probe else .wait1 } }
+  step mem pub view :=
+    match mem.pc with
+    | .probe => { move := .cw, mem := { pc := .back } }
+    | .back => { move := .ccw, mem := { pc := .advance } }
+    | .advance => { move := .cw, mem := { pc := .probe } }
+    | .wait1 => { move := .stay, mem := { pc := .wait2 } }
+    | .wait2 => { move := .stay, mem := { pc := .check } }
+    | .check =>
+      if view.otherStates.any (·.id = 0) then { move := .cw, mem := { pc := .wait1 } }
+      else { move := .stay, pub := { pub with bh := some .cw }, mem := { pc := .halted } }
+    | .halted => { move := .stay }
+  line mem :=
+    match mem.pc with
+    | .probe => 3 | .back => 4 | .advance => 5 | .wait1 => 8 | .wait2 => 9 | .check => 10 | .halted => 12
+
+/-- The cautious pair, with a hole present from the start, on rings of 3 to 6 nodes. -/
+experiment cautiousPair where
+  model := blackHoleRing .initiallyPresent .unknown
+  algorithm := CautiousPair
+  task := IdentifyBlackHole
+  param N : Nat := (range 7).filter (· ≥ 3)
+  param site : Node := ((range N).filter (· ≥ 1)).map node
+  agents := 2
+  position i := node 0
+
+/-- The same algorithm with an emerging hole, crashes, and unrelated state (pebbles). -/
+experiment cautiousPairCrash where
+  model := blackHoleRing .mayEmerge .known (extra := [Faults.CrashStop 1, Storage.Pebbles])
+  algorithm := CautiousPair
+  task := IdentifyBlackHole
+  param N : Nat := (range 7).filter (· ≥ 3)
+  param site : Node := ((range N).filter (· ≥ 1)).map node
+  agents := 2
+  position i := node 0

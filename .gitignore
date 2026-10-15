@@ -17,3 +17,10 @@ last-check.txt
 # Local private research projects, not meant for the public repository
 projects/private/
 private-projects/
+
+# Generated TypeScript types and caches of .sim experiments
+.simulant/
+
+# Built editor extension and installable packages
+extensions/*/dist/
+extensions/*/LICENCE.txt

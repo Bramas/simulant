@@ -1,43 +1,58 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { Config } from '../packages/core/src/lib/system';
-import { ND_array } from '../packages/core/src/lib/non-determinism';
 import { generateConfigGraph, handleGraphRequest, type WorkerRequest, type WorkerResponse } from '../packages/core/src/lib/config-graph';
-import type { ProjectType, ExecutionStatus } from '../packages/core/src/types/project';
+import type { ExecutionLike, ProjectType, ExecutionStatus } from '../packages/core/src/types/project';
 
 const request: WorkerRequest = {
   type: 'generate', projectName: 'counter', settings: null, maxDepth: 5,
   horizontalSpacing: 150, verticalSpacing: 180,
 };
 
+/** A counter: each step adds 1 (and, when branching, also 2); `updateCount` counts the expanded configurations. */
 function counterProject(status: (round: number) => ExecutionStatus, branching = false) {
   let setupCount = 0;
   let updateCount = 0;
-  const project: ProjectType<Config<any, any, any, any, any, number>> = {
+  type Counter = { round: number };
+  type Model = { initial: Counter };
+  const execute = (model: Model): ExecutionLike<Counter> => {
+    const nodes = new Map<string, Counter>([['0', model.initial]]);
+    const children = new Map<string, Counter[]>();
+    const childrenOf = (path: number[]) => {
+      const key = path.join(',');
+      let out = children.get(key);
+      if (!out) {
+        updateCount++;
+        const { round } = get(path);
+        out = branching ? [{ round: round + 1 }, { round: round + 2 }] : [{ round: round + 1 }];
+        children.set(key, out);
+        out.forEach((c, i) => nodes.set(`${key},${i}`, c));
+      }
+      return out;
+    };
+    const get = (path: number[]): Counter => {
+      const key = path.join(',');
+      if (!nodes.has(key)) childrenOf(path.slice(0, -1));
+      return nodes.get(key)!;
+    };
+    return {
+      get,
+      getChildrenCount: path => childrenOf(path).length,
+      getSiblingCount: path => path.length <= 1 ? 1 : childrenOf(path.slice(0, -1)).length,
+      getRandomChildIndex: () => 0,
+    };
+  };
+  const project: ProjectType<Counter, Model> = {
     setup: () => {
       setupCount++;
-      const initial = new Config<any, any, any, any, any, number>();
-      initial.setState(0, 0);
-      return {
-        Agents: [], InitialConfig: initial, View: () => { throw new Error('No agents'); },
-        Update: config => {
-          updateCount++;
-          const round = config.get(0).state ?? 0;
-          const next = config.clone();
-          next.setState(0, round + 1);
-          if (!branching) return next;
-          const other = config.clone();
-          other.setState(0, round + 2);
-          return new ND_array([next, other]);
-        },
-      };
+      return { initial: { round: 0 } };
     },
+    execute,
     executionStatusChecker: (config, model, history) => {
       assert.equal(history.at(-1), config);
-      assert.equal(history[0], model.InitialConfig);
-      return status(config.get(0).state ?? 0);
+      assert.equal(history[0], model.initial);
+      return status(config.round);
     },
-    debugConfig: config => String(config.get(0).state),
+    debugConfig: config => String(config.round),
   };
   return { project, counts: () => ({ setupCount, updateCount }) };
 }

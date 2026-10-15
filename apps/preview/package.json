@@ -1,0 +1,14 @@
+{
+  "name": "@bramas/simulant-preview",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal preview of a .sim experiment, with save-to-refresh (plan Phase 3).",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

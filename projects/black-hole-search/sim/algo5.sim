@@ -1,0 +1,94 @@
+/-! Algorithm 5 of the black-hole-search paper (n-agent EBS Solution, knowledge of n): agent
+`id` suspects node `id` and walks back and forth without ever entering it; the agents that do
+enter the hole once it is active disappear, and the survivor's suspicion is right.
+Migrated from `src/simulations/algo5.ts` (plan, Phase 7). Agents know the ring size and count
+nodes from their common starting node (`node`); the suspected node `bh` is in those
+coordinates, and the claim is its clockwise distance from the agent (`claimSteps`).
+
+`NAgentEBSLatency` reproduces the TypeScript simulation exactly (experiment `algo5`, registered):
+it idles a pseudo-random number of rounds before each move, to imitate latency in a synchronous
+engine; its pseudo-random state never repeats, so it is explored to bounded depth. `NAgentEBS`
+is the paper's algorithm without the idling (experiment `algo5Sync`), checked exhaustively. -/
+
+import "std/models.sim"
+import "std/tasks.sim"
+
+algorithm NAgentEBS uses ringSize where
+  Pub := { id : Nat, node : Nat, dir : Move, bh : Option Nat, steps : Nat }
+  output claimDir := if pub.bh.isSome then some Move.cw else (none : Option Move)
+  output claimSteps := pub.steps
+  init i := { pub := { id := i, node := 0, dir := .cw, bh := none, steps := 0 } }
+
+  main :=
+    pub := { pub with bh := some pub.id, steps := pub.id }
+    if pub.id = 0 then
+      pub := { pub with node := 1, steps := (pub.id + ringSize - 1) % ringSize }
+      move .cw
+    repeat
+      let next := if pub.dir = .cw then (pub.node + 1) % ringSize else (pub.node + ringSize - 1) % ringSize
+      if next = pub.id then
+        pub := { pub with dir := pub.dir.opposite }
+      let to := if pub.dir = .cw then (pub.node + 1) % ringSize else (pub.node + ringSize - 1) % ringSize
+      pub := { pub with node := to, steps := (pub.id + ringSize - to) % ringSize }
+      move pub.dir
+
+algorithm NAgentEBSLatency uses ringSize where
+  Pub := { id : Nat, node : Nat, dir : Move, bh : Option Nat, steps : Nat }
+  output claimDir := if pub.bh.isSome then some Move.cw else (none : Option Move)
+  output claimSteps := pub.steps
+  init i := { pub := { id := i, node := 0, dir := .cw, bh := none, steps := 0 } }
+
+  main :=
+    let seed : Nat := pub.id
+    pub := { pub with bh := some pub.id, steps := pub.id }
+    if pub.id = 0 then
+      pub := { pub with node := 1, steps := (pub.id + ringSize - 1) % ringSize }
+      move .cw
+    -- The first iteration, unrolled: its idle rounds still show the previous line.
+    let next := if pub.dir = .cw then (pub.node + 1) % ringSize else (pub.node + ringSize - 1) % ringSize
+    if next = pub.id then
+      pub := { pub with dir := pub.dir.opposite }
+    seed := seed * 48271 % 2147483647
+    while seed % 2 = 1
+      seed := seed * 48271 % 2147483647
+      if pub.id = 0 then
+        stay
+      else
+        stay
+    let to := if pub.dir = .cw then (pub.node + 1) % ringSize else (pub.node + ringSize - 1) % ringSize
+    pub := { pub with node := to, steps := (pub.id + ringSize - to) % ringSize }
+    move pub.dir
+    repeat
+      let next2 := if pub.dir = .cw then (pub.node + 1) % ringSize else (pub.node + ringSize - 1) % ringSize
+      if next2 = pub.id then
+        pub := { pub with dir := pub.dir.opposite }
+      seed := seed * 48271 % 2147483647
+      while seed % 2 = 1
+        seed := seed * 48271 % 2147483647
+        stay
+      let to2 := if pub.dir = .cw then (pub.node + 1) % ringSize else (pub.node + ringSize - 1) % ringSize
+      pub := { pub with node := to2, steps := (pub.id + ringSize - to2) % ringSize }
+      move pub.dir
+
+/-- The paper's algorithm, without the idling, on rings of 2 to 12 nodes, one agent per node,
+the hole anywhere: checked exhaustively. -/
+experiment algo5Sync where
+  model := blackHoleRing .mayEmerge .known
+  algorithm := NAgentEBS
+  task := IdentifyEmergingBlackHoleAt
+  param N : Nat := (range 13).filter (· ≥ 2)
+  param site : Node := (range N).map node
+  agents := param N
+  position i := node 0
+
+/-- The TypeScript simulation's version, with its pseudo-random idling: registered as
+`black-hole-search-algo5-new`. Its state space is infinite: checks stop at the state limit. -/
+experiment algo5 where
+  model := blackHoleRing .mayEmerge .known
+  algorithm := NAgentEBSLatency
+  task := IdentifyEmergingBlackHoleAt
+  param N : Nat := (range 13).filter (· ≥ 2)
+  param site : Node := (range N).map node
+  agents := param N
+  position i := node 0
+  limits := { states := 100000 }

@@ -1,0 +1,117 @@
+/-! The IR conformance experiments (packages/engine/conformance), written in `.sim`.
+A test checks that they give the same state graphs as the builder's versions. -/
+
+import "./examples.sim"
+
+/-- Agent 0 drops a pebble in the first round; in the second, every agent tries to pick one up. -/
+algorithm PebbleTest uses pebblesHere where
+  Pub := { id : Nat }
+  Mem := { round : Nat }
+  init i := { pub := { id := i }, mem := { round := 0 } }
+  step mem pub view :=
+    { move := .stay, mem := { round := mem.round + 1 },
+      pebble := if mem.round = 0 ∧ pub.id = 0 then .drop
+        else if mem.round = 1 ∧ view.pebblesHere > 0 then .pick else .none }
+
+/-- Oblivious robots: move towards the nearest robot, stay on a tie or when alone. -/
+algorithm NearestNeighbour uses ringPresence where
+  init i := {}
+  step mem pub view :=
+    let v := view.ringPresence
+    let n := v.length
+    let cw := (range n).filter fun i => i > 0 ∧ v.at i
+    let ccw := (range n).filter fun i => i > 0 ∧ v.at (n - i)
+    { move := if cw.isEmpty then .stay else
+        let dcw := cw.at 0
+        let dccw := ccw.at 0
+        if dcw < dccw then .cw else if dccw < dcw then .ccw else .stay }
+
+/-- Oblivious robots that always try to move clockwise. -/
+algorithm AlwaysClockwise uses ringCount where
+  init i := {}
+  step mem pub view := { move := .cw }
+
+/-- Each agent records, in its public state, that it has been activated. -/
+algorithm MarkActivated where
+  Pub := { activated : Bool }
+  init i := { pub := { activated := false } }
+  step mem pub view := { move := .stay, pub := { pub with activated := true } }
+
+@[equivariant rotations reflections]
+task EveryoneActivated (C : Config) : Verdict :=
+  if C.agents.all (·.pub.activated) then .success else .inProgress
+
+goal EveryoneActivated := eventually .success
+
+/-- Never fails, never succeeds: for experiments that only look at the reachable configurations. -/
+@[equivariant rotations reflections]
+task Observe (C : Config) : Verdict := .inProgress
+
+goal Observe := always ¬ .failure
+
+def ssyncRing : Model where
+  round := .ssync
+
+experiment blackHoleEmerging where
+  model := blackHoleRing .mayEmerge .unknown
+  algorithm := CautiousPair
+  task := IdentifyBlackHole
+  param N : Nat
+  param site : Node
+  agents := 2
+  position i := node 0
+
+experiment blackHoleCrashStop where
+  model := blackHoleRing .initiallyPresent .known (extra := [Faults.CrashStop 1])
+  algorithm := CautiousPair
+  task := IdentifyBlackHole
+  param N : Nat
+  param site : Node
+  agents := 2
+  position i := node 0
+
+experiment blackHoleLossy where
+  model := blackHoleRing .initiallyPresent .unknown (view := otherStatesLossy 1)
+  algorithm := CautiousPair
+  task := IdentifyBlackHole
+  param N : Nat
+  param site : Node
+  agents := 2
+  position i := node 0
+
+experiment pebbles where
+  model := blackHoleRing .none .unknown (extra := [Storage.Pebbles])
+  algorithm := PebbleTest
+  task := Observe
+  param N : Nat
+  param site : Node
+  agents := 2
+  position i := node 0
+
+experiment gatheringRobots where
+  model := gatheringWithCrash
+  algorithm := NearestNeighbour
+  task := Gathering
+  param N : Nat
+  param positions : List Node
+  param crashNode : Node
+  agents := positions.length
+  position i := positions.at i
+
+experiment dynamicRing where
+  model := dynamicRingRobots (components := [Monitors.Visited])
+  algorithm := AlwaysClockwise
+  task := Exploration
+  param N : Nat
+  param positions : List Node
+  param crashNode : Node
+  agents := positions.length
+  position i := positions.at i
+
+experiment ssync where
+  model := ssyncRing
+  algorithm := MarkActivated
+  task := EveryoneActivated
+  param N : Nat
+  agents := 3
+  position i := node i

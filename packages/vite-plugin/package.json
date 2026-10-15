@@ -1,0 +1,13 @@
+{
+  "name": "@bramas/simulant-vite-plugin",
+  "version": "0.0.0",
+  "private": true,
+  "license": "CECILL-B",
+  "type": "module",
+  "dependencies": { "@bramas/simulant-lang": "workspace:*" },
+  "peerDependencies": { "vite": "^6.0.0" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  }
+}

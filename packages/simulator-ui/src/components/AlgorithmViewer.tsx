@@ -1,354 +1,254 @@
 /**
- * Algorithm Viewer Component
- * Displays structured algorithms with multi-agent line highlighting
+ * The algorithm's `.sim` source, as written, with a cursor on each agent's line: the statement
+ * that decided its last step (or its program counter). An agent inside a procedure is also marked,
+ * more lightly, on the lines of the calls that led there. Below, the definitions the algorithm
+ * uses, folded to their signatures (a click on a function name opens one); an agent is marked
+ * (↩) on the lines its last step returned from. Clicking a cursor explains that agent's last
+ * step: its view, and each definition it called with its arguments and result.
  */
-
-import { For, createMemo, Show, createEffect } from 'solid-js';
-import type { AlgorithmStructure, AlgorithmLine } from '@bramas/simulant-core/types/algorithm-structure';
+import { For, Show, createMemo, createSignal, onCleanup, type JSX } from 'solid-js';
+import type { AgentExecutionState, AlgorithmSource, TraceCall } from '@bramas/simulant-core/types/project';
+import { tokenizeAll, type Line } from './highlight';
 import './AlgorithmViewer.css';
 
-import type { AgentExecutionState } from '@bramas/simulant-core/types/project';
-export type { AgentExecutionState } from '@bramas/simulant-core/types/project';
+export type { AgentExecutionState, AlgorithmSource } from '@bramas/simulant-core/types/project';
 
 export interface AlgorithmViewerProps {
-  /** Main algorithm to display */
-  algorithm: AlgorithmStructure;
-  /** Additional procedures that can be called (e.g., cautious-walk) */
-  procedures?: AlgorithmStructure[];
-  /** Current execution state for each agent */
-  agentStates?: AgentExecutionState[];
-  /** Highlight a specific line (for single-agent mode) */
-  highlightLine?: number;
-  /** Show line numbers */
-  showLineNumbers?: boolean;
+  source: AlgorithmSource;
+  agents?: AgentExecutionState[];
 }
 
-/**
- * Component for formatting line text with syntax highlighting
- */
-function FormattedLineText(props: { line: AlgorithmLine }) {
-  const text = createMemo(() => props.line.text);
-  const type = createMemo(() => props.line.type);
-
-  // Highlight control structure keywords
-  return (
-    <Show when={type() === 'if' || type() === 'elseif'} fallback={
-      <Show when={type() === 'while'} fallback={
-        <Show when={type() === 'loop'} fallback={
-            <Show when={type() === 'else'} fallback={
-            <Show when={type() === 'assignment'} fallback={
-                <Show when={type() === 'command'} fallback={
-                <Show when={type() === 'procedure-call'} fallback={
-                    <Show when={type() === 'return'} fallback={
-                    <span>{text()}</span>
-                    }>
-                    <span class="keyword">{text()}</span>
-                    </Show>
-                }>
-                    {(() => {
-                    const match = text().match(/^(execute)\s+(\w+)\(([^)]*)\)/);
-                    if (match) {
-                        return (
-                        <>
-                            <span class="keyword">{match[1]}</span>{' '}
-                            <span class="procedure-name">{match[2]}</span>
-                            <span class="punctuation">(</span>
-                            {match[3]}
-                            <span class="punctuation">)</span>
-                        </>
-                        );
-                    }
-                    return <span>{text()}</span>;
-                    })()}
-                </Show>
-                }>
-                {(() => {
-                    const commandMatch = text().match(/^([A-Z-]+(?:-[A-Z]+)*)/);
-                    if (commandMatch) {
-                    return (
-                        <>
-                        <span class="command">{commandMatch[1]}</span>
-                        {text().substring(commandMatch[1].length)}
-                        </>
-                    );
-                    }
-                    return <span>{text()}</span>;
-                })()}
-                </Show>
-            }>
-                {(() => {
-                const parts = text().split('←');
-                if (parts.length === 2) {
-                    return (
-                    <>
-                        <span class="variable">{parts[0].trim()}</span>
-                        {' '}
-                        <span class="operator">←</span>
-                        {' '}
-                        <span class="value">{parts[1].trim()}</span>
-                    </>
-                    );
-                }
-                return <span>{text()}</span>;
-                })()}
-            </Show>
-            }>
-            <span class="keyword">{text()}</span>
-            </Show>
-            }>
-            <span class="keyword">{text()}</span>
-            </Show>
-        }>
-        {(() => {
-          const match = text().match(/^(while)\s+(.+)$/);
-          if (match) {
-            return (
-              <>
-                <span class="keyword">{match[1]}</span>{' '}
-                <span class="condition">{match[2]}</span>
-              </>
-            );
-          }
-          return <span>{text()}</span>;
-        })()}
-      </Show>
-    }>
-      {(() => {
-        const match = text().match(/^(if|else if)\s+(.+)$/);
-        if (match) {
-          return (
-            <>
-              <span class="keyword">{match[1]}</span>{' '}
-              <span class="condition">{match[2]}</span>
-            </>
-          );
-        }
-        return <span>{text()}</span>;
-      })()}
-    </Show>
-  );
-}
-
-/**
- * Component for rendering a single algorithm with all its lines
- */
-function AlgorithmSection(props: {
-  algorithm: AlgorithmStructure;
-  showLineNumbers: boolean;
-  agentsInThisAlgo: Map<number, AgentExecutionState[]>;
-  highlightLine?: number;
-}) {
-
-
-  return (
-    <div class="algorithm-section">
-      <div class="algorithm-header">
-        <h3 class="algorithm-caption">{props.algorithm.caption}</h3>
-        <Show when={props.algorithm.input}>
-          <div class="algorithm-input">
-            <span class="input-label">Input:</span> {props.algorithm.input}
-          </div>
-        </Show>
-      </div>
-      
-      <div class="algorithm-body">
-        <For each={props.algorithm.lines}>
-          {(line) => {
-            // Create reactive highlighted state for each line
-            const highlighted = createMemo(() => {
-              if (props.highlightLine !== undefined && props.highlightLine === line.lineNumber) {
-                return true;
-              }
-              return props.agentsInThisAlgo.has(line.lineNumber);
-            });
-
-            return (
-              <AlgorithmLineView
-                line={line}
-                showLineNumbers={props.showLineNumbers}
-                highlighted={highlighted()}
-                agentsAtLine={props.agentsInThisAlgo.get(line.lineNumber) || []}
-              />
-            );
-          }}
-        </For>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Component for rendering a single algorithm line with markers
- */
-function AlgorithmLineView(props: {
-  line: AlgorithmLine;
-  showLineNumbers: boolean;
-  highlighted: boolean;
-  agentsAtLine: AgentExecutionState[];
-}) {
-  const lineClasses = createMemo(() => [
-    'algorithm-line',
-    `line-type-${props.line.type}`,
-    `indent-level-${props.line.indent}`,
-    props.highlighted ? 'highlighted' : '',
-  ].filter(Boolean).join(' '));
-  
-  // Generate indentation guides
-  const indentGuides = createMemo(() => {
-    const guides = [];
-    for (let i = 0; i < props.line.indent; i++) {
-      guides.push(i);
-    }
-    return guides;
-  });
-  
-  return (
-    <div 
-      class={lineClasses()}
-      data-line-number={props.line.lineNumber}
-      data-label={props.line.label}
-    >
-      <Show when={props.showLineNumbers}>
-        <span class="line-number">{props.line.lineNumber}</span>
-      </Show>
-      
-      <span class="line-content" style={{ 'padding-left': `${props.line.indent * 2}ch` }}>
-        {/* Indentation guides */}
-        <For each={indentGuides()}>
-          {(level) => (
-            <span 
-              class="indent-guide" 
-              style={{ left: `${level * 2}ch` }}
-            />
-          )}
-        </For>
-        
-        <FormattedLineText line={props.line} />
-      </span>
-      
-      {/* Agent markers - at the end of the line, pointing left since they're at the end */}
-      <Show when={props.agentsAtLine.length > 0}>
-        <div class="agent-markers">
-          <For each={props.agentsAtLine}>
-            {(agent) => (
-              <span 
-                class="agent-marker"
-                style={{ 
-                  color: agent.color,
-                  'border-color': agent.color 
-                }}
-                title={`Agent ${agent.agentId} executing this line`}
-              >
-                ◀
-              </span>
-            )}
-          </For>
-        </div>
-      </Show>
-    </div>
-  );
-}
+type Mark = { agent: AgentExecutionState; kind: 'at' | 'call' | 'return' };
+const SHORT = 48;
+const shorten = (s: string) => s.length > SHORT ? s.slice(0, SHORT - 1) + '…' : s;
 
 export function AlgorithmViewer(props: AlgorithmViewerProps) {
-  const showLineNumbers = () => props.showLineNumbers ?? true;
-  
-  /**
-   * Get all algorithms (main + procedures) as a map
-   */
-  const allAlgorithms = createMemo(() => {
-    const map = new Map<string, AlgorithmStructure>();
-    map.set(props.algorithm.id, props.algorithm);
-    if (props.procedures) {
-      for (const proc of props.procedures) {
-        map.set(proc.id, proc);
-      }
+  const definitions = () => props.source.definitions ?? [];
+  const defNames = createMemo(() => new Set(definitions().map(d => d.name)));
+  const procedures = createMemo(() => {
+    const out = new Set(['main', ...defNames()]);
+    for (const l of props.source.lines) {
+      const m = /^\s*def\s+(\w+)/.exec(l.text);
+      if (m) out.add(m[1]);
     }
-    return map;
+    return out;
   });
-  
-  /**
-   * Get all agents that are at a specific line in a specific algorithm
-   * Returns a map: algorithmId -> lineNumber -> agents[]
-   */
-  const getAgentsAtLine = createMemo(() => {
-    if (!props.agentStates) return new Map<string, Map<number, AgentExecutionState[]>>();
-    
-    const algoToLineToAgents = new Map<string, Map<number, AgentExecutionState[]>>();
-    
-    for (const state of props.agentStates) {
-      if (!algoToLineToAgents.has(state.currentAlgorithm)) {
-        algoToLineToAgents.set(state.currentAlgorithm, new Map());
-      }
-      const lineToAgents = algoToLineToAgents.get(state.currentAlgorithm)!;
-      const agents = lineToAgents.get(state.currentLine) || [];
-      agents.push(state);
-      lineToAgents.set(state.currentLine, agents);
+  const lines = createMemo(() => tokenizeAll(props.source.lines, procedures()));
+  const defLines = createMemo(() => definitions().map(d => ({ ...d, tokens: tokenizeAll(d.lines, procedures()) })));
+
+  /** The line an agent is shown at: the statement that decided its last step, or its program counter. */
+  const lineOf = (a: AgentExecutionState) => a.explanation?.line ?? a.line;
+
+  const mainMarks = createMemo(() => {
+    const out = new Map<number, Mark[]>();
+    const add = (line: number, m: Mark) => out.set(line, [...(out.get(line) ?? []), m]);
+    for (const a of props.agents ?? []) {
+      add(lineOf(a), { agent: a, kind: 'at' });
+      for (const c of new Set(a.calls ?? [])) add(c, { agent: a, kind: 'call' });
     }
-    
-    return algoToLineToAgents;
+    return out;
   });
-  
-  /**
-   * Get which algorithms are currently being executed (have at least one agent)
-   */
-  const activeAlgorithmIds = createMemo(() => {
-    const agentsMap = getAgentsAtLine();
-    const ids: string[] = [];
-    
-    // Always show main algorithm first
-    ids.push(props.algorithm.id);
-    
-    // Add procedures that have active agents
-    if (props.procedures) {
-      for (const proc of props.procedures) {
-        if (agentsMap.has(proc.id)) {
-          ids.push(proc.id);
+  /** Per definition and line, the agents whose last step returned from that line (once per agent). */
+  const defMarks = createMemo(() => {
+    const out = new Map<string, Map<number, Mark[]>>();
+    for (const a of props.agents ?? []) {
+      const seen = new Set<string>();
+      const walk = (calls: TraceCall[]) => {
+        for (const c of calls) {
+          const key = `${c.fn}:${c.line}`;
+          if (c.line !== undefined && !seen.has(key)) {
+            seen.add(key);
+            const lines = out.get(c.fn) ?? new Map<number, Mark[]>();
+            lines.set(c.line, [...(lines.get(c.line) ?? []), { agent: a, kind: 'return' }]);
+            out.set(c.fn, lines);
+          }
+          walk(c.calls);
         }
-      }
+      };
+      walk(a.explanation?.calls ?? []);
     }
-    
-    return ids;
+    return out;
   });
-  
-  return (
-    <div class="algorithm-viewer">
-      <For each={activeAlgorithmIds()}>
-        {(algoId) => {
 
-          const agentsInThisAlgo = createMemo(() => getAgentsAtLine().get(algoId) || new Map());
+  // Folding, the selected agent, and the line to flash after a jump: kept while stepping.
+  const [open, setOpen] = createSignal<Set<string>>(new Set());
+  // The whole group of definitions is folded at first.
+  const [defsOpen, setDefsOpen] = createSignal(false);
+  const [selected, setSelected] = createSignal<number | undefined>();
+  const [flash, setFlash] = createSignal<string | undefined>();
+  const defElements = new Map<string, HTMLElement>();
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
+  onCleanup(() => clearTimeout(flashTimer));
+  const toggle = (name: string) => setOpen(o => { const n = new Set(o); if (n.has(name)) n.delete(name); else n.add(name); return n; });
+  /** Opens a definition and scrolls to it (and to a line of it). */
+  const jump = (name: string, line?: number) => {
+    if (!defNames().has(name)) return;
+    setDefsOpen(true);
+    setOpen(o => new Set(o).add(name));
+    setFlash(line !== undefined ? `${name}:${line}` : name);
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => setFlash(undefined), 1600);
+    queueMicrotask(() => {
+      const el = defElements.get(name);
+      const target = line !== undefined ? el?.querySelector(`[data-line-number="${line}"]`) : el;
+      (target ?? el)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
+  };
+  const selectedAgent = createMemo(() => (props.agents ?? []).find(a => a.index !== undefined && a.index === selected()));
 
-          return (<Show when={allAlgorithms().get(algoId)}>
-            <AlgorithmSection
-              algorithm={allAlgorithms().get(algoId)!}
-              showLineNumbers={showLineNumbers()}
-              agentsInThisAlgo={agentsInThisAlgo()}
-              highlightLine={props.highlightLine}
-            /></Show>
+  const Code = (p: { lines: Line[]; marks: Map<number, Mark[]>; def?: string }): JSX.Element => (
+    <For each={p.lines}>
+      {(line) => {
+        const marks = () => p.marks.get(line.number) ?? [];
+        const classes = () => [
+          'algorithm-line',
+          marks().some(m => m.kind === 'at') ? 'highlighted' : marks().some(m => m.kind === 'return') ? 'returned' : marks().length ? 'calling' : '',
+          p.def && flash() === `${p.def}:${line.number}` ? 'flash' : '',
+        ].filter(Boolean).join(' ');
+        return (
+          <div class={classes()} data-line-number={line.number}>
+            <span class="line-number">{line.number}</span>
+            <span class="line-content">
+              <For each={line.tokens}>
+                {(t) => t.kind === 'function' && defNames().has(t.text)
+                  ? <span class="tok-function tok-link" onClick={() => jump(t.text)} title={`Show the definition of ${t.text}`}>{t.text}</span>
+                  : t.kind ? <span class={`tok-${t.kind}`}>{t.text}</span> : t.text}
+              </For>
+            </span>
+            <Show when={marks().length > 0}>
+              <span class="agent-markers">
+                <For each={marks()}>
+                  {(m) => (
+                    <span
+                      class={`agent-marker${m.kind === 'call' ? ' call-marker' : m.kind === 'return' ? ' return-marker' : ''}${selected() === m.agent.index ? ' selected' : ''}`}
+                      style={{ color: m.agent.color }}
+                      title={m.kind === 'at' ? `${m.agent.agentId} is at this line: click to explain its last step`
+                        : m.kind === 'call' ? `${m.agent.agentId} is inside the procedure called here`
+                        : `${m.agent.agentId}'s last step returned from this line: click to explain it`}
+                      onClick={() => setSelected(s => s === m.agent.index ? undefined : m.agent.index)}
+                    >
+                      {m.kind === 'at' ? '◀' : m.kind === 'call' ? '◁' : '↩'} {m.agent.agentId}
+                    </span>
+                  )}
+                </For>
+              </span>
+            </Show>
+          </div>
+        );
+      }}
+    </For>
+  );
+
+  const CallTree = (p: { calls: TraceCall[]; depth: number }): JSX.Element => (
+    <ul class="ex-calls">
+      <For each={p.calls}>
+        {(c) => {
+          const [expanded, setExpanded] = createSignal(false);
+          return (
+            <li>
+              <div class="ex-call">
+                <span class="ex-toggle" onClick={() => setExpanded(v => !v)}>{c.calls.length ? (expanded() ? '▾' : '▸') : ''}</span>
+                <span class="tok-function tok-link" onClick={() => jump(c.fn, c.line)}>{c.fn}</span>
+                <span class="ex-args" title={c.args.join(', ')}>({c.args.map(shorten).join(', ')})</span>
+                <span class="ex-eq">=</span>
+                <span class="ex-result" title={c.result}>{shorten(c.result)}</span>
+                <Show when={c.line !== undefined}>
+                  <span class="ex-line" onClick={() => jump(c.fn, c.line)} title="Show where it returned">↩ {c.line}</span>
+                </Show>
+              </div>
+              <Show when={expanded() && c.calls.length}>
+                <CallTree calls={c.calls} depth={p.depth + 1} />
+              </Show>
+            </li>
           );
         }}
       </For>
-      
-      {/* Agent legend */}
-      <Show when={props.agentStates && props.agentStates.length > 0}>
-        <div class="agent-legend">
-          <h4>Agents:</h4>
-          <For each={props.agentStates}>
-            {(agent) => (
-              <div class="agent-legend-item">
-                <span 
-                  class="agent-color-box" 
-                  style={{ 'background-color': agent.color }}
-                />
-                <span class="agent-id">{agent.agentId}</span>
-                <span class="agent-line">
-                  in <strong>{allAlgorithms().get(agent.currentAlgorithm)?.caption || agent.currentAlgorithm}</strong> at line {agent.currentLine}
-                </span>
-                <Show when={agent.stateDescription}>
-                  <span class="agent-state-description"> — {agent.stateDescription}</span>
-                </Show>
-              </div>
-            )}
+    </ul>
+  );
+
+  return (
+    <div class="algorithm-viewer">
+      <div class="algorithm-header">
+        <h3 class="algorithm-caption">{props.source.name}</h3>
+        <Show when={props.source.file}>
+          <span class="algorithm-file">{props.source.file!.split('/').pop()}</span>
+        </Show>
+      </div>
+
+      <Show when={selectedAgent()}>
+        {a => (
+          <div class="ex-panel">
+            <div class="ex-head">
+              <strong style={{ color: a().color }}>{a().agentId}</strong>
+              <Show when={a().explanation} fallback={<span class="sim-muted">did not take a decision in the last step (not activated, or the initial configuration).</span>}>
+                {e => (
+                  <span>
+                    last step: <span class="tok-action">move</span> {e().move}
+                    <Show when={e().line !== undefined}> · decided at line {e().line}</Show>
+                    <span class="sim-muted"> · frame: {e().frame}</span>
+                  </span>
+                )}
+              </Show>
+              <span style={{ flex: 1 }} />
+              <button class="sim-ghost sim-icon" onClick={() => setSelected(undefined)} title="Close">✕</button>
+            </div>
+            <Show when={a().explanation}>
+              {e => (
+                <>
+                  <div class="ex-view">
+                    <For each={Object.entries(e().view)}>
+                      {([k, v]) => <div><span class="si-key">{k}</span> <span class="ex-result" title={v}>{v}</span></div>}
+                    </For>
+                  </div>
+                  <Show when={e().calls.length} fallback={<p class="sim-muted ex-none">No definition was called.</p>}>
+                    <CallTree calls={e().calls} depth={0} />
+                  </Show>
+                </>
+              )}
+            </Show>
+          </div>
+        )}
+      </Show>
+
+      <div class="algorithm-body">
+        <Code lines={lines()} marks={mainMarks()} />
+      </div>
+
+      <Show when={defLines().length > 0}>
+        <div class="algorithm-defs">
+          <div class="defs-title" onClick={() => setDefsOpen(v => !v)} title={defsOpen() ? 'Fold the definitions' : 'Show the definitions'}>
+            {defsOpen() ? '▾' : '▸'} Definitions <span class="sim-muted">({defLines().length}; a click on a function name opens its definition)</span>
+          </div>
+          <Show when={defsOpen()}>
+          <For each={defLines()}>
+            {(d) => {
+              const marks = () => defMarks().get(d.name) ?? new Map<number, Mark[]>();
+              const agents = () => [...new Map([...marks().values()].flat().map(m => [m.agent.index, m.agent])).values()];
+              return (
+                <div class={`def${flash() === d.name ? ' flash' : ''}`} ref={el => defElements.set(d.name, el)}>
+                  <Show when={open().has(d.name)} fallback={
+                    <div class="algorithm-line def-folded" onClick={() => toggle(d.name)} title="Show the definition">
+                      <span class="line-number">▸</span>
+                      <span class="line-content">
+                        <For each={d.tokens[0]?.tokens ?? []}>{(t) => t.kind ? <span class={`tok-${t.kind}`}>{t.text}</span> : t.text}</For>
+                      </span>
+                      <Show when={agents().length}>
+                        <span class="agent-markers">
+                          <For each={agents()}>{(a) => <span class="agent-marker return-marker" style={{ color: a.color }}>↩ {a.agentId}</span>}</For>
+                        </span>
+                      </Show>
+                    </div>
+                  }>
+                    <div class="def-open">
+                      <div class="def-fold" onClick={() => toggle(d.name)} title="Fold">▾ {d.name}</div>
+                      <Code lines={d.tokens} marks={marks()} def={d.name} />
+                    </div>
+                  </Show>
+                </div>
+              );
+            }}
           </For>
+          </Show>
         </div>
       </Show>
     </div>

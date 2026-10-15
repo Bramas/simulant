@@ -1,0 +1,129 @@
+/* The configuration graph (tokens in simulator.css). */
+
+.cg-controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.cg-depth {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.cg-depth input {
+  width: 5.5rem;
+}
+
+.cg-views {
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.cg-stats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.cg-selection {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  background: var(--sim-surface-2);
+  font-size: 0.85rem;
+}
+
+.cg-frame {
+  position: relative;
+  margin-top: 0.75rem;
+}
+
+.cg-canvas {
+  display: block;
+  background: var(--sim-surface-2);
+  border: 1px solid var(--sim-border);
+  border-radius: 8px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.cg-zoom {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: 8px;
+  padding: 0.2rem 0.3rem;
+}
+
+.cg-help {
+  margin: 0.4rem 0 0;
+  font-size: 0.78rem;
+}
+
+.cg-list,
+.cg-tree {
+  margin-top: 0.75rem;
+  max-height: 480px;
+  overflow: auto;
+  border: 1px solid var(--sim-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.85rem;
+}
+
+.cg-list summary {
+  cursor: pointer;
+  font-weight: 600;
+  margin: 0.3rem 0;
+}
+
+.config-graph .cg-list-row,
+.config-graph .cg-node-link {
+  display: flex;
+  gap: 0.8rem;
+  align-items: baseline;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  color: var(--sim-text);
+  padding: 0.15rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.config-graph .cg-node-link {
+  width: auto;
+  font-family: var(--sim-mono);
+}
+
+.config-graph .cg-list-row:hover,
+.config-graph .cg-node-link:hover {
+  background: var(--sim-surface-2);
+}
+
+.cg-success { border-left-color: var(--sim-success) !important; }
+.cg-failure { border-left-color: var(--sim-failure) !important; }
+.cg-inProgress { border-left-color: var(--sim-progress) !important; }
+.config-graph .cg-on-path { background: var(--sim-highlight-soft); }
+
+.cg-tree-children {
+  margin-left: 1.2rem;
+  border-left: 1px dotted var(--sim-border);
+}

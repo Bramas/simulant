@@ -1,0 +1,111 @@
+# Architecture
+
+Simulant defines an experiment once in `.sim` and uses its typed IR for interactive simulation, command-line exploration and Lean generation. The [language reference](sim-language.md) describes accepted syntax; the [IR reference](ir.md) specifies runtime semantics. [Development](development.md) covers verification and known issues.
+
+## Data flow
+
+```text
+.sim sources and imports
+        │
+   parse, elaborate, lower, typecheck
+        │
+        ▼
+   typed IR ───────────────────────► Lean generator
+        │                              │
+   interpreter ◄── explorer        generated models + hand-written proofs
+        │             │
+   snapshots       verdicts, witnesses, counterexamples
+        │             │
+        └──── UI and CLI
+```
+
+The frontend records source locations and the import graph. Structured procedures are inlined into a state machine; the program counter and locals retained across activations become explicit private memory. Resume-point names depend on program order rather than source line numbers. Source text, line tables and expression locations are display metadata and do not affect state equality or Lean semantics.
+
+The IR is versioned JSON. A semantic change updates its types and documentation, conformance fixtures, interpreter and Lean generator together. The standard library used by projects is authored in `.sim`. Its [hand-written TypeScript builder counterparts](../packages/stdlib/README.md) construct IR independently for conformance, engine and typechecker tests; they are not generated from `.sim`.
+
+## Packages
+
+| Location | Responsibility |
+| --- | --- |
+| `packages/lang/` | Parsing, imports, elaboration, lowering, typechecking and IR |
+| `packages/language-service/` | Editor features over the frontend and a portable source host |
+| `packages/language-server/` | Node source access and LSP transport |
+| `extensions/vscode-simulant/` | VS Code client, highlighting, snippets and extension packaging |
+| `packages/engine/` | Values, topologies, rounds, successor enumeration, exploration and symmetry reduction |
+| `packages/stdlib/sim/` | Sensors, components, model families, tasks and examples |
+| `packages/stdlib/test/helpers/` | Hand-written builder counterparts for conformance, engine and typechecker tests |
+| `packages/lean-gen/` | Model generation, proof checks and differential tests |
+| `packages/vite-plugin/` | `.sim` imports, source watching, diagnostics and snapshot types under Vite and Node |
+| `packages/core/` | Shared project types and configuration-graph worker traversal |
+| `packages/simulator-ui/` | Execution adapter, snapshots, renderers and SolidJS interface |
+| `packages/cli/` | Discovery, checks, graph export, watch mode and Lean generation |
+| `lean/Simulant/` | Lean semantic core, generated component library and hand-written lemmas |
+| `apps/preview/` | Minimal development viewer for a `.sim` entry |
+
+Engine behavior belongs in `packages/engine/`; `packages/core/` is shared infrastructure for projects, the UI and the CLI.
+
+## Models and execution
+
+A model specifies topology, sensors, frames, internal memory, round and components. An algorithm uses the model's sensors. A task assigns configuration verdicts and a temporal goal. An experiment binds these definitions to parameter domains, initial conditions and exploration limits. Knowing the ring size is a sensor capability, distinct from choosing the ring size as an experiment parameter.
+
+An oblivious model permits no private program counter or local values retained across activations. Persistent storage supplied by components is a separate model capability: sensors expose it and actions update it. Model families compose the same components with different parameters, sensors and frames, so adding crashes or changing the topology reuses the existing black-hole component.
+
+Components own their world fields, agent fields, flags and actions. At each hook point, all components read the same snapshot. Their owned field updates are disjoint, and raised flags merge by logical OR. Hooks cannot write another component's fields or move agents. Flags are never cleared; their visibility and behavior determine `present`, `correct` and whether an agent acts.
+
+The standard round chooses topology state, runs `beforeLook`, chooses activations and frames, evaluates sensors and algorithm decisions, runs `beforeMove`, applies movement, and runs `afterMove`. Each activated agent uses one frame and one evaluation of each sensor throughout that activation. Actions such as pebble operations are decisions consumed by component hooks; simultaneous pebble picks are truncated to the pebbles present.
+
+Topologies (`Ring`, `DynamicRing k`) and rounds (`fsync`, `ssync`) are implemented in the semantic core. Dynamic-ring missing edges are chosen anew each round and forgotten afterwards. Successors with equal full configurations merge, retaining the first witness and, under SSYNC, the union of possible activations for fairness analysis. History-dependent tasks store history in monitor components such as `Monitors.Visited`.
+
+Nondeterministic arguments are evaluated left to right, including both operands of logical expressions. Algorithms cannot introduce adversary choices. Agent references are local to a round and cannot be stored. The current `acts adversary` behavior chooses a move while leaving the agent's public state and memory unchanged.
+
+## State graphs and goals
+
+State keys include positions, flags, component fields, public state, private memory and monitor state. Values are immutable JavaScript data with type-directed canonical string encodings. FSYNC stores anonymous agents sorted; SSYNC preserves indices because fairness depends on identity.
+
+The explorer builds a breadth-first state graph. Reachable failures yield shortest counterexamples. Liveness is decided using strongly connected components and repeatable cycles, with concrete replayable paths and lasso witnesses. A reached depth or state limit produces `incomplete` unless a counterexample has already been established.
+
+FSYNC considers every permitted execution, with no fairness assumption forcing a black hole to appear or an absent edge to return. SSYNC admits executions in which every agent that continues to act is activated infinitely often; the exhaustive explorer excludes starvation cycles. See the [known smoke-check issue](development.md#known-issues) for the first-branch command.
+
+`IdentifyEmergingBlackHole` counts an inactive hole as `success`. With `eventually always .success`, an execution where the hole never activates succeeds; once it activates, identification must eventually persist. The UI displays a configuration's raw task verdict, while an exhaustive check decides the goal over executions.
+
+`check-all` shares graphs among settings of the same ring size. This is sound because parameters only affect initialization and topology size, as enforced by the checker. Initial configurations equal up to symmetry merge. `--per-setting` trades additional exploration time for lower peak memory. A `--max-configs`
+limit stops parameter enumeration at the requested prefix. Batch grouping appends settings in
+place; initial-state and successor deduplication use maps while preserving enumeration order.
+
+Symmetries are derived from equivariance declarations on components, sensors and tasks, and the frame model's support for reflection. Automorphisms transform node-valued state and frames. Custom declarations remain claims: bounded equivariance tests and reduced-versus-unreduced comparisons provide evidence, and a general proof requires appropriate Lean lemmas. `symmetries := none` disables reduction.
+
+## Projects and source updates
+
+Projects register an imported `.sim` experiment with `simProject`, which supplies the settings form, execution adapter, checks, source viewer, state inspector and model view. A default ring renderer is available; projects can supply drawing functions with agent hit positions. The `aliases` option normalizes older parameter names for the UI, CLI, saved settings and shared links.
+
+The model view lets a reader compare an experiment with its paper without reading the toolchain. Its facts are derived from the same compiled IR the simulator, explorer and Lean generator use, not from separate prose, so they cannot drift from what is checked; the declarations beside them are shown as written. The frontend records which declarations an experiment uses (`Experiment.source`), because only elaboration knows which model definitions, components and sensors a model expression reached. Like the algorithm's line table, these locations are display metadata: a line-only edit redraws both views without restarting the execution.
+
+The model view can also show the generated Lean model beside the same sources. The Vite plugin (or the Node hooks) generates it when compiling a `.sim` file, with the generator `simulant lean` uses, so the page shows the file the CLI writes; only the module name differs until the page renames it after the simulation. Generation runs in Node because the library components are elaborated from the standard library on disk; for that reason the generator's modules use relative imports, which the plugin's bundled configuration can load. Each region of the file carries the part of the experiment it translates (`generateMappedModel`), and each case of the lowered step its program counter, which the line table maps to the statement it resumes after. An experiment the generator refuses (a native algorithm, definitions on nodes...) shows the generator's reason instead.
+
+The [VS Code extension](../extensions/vscode-simulant/README.md) uses a language server for diagnostics and editing features. The shared service compiles the same frontend IR and indexes AST declarations/scopes for navigation. Unsaved source overlays cover transitive imports. Its source host and LSP-shaped results are independent of Node and VS Code; a browser bundle allows a future editor adapter to reuse the service without running the simulator. Syntax coloring uses a separate TextMate grammar.
+
+The [starter](../projects/starter/README.md) shows the project layout. Sources, renderers and hand-written proofs belong to the researcher's repository. `projects/private/` is an optional separate Git repository; its code and fixtures stay private. The public build lists its published projects explicitly.
+
+Vite watches every source dependency, including missing imports. The CLI supports Node and Bun. Node uses `tsx` and module hooks; Bun uses native TypeScript
+loading and a runtime plugin for `.sim` files. Both loaders use the same compiler, generated
+modules and polling watcher. Node also supplies workspace-package fallbacks for uninstalled
+dependencies; Bun uses native package resolution. Under either runtime, watch mode
+polls files to work reliably on the WSL drive. A semantic edit replaces the experiment and restarts its execution, adjusting compatible settings. A drawing or line-only edit redraws while preserving the execution. Invalid sources retain the last good view with diagnostics and pause navigation. The line-only explanation regression is tracked in [development](development.md#known-issues).
+
+Compiled modules and check results carry source revisions. Superseded checks are cancelled; graph workers reject requests for another revision. `simulant lean` writes `Generated/` and revision metadata, preserves `Proofs/` and existing project build configuration, and requires proofs to be checked again after model changes. It infers a simulation only when the selected project source registers exactly one; otherwise `-p <name>` selects the simulation explicitly, so workspace-wide discovery cannot silently choose a model.
+
+## Lean guarantees and limits
+
+The hand-written Lean core defines nondeterminism, rings, rounds, executions, fairness and goals. Nondeterminism is a list of witness/value pairs; `Step` is membership in the computable round. There is no separate set semantics to reconcile with evaluation.
+
+Library components and model files are generated from the same IR used by the interpreter. Components are generic over the composition: lenses expose their owned state, and classes expose their flags and actions. A composed model supplies the instances and preservation lemmas. Hand-written library lemmas live separately from generated files.
+
+Generated models define `Statement` (correctness over admissible executions and parameter domains) and `NonVacuity` (an initial configuration, successors for reachable configurations and an admissible execution). Building a model does not prove these statements. Existing examples prove non-vacuity and selected invariants, including a lowered black-hole algorithm invariant and rotation equivariance for a cautious-pair composition.
+
+Proof files may introduce auxiliary definitions, but the proof checks prohibit axioms, `sorry`, `admit`, `native_decide`, `opaque`, implementation overrides and new syntax. For selected claims, `checkProofs` checks the generated statement's type and inspects axioms, allowing only `propext`, `Classical.choice` and `Quot.sound`. CLI `lean --build` scans proof files and runs Lake; it does not automatically select and audit a main correctness theorem.
+
+The TypeScript interpreter and frontend are not verified. Conformance fixtures and bounded differential tests compare successor sets and replay interpreter witnesses in Lean. They support correspondence for tested instances and the translated subset.
+
+Current translation limits include native algorithms, multiset-to-list conversion, subsets of non-agent multisets and multiset equality. Lean represents multisets as lists; order can matter when evaluating a lasso with multiset world state. The lossy-view conformance experiment is explicitly refused. Definitions on values are supported; definitions on nodes or agents, or containing choices, are not yet generated. The generic equivariance lemma still needs generalization for conjugated component effects and dynamic topology states.
+
+Extensions should preserve existing definitions and state their relationship to established models through lemmas. Additional topologies, rounds or IR forms require coordinated interpreter, generator, conformance and documentation changes. Alternative interpreter implementations can use the same IR contract if profiling justifies them.

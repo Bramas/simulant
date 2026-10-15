@@ -1,0 +1,30 @@
+/-! Library sensors (plan, Section 3.2). A sensor is a function of the configuration `C`,
+the observing agent `me`, and its frame; the sensors of a model are exactly what its
+algorithms can know. -/
+
+/-- Public states of the other agents on my node. -/
+@[equivariant rotations reflections]
+sensor otherStates (C : Config) (me : Agent) : Multiset Pub :=
+  (C.agents.filter fun b => b ≠ me ∧ present b ∧ b.pos = me.pos).map (·.pub)
+
+/-- The adversary may hide up to `k` of the agents on my node, once per activation. -/
+@[equivariant rotations reflections, implements otherStates]
+sensor otherStatesLossy (k : Nat) (C : Config) (me : Agent) : Multiset Pub :=
+  let seen := (C.agents.filter fun b => b ≠ me ∧ present b ∧ b.pos = me.pos).map (·.pub)
+  let hidden := choose (subsetsUpTo k seen) labels fun h => if h.isEmpty then "hides nobody" else "hides " ++ show h
+  seen.diff hidden
+
+/-- Knowledge of the ring size. -/
+@[equivariant rotations reflections]
+sensor ringSize (C : Config) (me : Agent) : Nat :=
+  C.size
+
+/-- Which local offsets are occupied (weak multiplicity). States are not visible. -/
+@[equivariant rotations reflections]
+sensor ringPresence (C : Config) (me : Agent) (frame : Frame) : List Bool :=
+  ofFn C.size fun i => C.agents.any fun b => present b ∧ b.pos = offset me.pos frame i
+
+/-- How many agents are at each local offset (strong multiplicity). -/
+@[equivariant rotations reflections]
+sensor ringCount (C : Config) (me : Agent) (frame : Frame) : List Nat :=
+  ofFn C.size fun i => C.agents.count fun b => present b ∧ b.pos = offset me.pos frame i

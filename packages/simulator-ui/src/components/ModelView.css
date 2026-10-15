@@ -1,0 +1,520 @@
+/**
+ * The model view: facts on the left, the declarations as written on the right (tokens and code
+ * lines from simulator.css and AlgorithmViewer.css). The blocks are not <article>s: Pico gives an
+ * article's <header> negative margins, which pushed the header over the block's border.
+ */
+
+.model-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.mv-intro-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  flex-wrap: wrap;
+}
+
+.mv-intro h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-family: var(--sim-mono);
+}
+
+.mv-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.mv-chips .sim-chip {
+  font-weight: 500;
+  color: var(--sim-text);
+}
+
+.mv-about {
+  margin: 0.75rem 0 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  max-width: 60rem;
+}
+
+.mv-about p {
+  margin: 0 0 0.5rem;
+}
+
+.mv-about code {
+  font-size: 0.82rem;
+  padding: 0.05rem 0.3rem;
+}
+
+.mv-help {
+  margin: 0.5rem 0 0;
+}
+
+.mv-help code {
+  font-size: 0.8rem;
+}
+
+.mv-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.mv-grid.mv-grid-lean {
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+}
+
+@media (max-width: 1100px) {
+  .mv-grid, .mv-grid.mv-grid-lean { grid-template-columns: minmax(0, 1fr); }
+}
+
+.mv-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.mv-section > h3 .sim-muted {
+  font-weight: 400;
+}
+
+/* Facts: label, value with its references, explanation */
+
+.mv-facts {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, max-content) minmax(0, 1fr);
+  gap: 0.55rem 1rem;
+  margin: 0;
+}
+
+.mv-facts dt {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--sim-muted);
+  padding-top: 0.12rem;
+}
+
+.mv-facts dd {
+  margin: 0;
+  min-width: 0;
+}
+
+.mv-value {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.5rem;
+}
+
+.mv-strong {
+  font-weight: 600;
+}
+
+.mv-code {
+  font-family: var(--sim-mono);
+  font-size: 0.85rem;
+  background: var(--sim-surface-2);
+  border: 1px solid var(--sim-border);
+  border-radius: 5px;
+  padding: 0 0.35rem;
+  overflow-wrap: anywhere;
+}
+
+.mv-note {
+  font-size: 0.85rem;
+  color: var(--sim-muted);
+  margin-top: 0.15rem;
+  line-height: 1.45;
+}
+
+.mv-details {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  font-family: var(--sim-mono);
+}
+
+.mv-details li {
+  margin: 0.1rem 0;
+  list-style: disc;
+}
+
+.sim-app button.mv-ref {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--sim-mono);
+  font-size: 0.75rem;
+  color: var(--sim-accent);
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
+.sim-app button.mv-ref:hover {
+  text-decoration: underline;
+}
+
+/* The round, as a numbered timeline */
+
+.mv-round {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  counter-reset: phase;
+}
+
+.mv-round li {
+  list-style: none;
+  counter-increment: phase;
+  display: grid;
+  grid-template-columns: 8.5rem minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0.45rem 0 0.45rem 0.6rem;
+  margin: 0;
+  border-left: 2px solid var(--sim-border);
+  font-size: 0.88rem;
+}
+
+.mv-round li.mv-idle {
+  opacity: 0.55;
+}
+
+.mv-phase {
+  font-weight: 600;
+  font-family: var(--sim-mono);
+  font-size: 0.82rem;
+}
+
+.mv-round li:first-child .mv-phase::before {
+  content: '';
+}
+
+.mv-round li:not(:first-child) .mv-phase::before {
+  content: counter(phase, decimal) '. ';
+  color: var(--sim-muted);
+}
+
+.mv-round li:first-child {
+  counter-increment: none;
+  border-left-style: dashed;
+  margin-bottom: 0.3rem;
+}
+
+.mv-phase-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.3rem;
+}
+
+.mv-tag {
+  font-size: 0.75rem;
+  font-family: var(--sim-mono);
+  padding: 0.02rem 0.45rem;
+  border-radius: 999px;
+  background: var(--sim-accent-soft);
+  color: var(--sim-accent);
+}
+
+.mv-tag.mv-adversary {
+  background: var(--sim-failure-soft);
+  color: var(--sim-failure);
+}
+
+@media (max-width: 600px) {
+  .mv-round li { grid-template-columns: minmax(0, 1fr); gap: 0.2rem; }
+  .mv-facts { grid-template-columns: minmax(0, 1fr); gap: 0.15rem; }
+  .mv-facts dd { margin-bottom: 0.45rem; }
+}
+
+.mv-caveats ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+}
+
+.mv-caveats li {
+  list-style: disc;
+  margin: 0.2rem 0;
+}
+
+/* The declarations as written */
+
+.mv-sources {
+  position: sticky;
+  top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  max-height: calc(100vh - 1.5rem);
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .mv-sources { position: static; max-height: none; }
+}
+
+.mv-toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.sim-app button.mv-toc-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  font-family: var(--sim-mono);
+  font-size: 0.75rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface);
+  color: var(--sim-text);
+}
+
+.sim-app button.mv-toc-item:hover {
+  background: var(--sim-surface-2);
+}
+
+.mv-source-list {
+  overflow-y: auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding-right: 0.15rem;
+}
+
+@media (max-width: 1100px) {
+  .mv-source-list { overflow: visible; }
+}
+
+.mv-source {
+  flex-shrink: 0;
+  scroll-margin-top: 0.25rem;
+  transition: box-shadow 0.3s;
+}
+
+.mv-source.mv-flash {
+  box-shadow: 0 0 0 3px var(--sim-highlight);
+}
+
+.mv-source .algorithm-line.mv-flash-line {
+  border-left-color: var(--sim-highlight);
+  background-color: var(--sim-highlight-soft);
+}
+
+.mv-source .algorithm-header {
+  flex-wrap: wrap;
+}
+
+.mv-source .algorithm-file {
+  font-family: var(--sim-mono);
+}
+
+.mv-kind {
+  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sim-muted);
+}
+
+.mv-source .mv-kind {
+  padding: 0.05rem 0.4rem;
+  border-radius: 4px;
+  background: var(--sim-surface-2);
+  border: 1px solid var(--sim-border);
+}
+
+/* The definitions: a folded group, each definition folded to its signature */
+
+.mv-defs {
+  padding: 0;
+}
+
+.sim-app button.mv-defs-head,
+.sim-app button.mv-def-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  width: 100%;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  color: var(--sim-text);
+  text-align: left;
+}
+
+.sim-app button.mv-defs-head {
+  flex-wrap: wrap;
+  padding: 0.7rem 1rem;
+}
+
+.sim-app button.mv-defs-head .sim-muted {
+  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-size: 0.8rem;
+}
+
+.sim-app button.mv-defs-head:hover,
+.sim-app button.mv-def-head:hover {
+  background: var(--sim-surface-2);
+}
+
+.mv-fold {
+  color: var(--sim-muted);
+  width: 0.8rem;
+  flex-shrink: 0;
+}
+
+.mv-defs-tools {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-top: 1px solid var(--sim-border);
+  border-bottom: 1px solid var(--sim-border);
+}
+
+.mv-defs-tools input[type='search'] {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--sim-mono);
+  font-size: 0.82rem;
+}
+
+.mv-defs-none {
+  padding: 0.5rem 1rem;
+  margin: 0;
+}
+
+.mv-def {
+  border-bottom: 1px solid var(--sim-border);
+  scroll-margin-top: 0.25rem;
+}
+
+.mv-def:last-child {
+  border-bottom: none;
+}
+
+.mv-def.mv-flash {
+  box-shadow: inset 3px 0 0 var(--sim-highlight);
+}
+
+.sim-app button.mv-def-head {
+  font-family: var(--sim-mono);
+  font-size: 0.8rem;
+  padding: 0.3rem 1rem;
+}
+
+.mv-def-signature {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mv-def .algorithm-body {
+  padding-top: 0;
+}
+
+/* The Lean model: a gutter says what each part translates */
+
+.mv-lean {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.mv-lean-path {
+  font-family: var(--sim-mono);
+  font-weight: 400;
+}
+
+.mv-note code {
+  font-size: 0.78rem;
+}
+
+.mv-lean-file .algorithm-body {
+  font-size: 12px;
+}
+
+.mv-lean-line {
+  cursor: default;
+}
+
+.mv-lean-line.mv-linked {
+  cursor: pointer;
+}
+
+.mv-lean-line .line-content {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  padding-left: 1.5em;
+  text-indent: -1.5em;
+}
+
+.mv-lean-line.mv-lean-hover {
+  background-color: var(--sim-accent-soft);
+}
+
+.mv-source .algorithm-line.mv-lean-line.mv-flash-line {
+  border-left-color: var(--sim-highlight);
+  background-color: var(--sim-highlight-soft);
+}
+
+.mv-gutter {
+  flex: 0 0 11.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 0 0.6rem 0 0.4rem;
+  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-size: 0.7rem;
+  line-height: 1.35;
+  text-align: right;
+  color: var(--sim-muted);
+}
+
+.mv-gutter-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding-top: 0.2em;
+}
+
+.mv-gutter-ref {
+  font-family: var(--sim-mono);
+  color: var(--sim-accent);
+}
+
+@media (max-width: 700px) {
+  .mv-lean-line { flex-wrap: wrap; }
+  .mv-gutter { flex-basis: 100%; align-items: flex-start; text-align: left; padding-left: 3rem; }
+  .mv-gutter:empty { display: none; }
+  .mv-gutter-item { flex-direction: row; gap: 0.4rem; }
+}
+
+.sim-app button.mv-lean-button {
+  font-size: 0.75rem !important;
+  --pico-form-element-spacing-vertical: 0.05rem;
+  --pico-form-element-spacing-horizontal: 0.5rem;
+}
+
+.mv-source .algorithm-line.mv-to-lean {
+  cursor: pointer;
+}
+
+.mv-source .algorithm-line.mv-to-lean-line .line-number {
+  color: var(--sim-accent);
+  font-weight: 600;
+}

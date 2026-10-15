@@ -11,7 +11,9 @@
     "./SimulatorApp": "./src/SimulatorApp.tsx",
     "./simulator.css": "./src/simulator.css",
     "./pico.min.css": "./src/pico.min.css",
-    "./components/*": "./src/components/*.tsx"
+    "./components/*": "./src/components/*.tsx",
+    "./sim/*": "./src/sim/*.ts",
+    "./renderers/*": "./src/renderers/*.ts"
   },
   "dependencies": {
     "@bramas/simulant-core": "workspace:*"

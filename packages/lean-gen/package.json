@@ -1,0 +1,11 @@
+{
+  "name": "@bramas/simulant-lean-gen",
+  "version": "0.0.0",
+  "private": true,
+  "license": "CECILL-B",
+  "type": "module",
+  "dependencies": { "@bramas/simulant-lang": "workspace:*" },
+  "exports": {
+    "./*": "./src/*.ts"
+  }
+}

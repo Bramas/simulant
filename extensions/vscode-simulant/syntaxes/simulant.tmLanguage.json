@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Simulant",
+  "scopeName": "source.simulant",
+  "patterns": [
+    { "include": "#comments" }, { "include": "#strings" }, { "include": "#attributes" },
+    { "match": "\\b(import|def|structure|inductive|sensor|task|goal|algorithm|experiment)\\s+([A-Za-z_À-ɏͰ-Ͽ][A-Za-z0-9_'À-ɏͰ-Ͽ₀-₉]*(?:\\.[A-Za-z_À-ɏͰ-Ͽ][A-Za-z0-9_'À-ɏͰ-Ͽ₀-₉]*)*)", "captures": { "1": { "name": "keyword.declaration.simulant" }, "2": { "name": "entity.name.function.simulant" } } },
+    { "name": "keyword.control.simulant", "match": "\\b(import|def|structure|inductive|sensor|task|goal|algorithm|experiment|where|let|if|then|else|match|with|fun|choose|such|that|labels|param|flag|uses|raise|action|repeat|while|do|output|eventually|always)\\b" },
+    { "name": "keyword.control.activation.simulant", "match": "\\b(move|stay|halt|wait)\\b" },
+    { "name": "constant.language.simulant", "match": "\\b(true|false|none|nothing|visible|hidden|acts|never|adversary)\\b" },
+    { "name": "support.type.simulant", "match": "\\b(Nat|Int|Bool|String|Unit|Node|Agent|Move|Frame|Config|Verdict|Pub|Mem|World|Option|List|Multiset|Component|Model|Sensor|Topology|FrameModel|Round|Memory)\\b" },
+    { "name": "constant.other.constructor.simulant", "match": "(?<![\\w)\\]}·])\\.[A-Za-z_À-ɏͰ-Ͽ][A-Za-z0-9_'À-ɏͰ-Ͽ₀-₉]*" },
+    { "name": "support.function.simulant", "match": "\\b(any|all|count|filter|map|sum|length|isEmpty|isSome|isNone|getD|contains|dedup|diff|toList|toMultiset|subsets|subsetsUpTo|opposite|card|at|show|min|max|range|ofFn|node|target|advance|present|correct|decisionOf|offset|toGlobal|edgePresent|toInt)\\b" },
+    { "name": "constant.numeric.simulant", "match": "\\b[0-9]+\\b" },
+    { "name": "keyword.operator.simulant", "match": ":=|=>|->|<-|\\+\\+|==|!=|<=|>=|&&|\\|\\||[→←≠≤≥∧∨¬·×=<>+*/%!?-]" },
+    { "name": "punctuation.separator.simulant", "match": "[,:;|]" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-dash.simulant", "begin": "--", "end": "$" },
+        { "name": "comment.block.documentation.simulant", "begin": "/--", "end": "-/", "patterns": [{ "include": "#blockComment" }] },
+        { "include": "#blockComment" }
+      ]
+    },
+    "blockComment": { "name": "comment.block.simulant", "begin": "/-", "end": "-/", "patterns": [{ "include": "#blockComment" }] },
+    "strings": {
+      "name": "string.quoted.double.simulant", "begin": "\"", "end": "\"|$",
+      "patterns": [{ "name": "constant.character.escape.simulant", "match": "\\\\(?:[\"\\\\/bfnrt]|u[0-9a-fA-F]{4})" }]
+    },
+    "attributes": {
+      "name": "meta.annotation.simulant", "begin": "@\\[", "end": "\\]",
+      "patterns": [{ "name": "entity.other.attribute-name.simulant", "match": "\\b(equivariant|rotations|reflections|implements)\\b" }, { "include": "#comments" }]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+# Browser acceptance
+
+Run `pnpm test:browser` to exercise the simulator in headless Chromium with
+Playwright. This suite is separate from `pnpm test` and starts and closes its
+own Vite servers. Source-edit checks run against a temporary copy of the public
+starter project; the original model and renderer are preserved.
+
+The suite uses a locally installed `playwright` or `playwright-core` Node
+package, or the Node API bundled with Python's `playwright` installation.
+To use a different installation, set `SIMULANT_PLAYWRIGHT_MODULE` to its module
+name or absolute package directory. The matching Chromium browser must already
+be installed. In the Codex sandbox used for this repository, launching Chromium
+and binding localhost require running this command outside the sandbox.
+
+Assertions cover rendering, forward/back navigation, presets, agent selection,
+branch selection, configuration-graph workers, semantic source updates,
+line-only updates, renderer updates, pausing navigation on invalid source,
+and diagnostics/recovery after both invalid saves and first-load errors.
+Hot updates must keep the same browser document.

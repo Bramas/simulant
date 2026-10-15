@@ -1,324 +1,270 @@
 /**
- * Algorithm Viewer Styles
+ * Algorithm Viewer Styles: the algorithm's .sim source, with agent markers (tokens in simulator.css).
  */
 
 .algorithm-viewer {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  padding: 1rem;
-  margin: 1rem 0;
+  font-family: var(--sim-mono);
+  font-size: 13px;
+  background-color: var(--sim-surface);
+  color: var(--sim-text);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius);
+  padding: 0.75rem 0 0.5rem;
   max-width: 100%;
   overflow-x: auto;
-}
-
-.algorithm-section {
-  margin-bottom: 2rem;
-}
-
-.algorithm-section:not(:last-of-type) {
-  border-bottom: 3px solid #adb5bd;
-  padding-bottom: 1.5rem;
+  text-align: left;
 }
 
 .algorithm-header {
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #dee2e6;
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0 1rem 0.6rem;
+  border-bottom: 1px solid var(--sim-border);
 }
 
 .algorithm-caption {
-  margin: 0 0 0.5rem 0;
-  font-size: 1.1rem;
+  margin: 0;
+  font-size: 1rem;
   font-weight: 600;
-  color: #212529;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--sim-text);
+  font-family: var(--pico-font-family, system-ui, sans-serif);
 }
 
-.algorithm-input {
-  font-size: 0.9rem;
-  color: #6c757d;
-}
-
-.input-label {
-  font-weight: 600;
-  color: #495057;
+.algorithm-file {
+  color: var(--sim-muted);
+  font-size: 0.8rem;
 }
 
 .algorithm-body {
-  background-color: white;
-  padding: 1rem;
-  border-radius: 4px;
-  line-height: 1.8;
+  padding: 0.4rem 0;
+  line-height: 1.6;
 }
 
 .algorithm-line {
   display: flex;
-  align-items: flex-start;
-  padding: 2px 0;
-  position: relative;
-  transition: all 0.2s ease;
-  border-radius: 2px;
-  min-height: 1.8em;
-  padding-right: 60px; /* Reserve space for markers on the right */
-  border-bottom: 2px solid transparent;
+  align-items: baseline;
+  min-height: 1.6em;
+  border-left: 3px solid transparent;
+  padding-right: 1rem;
 }
 
 .algorithm-line:hover {
-  background-color: #f8f9fa;
+  background-color: var(--sim-surface-2);
 }
 
 .algorithm-line.highlighted {
-  border-bottom: 2px solid #ffc107;
-  background-color: rgba(255, 193, 7, 0.1);
+  border-left-color: var(--sim-highlight);
+  background-color: var(--sim-highlight-soft);
+}
+
+/* The call that led to an agent's line. */
+.algorithm-line.calling {
+  border-left-color: var(--sim-highlight-soft);
+  background-color: var(--sim-highlight-faint);
 }
 
 .line-number {
   display: inline-block;
-  width: 40px;
+  width: 3.5em;
+  padding-right: 1em;
   text-align: right;
-  margin-right: 1rem;
-  color: #6c757d;
-  font-size: 0.85rem;
+  color: var(--sim-muted);
+  opacity: 0.7;
   user-select: none;
   flex-shrink: 0;
 }
 
+.line-content {
+  white-space: pre;
+}
+
 .agent-markers {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  gap: 4px;
-  align-items: center;
-  pointer-events: none; /* Allow clicking through markers to the text */
-  z-index: 10;
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 1.5em;
+  flex-shrink: 0;
+  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-size: 12px;
 }
 
 .agent-marker {
-  font-size: 16px;
-  opacity: 0.9;
-  animation: pulse 1.5s ease-in-out infinite;
-  font-weight: bold;
-  text-shadow: 0 0 3px rgba(255, 255, 255, 0.8); /* Add glow for better visibility */
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
-}
-
-.line-content {
-  flex: 1;
-  white-space: pre-wrap;
-  word-break: break-word;
-  position: relative;
-}
-
-/* Indentation guides - vertical lines to show block structure */
-.indent-guide {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background-color: #5c5c5c;
-  pointer-events: none;
-  z-index: 1;
-}
-
-/* Dimmer guides for deeper indentation levels */
-.algorithm-line:hover .indent-guide {
-  background-color: #c0c0c0;
+.agent-marker.call-marker {
+  font-weight: 400;
+  opacity: 0.6;
 }
 
 /* Syntax highlighting */
-.keyword {
-  color: #0033b3;
-  font-weight: 600;
+.tok-keyword { color: var(--tok-keyword); font-weight: 600; }
+.tok-action { color: var(--tok-action); font-weight: 700; }
+.tok-function { color: var(--tok-function); }
+.tok-comment { color: var(--tok-comment); font-style: italic; }
+.tok-constant { color: var(--tok-constant); }
+.tok-number { color: var(--tok-number); }
+.tok-type { color: var(--tok-type); }
+.tok-string { color: var(--tok-string); }
+
+@media (max-width: 768px) {
+  .algorithm-viewer { font-size: 12px; }
 }
 
-.condition {
-  color: #067d17;
+/* The line a definition returned from, in an agent's last step. */
+.algorithm-line.returned {
+  border-left-color: var(--sim-accent);
+  background-color: var(--sim-accent-soft);
 }
 
-.command {
-  color: #9c27b0;
+.algorithm-line.flash {
+  animation: flash 1.6s ease-out;
+}
+
+@keyframes flash {
+  0%, 40% { background-color: var(--sim-highlight-soft); }
+  100% { background-color: transparent; }
+}
+
+.agent-marker {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 0 0.2rem;
+}
+
+.agent-marker:hover,
+.agent-marker.selected {
+  background-color: var(--sim-surface-2);
+  outline: 1px solid currentColor;
+}
+
+.agent-marker.return-marker {
   font-weight: 500;
 }
 
-.variable {
-  color: #0077aa;
-  font-style: italic;
+.tok-link {
+  cursor: pointer;
 }
 
-.operator {
-  color: #c6c6ff;
-  font-weight: 800;
+.tok-link:hover {
+  text-decoration: underline;
 }
 
-.value {
-  color: #067d17;
+/* The definitions the algorithm uses */
+
+.algorithm-defs {
+  border-top: 1px solid var(--sim-border);
+  padding-top: 0.4rem;
 }
 
-.procedure-name {
-  color: #795548;
+.defs-title {
+  cursor: pointer;
+  user-select: none;
+  padding: 0.2rem 1rem 0.4rem;
+  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-size: 0.85rem;
   font-weight: 600;
 }
 
-.punctuation {
-  color: #000000;
+.def-folded {
+  cursor: pointer;
+  opacity: 0.85;
 }
 
-/* Line type specific styles */
-.line-type-if .line-content,
-.line-type-elseif .line-content,
-.line-type-else .line-content,
-.line-type-while .line-content {
-  font-weight: 500;
+.def-folded .line-number {
+  opacity: 0.6;
 }
 
-.line-type-return .line-content {
-  color: #d32f2f;
-  font-weight: 600;
+.def-open {
+  margin: 0.2rem 0;
+  border-top: 1px dashed var(--sim-border);
+  border-bottom: 1px dashed var(--sim-border);
 }
 
-.line-type-comment .line-content {
-  color: #6c757d;
-  font-style: italic;
+.def-fold {
+  cursor: pointer;
+  padding: 0.1rem 1rem;
+  font-size: 0.75rem;
+  color: var(--sim-muted);
+  font-family: var(--pico-font-family, system-ui, sans-serif);
 }
 
-/* Agent legend */
-.agent-legend {
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid #dee2e6;
+/* The explanation of an agent's last step */
+
+.ex-panel {
+  margin: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--sim-border);
+  border-radius: 8px;
+  background: var(--sim-surface-2);
+  font-size: 12px;
 }
 
-.agent-legend h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #495057;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.agent-legend-item {
+.ex-head {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 0.25rem;
+  gap: 0.6rem;
+  font-family: var(--pico-font-family, system-ui, sans-serif);
   font-size: 0.85rem;
 }
 
-.agent-color-box {
-  width: 16px;
-  height: 16px;
-  border-radius: 2px;
-  border: 1px solid rgba(0, 0, 0, 0.2);
+.ex-view {
+  margin: 0.4rem 0;
+  display: grid;
+  gap: 0.1rem;
 }
 
-.agent-id {
-  font-weight: 600;
-  min-width: 40px;
+.ex-view > div,
+.ex-call {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.agent-line {
-  color: #6c757d;
+.ex-calls {
+  list-style: none;
+  margin: 0;
+  padding-left: 1rem;
 }
 
-/* Responsive design */
-@media (max-width: 768px) {
-  .algorithm-viewer {
-    font-size: 12px;
-    padding: 0.75rem;
-  }
-  
-  .line-number {
-    width: 30px;
-    margin-right: 0.5rem;
-  }
-  
-  .algorithm-caption {
-    font-size: 1rem;
-  }
+.ex-panel > .ex-calls {
+  padding-left: 0;
 }
 
-.agent-state-description {
-  color: #6c757d;
-  font-style: italic;
-  font-size: 0.9em;
-  margin-left: 4px;
+.ex-calls li {
+  list-style: none;
+  margin: 0;
 }
 
-/* Dark mode support (optional) */
-@media (prefers-color-scheme: dark) {
-  .algorithm-viewer {
-    background-color: #1e1e1e;
-    border-color: #3e3e3e;
-    color: #d4d4d4;
-  }
-  
-  .algorithm-header {
-    border-bottom-color: #3e3e3e;
-  }
-  
-  .algorithm-caption {
-    color: #e4e4e4;
-  }
-  
-  .algorithm-body {
-    background-color: #2d2d2d;
-  }
-  
-  .algorithm-line:hover {
-    background-color: #3e3e3e;
-  }
-  
-  .algorithm-line.highlighted {
-    background-color: #3a3a2a;
-    border-left-color: #ffc107;
-  }
-  
-  .line-number {
-    color: #858585;
-  }
-  
-  .keyword {
-    color: #569cd6;
-  }
-  
-  .condition {
-    color: #4ec9b0;
-  }
-  
-  .command {
-    color: #c586c0;
-  }
-  
-  .variable {
-    color: #9cdcfe;
-  }
-  
-  .value {
-    color: #4ec9b0;
-  }
-  
-  .procedure-name {
-    color: #dcdcaa;
-  }
-  
-  .agent-legend {
-    border-top-color: #3e3e3e;
-  }
+.ex-call {
+  display: flex;
+  gap: 0.35rem;
+  align-items: baseline;
+}
 
-  .agent-state-description {
-    color: #9ca3af;
-  }
+.ex-toggle {
+  width: 0.8rem;
+  cursor: pointer;
+  color: var(--sim-muted);
+  flex-shrink: 0;
+}
+
+.ex-args,
+.ex-eq {
+  color: var(--sim-muted);
+}
+
+.ex-result {
+  color: var(--tok-number);
+}
+
+.ex-line {
+  color: var(--sim-accent);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ex-none {
+  margin: 0.3rem 0 0;
 }

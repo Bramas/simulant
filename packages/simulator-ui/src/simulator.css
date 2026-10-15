@@ -1,34 +1,584 @@
-
 @import './pico.min.css';
 
-  :root {
-    --pico-font-size: 100%;
-  }
+/*
+ * Design tokens of the simulator, for both themes. The theme follows the system unless the
+ * user picks one (`data-theme` on <html>, remembered by the page).
+ */
+:root {
+  --pico-font-size: 100%;
 
-canvas {
-  background: white !important;
-  display: block;
-  margin: 2em auto;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  border-radius: 8px;
+  --sim-surface: #ffffff;
+  --sim-surface-2: #f6f7f9;
+  --sim-border: #e1e4e8;
+  --sim-text: #1f2328;
+  --sim-muted: #6a737d;
+  --sim-accent: #2563eb;
+  --sim-accent-soft: rgba(37, 99, 235, 0.1);
+  --sim-highlight: #f5b301;
+  --sim-highlight-soft: rgba(245, 179, 1, 0.16);
+  --sim-highlight-faint: rgba(245, 179, 1, 0.07);
+  --sim-success: #1a7f37;
+  --sim-success-soft: #dcf5e3;
+  --sim-failure: #cf222e;
+  --sim-failure-soft: #fde2e1;
+  --sim-progress: #9a6700;
+  --sim-progress-soft: #fff4d6;
+  --sim-radius: 10px;
+  --sim-mono: ui-monospace, 'SF Mono', 'Consolas', 'Monaco', monospace;
+
+  --tok-keyword: #0033b3;
+  --tok-action: #c2410c;
+  --tok-function: #00796b;
+  --tok-comment: #6a737d;
+  --tok-constant: #8250df;
+  --tok-number: #1750eb;
+  --tok-type: #795548;
+  --tok-key: #0550ae;
+  --tok-string: #8250df;
 }
 
-button {
-  --pico-form-element-spacing-vertical: 5px;
-  --pico-form-element-spacing-horizontal: 5px;
+:root[data-theme='dark'] {
+  --sim-surface: #161b22;
+  --sim-surface-2: #0d1117;
+  --sim-border: #30363d;
+  --sim-text: #e6edf3;
+  --sim-muted: #8b949e;
+  --sim-accent: #58a6ff;
+  --sim-accent-soft: rgba(88, 166, 255, 0.15);
+  --sim-highlight-soft: rgba(245, 179, 1, 0.18);
+  --sim-highlight-faint: rgba(245, 179, 1, 0.08);
+  --sim-success: #3fb950;
+  --sim-success-soft: rgba(63, 185, 80, 0.15);
+  --sim-failure: #f85149;
+  --sim-failure-soft: rgba(248, 81, 73, 0.15);
+  --sim-progress: #d29922;
+  --sim-progress-soft: rgba(210, 153, 34, 0.15);
+
+  --tok-keyword: #79c0ff;
+  --tok-action: #ffa657;
+  --tok-function: #d2a8ff;
+  --tok-comment: #8b949e;
+  --tok-constant: #ff7b72;
+  --tok-number: #a5d6ff;
+  --tok-type: #7ee787;
+  --tok-key: #79c0ff;
+  --tok-string: #a5d6ff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --sim-surface: #161b22;
+    --sim-surface-2: #0d1117;
+    --sim-border: #30363d;
+    --sim-text: #e6edf3;
+    --sim-muted: #8b949e;
+    --sim-accent: #58a6ff;
+    --sim-accent-soft: rgba(88, 166, 255, 0.15);
+    --sim-highlight-soft: rgba(245, 179, 1, 0.18);
+    --sim-highlight-faint: rgba(245, 179, 1, 0.08);
+    --sim-success: #3fb950;
+    --sim-success-soft: rgba(63, 185, 80, 0.15);
+    --sim-failure: #f85149;
+    --sim-failure-soft: rgba(248, 81, 73, 0.15);
+    --sim-progress: #d29922;
+    --sim-progress-soft: rgba(210, 153, 34, 0.15);
+
+    --tok-keyword: #79c0ff;
+    --tok-action: #ffa657;
+    --tok-function: #d2a8ff;
+    --tok-comment: #8b949e;
+    --tok-constant: #ff7b72;
+    --tok-number: #a5d6ff;
+    --tok-type: #7ee787;
+    --tok-key: #79c0ff;
+    --tok-string: #a5d6ff;
+  }
+}
+
+/* Layout */
+
+.sim-app {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 1rem 1.5rem 3rem;
+  color: var(--sim-text);
+}
+
+.sim-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.sim-header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.sim-header select {
+  width: auto;
+  min-width: 18rem;
+  margin: 0;
+}
+
+.sim-header .sim-spacer {
+  flex: 1;
+}
+
+.sim-tabs {
+  display: inline-flex;
+  padding: 0.2rem;
+  gap: 0.2rem;
+  border-radius: 999px;
+  background: var(--sim-surface-2);
+  border: 1px solid var(--sim-border);
+}
+
+.sim-app button.sim-tab {
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sim-muted);
+  font-weight: 600;
+  --pico-form-element-spacing-vertical: 0.2rem;
+  --pico-form-element-spacing-horizontal: 0.9rem;
+}
+
+.sim-app button.sim-tab:hover:not(.sim-tab-current) {
+  color: var(--sim-text);
+}
+
+.sim-app button.sim-tab.sim-tab-current {
+  background: var(--sim-surface);
+  color: var(--sim-text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* The model at a glance, above the simulation: opens the model view. */
+
+.sim-app button.sim-model-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0;
+  width: 100%;
+  margin: 0 0 0.75rem;
+  padding: 0.35rem 0.75rem;
+  background: transparent;
+  border: 1px dashed var(--sim-border);
+  border-radius: var(--sim-radius);
+  color: var(--sim-text);
+  font-size: 0.82rem;
+  text-align: left;
+}
+
+.sim-app button.sim-model-strip:hover {
+  background: var(--sim-surface-2);
+  border-style: solid;
+}
+
+.sim-model-strip-label {
+  font-weight: 600;
+  margin-right: 0.6rem;
+}
+
+.sim-model-strip-item {
+  font-family: var(--sim-mono);
+  font-size: 0.78rem;
+}
+
+.sim-model-strip-item + .sim-model-strip-item::before {
+  content: '·';
+  margin: 0 0.5rem;
+  color: var(--sim-muted);
+}
+
+.sim-model-strip-more {
+  margin-left: auto;
+  padding-left: 1rem;
+  color: var(--sim-accent);
+  white-space: nowrap;
+}
+
+.sim-card {
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  border-radius: var(--sim-radius);
+  padding: 0.85rem 1rem;
+}
+
+.sim-card > h3,
+.sim-card-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.sim-muted {
+  color: var(--sim-muted);
+  font-size: 0.85rem;
+}
+
+.sim-main {
+  display: grid;
+  grid-template-columns: 520px minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  margin-top: 1rem;
+}
+
+.sim-main > .sim-left {
+  position: sticky;
+  top: 0.75rem;
+}
+
+@media (max-width: 1100px) {
+  .sim-main { grid-template-columns: minmax(0, 1fr); }
+  .sim-main > .sim-left { position: static; }
+}
+
+.sim-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .sim-panels { grid-template-columns: minmax(0, 1fr); }
+}
+
+.sim-section {
+  margin-top: 1.25rem;
+}
+
+/* Buttons: compact, in three weights */
+
+.sim-app button {
+  --pico-form-element-spacing-vertical: 0.3rem;
+  --pico-form-element-spacing-horizontal: 0.7rem;
+  margin: 0;
+  width: auto;
+  font-size: 0.9rem;
+}
+
+.sim-app button.sim-ghost {
+  background: transparent;
+  color: var(--sim-text);
+  border-color: var(--sim-border);
+}
+
+.sim-app button.sim-ghost:hover:not(:disabled) {
+  background: var(--sim-surface-2);
+}
+
+.sim-app button.sim-icon {
+  --pico-form-element-spacing-horizontal: 0.45rem;
+  min-width: 2rem;
+}
+
+.sim-app button.sim-danger {
+  color: var(--sim-failure);
+}
+
+/* The execution toolbar */
+
+.sim-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem 1.25rem;
+  flex-wrap: wrap;
+}
+
+.sim-toolbar .sim-group {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.sim-toolbar .sim-round {
+  font-weight: 600;
+  min-width: 5.5rem;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-toolbar .sim-divider {
+  width: 1px;
+  align-self: stretch;
+  background: var(--sim-border);
+}
+
+.sim-step-label {
+  font-family: var(--sim-mono);
+  font-size: 0.8rem;
+  color: var(--sim-muted);
+}
+
+.sim-path {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.6rem;
+  align-items: center;
+}
+
+.sim-path .sim-path-label {
+  font-size: 0.8rem;
+  color: var(--sim-muted);
+  margin-right: 0.25rem;
+}
+
+.sim-step {
+  font-family: var(--sim-mono);
+  font-size: 0.75rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--sim-border);
+  background: var(--sim-surface-2);
+  color: var(--sim-text);
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.sim-step.sim-current {
+  border-color: var(--sim-highlight);
+  background: var(--sim-highlight-soft);
+  font-weight: 600;
+}
+
+.sim-step.sim-future {
+  opacity: 0.45;
+}
+
+/* Status chips (verdicts) */
+
+.sim-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--sim-surface-2);
+  color: var(--sim-muted);
+  border: 1px solid var(--sim-border);
+}
+
+.sim-chip.sim-success { background: var(--sim-success-soft); color: var(--sim-success); border-color: transparent; }
+.sim-chip.sim-failure { background: var(--sim-failure-soft); color: var(--sim-failure); border-color: transparent; }
+.sim-chip.sim-inProgress { background: var(--sim-progress-soft); color: var(--sim-progress); border-color: transparent; }
+
+/* Notices */
+
+.sim-notice {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: var(--sim-radius);
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+  font-family: var(--sim-mono);
+  background: var(--sim-progress-soft);
+  color: var(--sim-text);
+  border: 1px solid var(--sim-progress);
+}
+
+.sim-notice.sim-error {
+  background: var(--sim-failure-soft);
+  border-color: var(--sim-failure);
+}
+
+.sim-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--sim-text);
+  color: var(--sim-surface);
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  z-index: 100;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* The configuration's canvas: drawings assume a white background. */
+
+.sim-canvas {
+  display: block;
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--sim-border);
+  cursor: pointer;
+  max-width: 100%;
 }
 
 .theme-toggle {
-  position: absolute;
-  top: 1em;
-  right: 1em;
+  min-width: 2.2rem;
 }
 
-header {
-  position: relative;
+/* Forms inside the simulator */
+
+.sim-app input,
+.sim-app select,
+.sim-app textarea {
+  --pico-form-element-spacing-vertical: 0.35rem;
+  --pico-form-element-spacing-horizontal: 0.55rem;
+  margin-bottom: 0;
+  font-size: 0.9rem;
 }
 
-input {
-  --pico-form-element-spacing-vertical: 0.5em;
-  --pico-form-element-spacing-horizontal: 0.5em;
+.sim-app label {
+  font-size: 0.85rem;
+  margin-bottom: 0;
+}
+
+.sim-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+  gap: 0.6rem 0.9rem;
+}
+
+.sim-form .sim-field-wide {
+  grid-column: 1 / -1;
+}
+
+.sim-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.sim-form input[type='checkbox'] {
+  margin-right: 0.4rem;
+}
+
+.sim-form label:has(input[type='checkbox']) {
+  flex-direction: row;
+  align-items: center;
+}
+
+/* Presets and saved settings */
+
+.sim-library h4 {
+  margin: 0 0 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--sim-muted);
+}
+
+.sim-library h4:not(:first-child) {
+  margin-top: 0.9rem;
+}
+
+.sim-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sim-entries li.sim-entry {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.35rem 0.5rem;
+  margin: 0;
+  border-radius: 6px;
+  border-left: 3px solid transparent;
+}
+
+.sim-entries li.sim-entry:hover {
+  background: var(--sim-surface-2);
+}
+
+.sim-entries li.sim-entry-current {
+  border-left-color: var(--sim-accent);
+  background: var(--sim-accent-soft);
+}
+
+.sim-entry-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.sim-entry-text .sim-muted {
+  font-family: var(--sim-mono);
+  font-size: 0.75rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-entry-name {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.sim-entry-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.sim-entry-actions button {
+  font-size: 0.78rem !important;
+  --pico-form-element-spacing-vertical: 0.15rem;
+  --pico-form-element-spacing-horizontal: 0.5rem;
+}
+
+.sim-save {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0.9rem 0 0;
+}
+
+.sim-save input {
+  flex: 1;
+}
+
+.sim-notice mark {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+.sim-choices button {
+  font-size: 0.8rem !important;
+}
+
+.sim-left .state-inspector {
+  width: 100%;
+}
+
+.sim-choices button {
+  max-width: 20rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sim-branch {
+  font-weight: 600;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sim-branch-label {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

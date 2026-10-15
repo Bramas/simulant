@@ -1,0 +1,23 @@
+{
+  "Experiment": {
+    "prefix": "experiment", "description": "Compose a model, algorithm, task and parameter domains.",
+    "body": ["experiment ${1:name} where", "  model := ${2:model}", "  algorithm := ${3:algorithm}", "  task := ${4:task}", "  param N : Nat := (range ${5:9}).filter (· ≥ ${6:3})", "  agents := ${7:2}", "  position i := node 0", "$0"]
+  },
+  "Algorithm": {
+    "prefix": "algorithm", "description": "An algorithm with structured control flow.",
+    "body": ["algorithm ${1:Name} uses ${2:ringPresence} where", "  main :=", "    ${3:stay}", "$0"]
+  },
+  "Component": {
+    "prefix": "component", "description": "A component owning world state.",
+    "body": ["def ${1:Name} : Component where", "  World := { ${2:field} : ${3:Nat} }", "  init := { ${2:field} := ${4:0} }", "  afterMove C :=", "    nothing", "$0"]
+  },
+  "Task": {
+    "prefix": "task", "description": "A task and its temporal goal.",
+    "body": ["task ${1:Name} (C : Config) : Verdict :=", "  if ${2:condition} then .success else .inProgress", "goal ${1:Name} := eventually .success", "$0"]
+  },
+  "Definition": {
+    "prefix": "def", "description": "A function on values.",
+    "body": ["def ${1:name} (${2:x} : ${3:Nat}) : ${4:Nat} :=", "  ${5:x}", "$0"]
+  },
+  "Imports": { "prefix": "std", "description": "Standard model families and tasks.", "body": ["import \"std/models.sim\"", "import \"std/tasks.sim\"", "$0"] }
+}

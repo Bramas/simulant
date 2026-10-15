@@ -8,13 +8,17 @@
   },
   "include": [
     "packages/*/src",
-    "projects/example/src",
-    "projects/example/web",
+    "extensions/*/src",
+    "packages/stdlib/test/helpers",
     "projects/black-hole-search/src",
     "projects/black-hole-search/web",
+    "projects/starter/src",
+    "projects/starter/web",
     "apps/public-site",
     "scripts",
-    "tests"
+    "tests",
+    "apps/preview/src",
+    "packages/vite-plugin/sim.d.ts"
   ],
   "exclude": [
     "node_modules",
