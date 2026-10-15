@@ -30,7 +30,7 @@ algorithm CautiousPair uses otherStates where
 
 /-- The hole is present from the start, anywhere but on the agents' node. -/
 experiment cautiousPair where
-  model := blackHoleRing .mayEmerge .unknown
+  model := blackHoleRing .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat := (range 9).filter (· ≥ 3)

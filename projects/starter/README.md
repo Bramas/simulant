@@ -2,6 +2,8 @@
 
 A minimal Simulant project using the shared [project architecture](../../docs/architecture.md#projects-and-source-updates). Copy this folder to start a new one.
 
+The cautious pair searches for a black hole present from the start (`.initiallyPresent`). This policy lets the waiting agent infer that a missing probe was destroyed; a hole that appears later (`.mayEmerge`) can destroy both agents and defeats this algorithm. The preset demonstrates successful identification under the initial-hole policy.
+
 ```text
 src/main.sim            model, algorithm, task and experiment (the `.sim` language: docs/sim-language.md)
 src/projects.ts         the registry: experiments shown by the page and the CLI, presets
