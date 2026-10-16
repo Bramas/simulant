@@ -52,6 +52,9 @@ goal Observe := always ¬ .failure
 def ssyncRing : Model where
   round := .ssync
 
+def sequentialRing : Model where
+  round := .sequential
+
 experiment blackHoleEmerging where
   model := blackHoleRing .mayEmerge .unknown
   algorithm := CautiousPair
@@ -110,6 +113,14 @@ experiment dynamicRing where
 
 experiment ssync where
   model := ssyncRing
+  algorithm := MarkActivated
+  task := EveryoneActivated
+  param N : Nat
+  agents := 3
+  position i := node i
+
+experiment sequential where
+  model := sequentialRing
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat

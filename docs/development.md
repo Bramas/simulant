@@ -35,6 +35,11 @@ npx simulant lean -p cautious-pair --build
 # Lean build, proof checks, differential tests and generated project models
 SIMULANT_LEAN=1 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none packages/lean-gen/test/lean-gen.test.ts tests/cli-lean.test.ts
 
+# Distribution: actual npm archives installed outside the workspace (network access)
+pnpm test:packages
+# Include a clean build of the installed Lean semantic library and generated model
+SIMULANT_LEAN=1 pnpm test:packages
+
 # Browser acceptance
 pnpm test:browser
 ```
@@ -43,15 +48,34 @@ pnpm test:browser
 `bun packages/cli/bin/simulant.mjs <command>`. The Node launcher remains the default.
 `tests/cli-bun.test.ts` compares both runtimes on an independent project and skips if Bun is
 unavailable; `SIMULANT_BUN` selects an executable outside `PATH`. Bun uses native package
-resolution, so projects outside the repository need their workspace dependencies installed. Lean-backed tests take several minutes. On this drive, Lake can miss a changed dependency when building only `Examples`; build `Simulant` first.
+resolution, so projects outside the repository need their workspace dependencies installed. Lean-backed tests take several minutes. Build `Simulant` before the examples when validating changes to the semantic core. The package configuration includes its root module explicitly, so a fresh project can build its installed library without a pre-existing cache.
 
-Vite tests need permission to bind local sockets, and `tsx` may need a local IPC socket. Sandboxes can also report `spawnSync lake EPERM` even when Lake produces successful output; rerun affected verification with appropriate process access before treating that as an implementation failure. Set `TMPDIR` to a readable directory if temporary files cannot be read back. On macOS, the Lean-backed CLI tests need a `TMPDIR` without symbolic links: under the default `/var/folders/...` (a link to `/private/var`), the relative path to `lean/` written in the temporary lakefile is wrong and Lake reports `package directory not found`.
+Vite tests need permission to bind local sockets, and `tsx` may need a local IPC socket. Sandboxes can also report `spawnSync lake EPERM` even when Lake produces successful output; rerun affected verification with appropriate process access before treating that as an implementation failure. Set `TMPDIR` to a readable directory if temporary files cannot be read back. On macOS, use `TMPDIR=/private/tmp` for Vite tests if symbolic links in the default temporary directory prevent file updates from resolving. Generated Lean dependency paths use physical directories and work through those links.
 
 Browser tests use a local Node or Python Playwright installation and its matching Chromium browser. `SIMULANT_PLAYWRIGHT_MODULE` selects another installed Node API. See [browser acceptance](../tests/browser/README.md) for setup and coverage. Source-edit tests use temporary public starter copies.
 
 Editor support is documented in the [extension README](../extensions/vscode-simulant/README.md). Its tests cover the actual TextMate grammar, compiler diagnostics, scope-aware navigation/rename, incremental stdio LSP traffic and browser bundling. Extension tests are included by `pnpm test`; generated bundles and VSIX files live in ignored `extensions/vscode-simulant/dist/`. VS Code host testing can use the repository's F5 launch configuration, or run `extensions/vscode-simulant/test/host.cjs` through `--extensionTestsPath` with `--extensionDevelopmentPath` and an isolated user-data/extensions directory. Under WSL, the Remote WSL CLI can ignore those isolation flags; use the native desktop CLI when testing the Windows host.
 
 The 2026-10-15 editor verification passed 148 ordinary tests with four Lean-only skips (152 total), including 16 editor tests; strict typechecking and VSIX packaging passed. An isolated Windows VS Code 1.141.2 Extension Development Host passed activation, language mode, hover, completion, definition, outline, rename and live diagnostics. The 2026-10-14 verification also passed all seven Lean-backed tests, private migration tests and both public page builds. Browser acceptance passed six of seven scenarios on repeat; the line-only highlighting failure remains below.
+
+## Package distribution
+
+`pnpm install` builds runtime package exports through the root `prepare` script.
+Run `pnpm packages:build` again after editing runtime sources used by external
+Node/Vite consumers. Run `pnpm packages:pack` to build the explicit public
+package list into `dist/packages/`; that directory is ignored. Inspect
+`release.json` and run `node scripts/publish-packages.mjs --dry-run` before an
+actual release. See [distribution](distribution.md).
+
+The ordinary suite checks initializer creation and overwrite refusal. Sequential scheduling has a public conformance fixture and tests for singleton activation, stable identities, unbounded finite activation gaps and fair liveness; Lean differential verification includes that fixture.
+`pnpm test:packages` separately installs the real archives into a temporary
+project with no workspace links, checks its CLI, builds its website, and
+starts its dev server to check that the published Solid JSX is transformed.
+It uses the configured npm registry for external dependencies; the simulator
+packages come from local archives. `SIMULANT_LEAN=1` also builds Lean from the
+installed source package, without reusing the workspace's `.lake` cache.
+`SIMULANT_PACKAGES_OFFLINE=1` requests an offline install when all dependency
+metadata and archives are already cached. Tests remove their temporary projects.
 
 ## Generated files and regression fixtures
 
@@ -87,6 +111,10 @@ construct its list before yielding its first value. These changes preserve state
 successor order, witnesses and the exploration semantics.
 
 ## Known issues
+
+- **Lean component export supports only its top-level world/agent record types.** A component with `World := { points : List Point }`, where `Point` is a record, or a component sensor returning a custom record, fails generation with `no Lean name for ...`. A transformed parameter input such as `xs := (param points).map (·.x)` also cannot infer the input parameter type unless it is used directly as an initial value. Generate nested record declarations and pass known parameter types into component generation. Until then, use directly initialized scalar lists and scalar/list-valued component sensors.
+
+- **Lean indexing a list of nodes inside a component sensor needs a nonempty node type.** A sensor using `C.nodes.at i` emits indexing of `List (Fin σ.N)` without an `Inhabited (Fin σ.N)` instance. Reproduce by exporting and compiling a component sensor containing that expression. Supply a valid node default or a suitable nonempty-size assumption in the generated component. Mapping nodes to booleans before indexing avoids this requirement.
 
 - **Lean export of indexing a list of records needs an `Inhabited` instance.** A used definition such as `def first (xs : List Item) : Item := xs.at 0`, where `Item` is a `.sim` structure, generates Lean indexing (`xs[i]!`) with a missing `Inhabited Rec…` instance. Reproduce by using that definition in an experiment and running its Lean export with `--build`. Generate suitable defaults/instances for record types, or make the indexing default explicit in the translation, with a Lean compilation regression. Until then, projecting to lists of supported scalar/list types before indexing avoids the failure.
 

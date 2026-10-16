@@ -1,11 +1,24 @@
 {
   "name": "@bramas/simulant-stdlib",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "private": false,
   "license": "CECILL-B",
   "type": "module",
-  "dependencies": { "@bramas/simulant-lang": "workspace:*" },
   "exports": {
+    "./package.json": "./package.json",
     "./sim/*": "./sim/*"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "files": [
+    "sim",
+    "LICENCE.txt"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bramas/simulant.git",
+    "directory": "packages/stdlib"
   }
 }

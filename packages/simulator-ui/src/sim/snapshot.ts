@@ -6,7 +6,7 @@
  * For the existing UI, a snapshot also answers `get(node)` like the current
  * engine's configurations, with agents identified by `_id`.
  */
-import type { System, Config } from '../../../engine/src/system';
+import type { System, Config } from '@bramas/simulant-engine/system';
 
 export type SnapshotAgent = {
   /** Index in the configuration. */

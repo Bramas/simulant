@@ -11,15 +11,27 @@
     "simulant": "./bin/simulant.mjs"
   },
   "files": [
+    "src",
+    "dist",
     "bin",
-    "src"
+    "LICENCE.txt"
   ],
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "dependencies": {
     "@bramas/simulant-core": "workspace:*",
+    "@bramas/simulant-lang": "workspace:*",
+    "@bramas/simulant-lean-gen": "workspace:*",
+    "@bramas/simulant-lean": "workspace:*",
+    "@bramas/simulant-vite-plugin": "workspace:*",
     "commander": "^14.0.2",
     "tsx": "^4.20.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bramas/simulant.git",
+    "directory": "packages/cli"
   }
 }

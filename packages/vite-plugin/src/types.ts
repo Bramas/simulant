@@ -3,9 +3,9 @@
  * editor completion in drawing code: `snapshot.world.site`, `agent.pub.bh`.
  * Written to `.simulant/types/<experiment>.d.ts`; read-only.
  */
-import { layout } from '../../lang/src/layout';
-import type { Experiment, Type } from '../../lang/src/ir';
-import { resolvePub } from '../../lang/src/types';
+import { layout } from '@bramas/simulant-lang/layout';
+import type { Experiment, Type } from '@bramas/simulant-lang/ir';
+import { resolvePub } from '@bramas/simulant-lang/types';
 
 function ts(t: Type, pub: Type): string {
   switch (t.k) {

@@ -140,7 +140,7 @@ inductive FrameModel (σ : Sig) where
   | persistent (get : σ.X → Bool)
 
 inductive RoundKind where
-  | fsync | ssync
+  | fsync | ssync | sequential
 deriving DecidableEq, Repr
 
 structure Model (σ : Sig) where
@@ -196,12 +196,13 @@ namespace Model
 
 variable [FlagSet σ.F] (m : Model σ)
 
-/-- FSYNC activates every agent that acts; SSYNC lets the adversary choose a nonempty set of them. -/
+/-- FSYNC: all eligible agents; SSYNC: a nonempty subset; sequential: a singleton. -/
 def activate (C : Config σ) : ND (List (Fin σ.k)) :=
   let eligible := (List.finRange σ.k).filter fun i => FlagSet.acts C.agents[i].flags != .never
   match m.round with
   | .fsync => pure eligible
   | .ssync => if eligible.isEmpty then pure eligible else ND.choose "activation" (nonemptySubsets eligible)
+  | .sequential => if eligible.isEmpty then pure eligible else ND.choose "activation" (eligible.map ([·]))
 
 def frames (a : Agent σ) : List Bool :=
   match m.frame with

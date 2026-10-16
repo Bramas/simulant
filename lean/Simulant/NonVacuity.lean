@@ -65,6 +65,11 @@ theorem activate_total (C : Config σ) : ∃ a, ND.Can (m.activate C) a := by
       refine ⟨[x], ND.can_choose.2 ?_⟩
       simp only [nonemptySubsets, List.mem_flatMap, List.mem_range]
       exact ⟨0, List.length_pos_of_mem hx, by rw [combos_one]; exact List.mem_map_of_mem hx⟩
+  · split
+    · exact ⟨_, ND.can_pure.2 rfl⟩
+    · rename_i h
+      obtain ⟨x, hx⟩ := List.exists_mem_of_ne_nil _ (fun he => h (List.isEmpty_iff.2 he))
+      exact ⟨[x], ND.can_choose.2 (List.mem_map_of_mem hx)⟩
 
 omit [FlagSet σ.F] in
 theorem frames_ne_nil (a : Agent σ) : m.frames a ≠ [] := by
@@ -127,7 +132,7 @@ theorem hasExecution (init : ND (Config σ)) (hround : m.round = .fsync) (hinit 
   refine ⟨⟨config, fun n => (next (config n)).1, fun n => (next (config n)).2.1⟩, ⟨?_, fun n => ?_⟩, ?_⟩
   · exact Classical.choose_spec hinit
   · exact Classical.choose_spec (Classical.choose_spec (Classical.choose_spec (htot (config n))))
-  · intro h; rw [hround] at h; cases h
+  · intro h; exact False.elim (h hround)
 
 end Model
 end Simulant

@@ -3,9 +3,9 @@
  * standard library's IR:  npx tsx packages/lean-gen/src/library.ts
  */
 import { writeFileSync } from 'node:fs';
-import { stdlibElaborator } from '../../lang/src/elab/node';
-import type { Component } from '../../lang/src/ir';
-import { resolveComponent } from '../../lang/src/standalone';
+import { stdlibElaborator } from '@bramas/simulant-lang/elab/node';
+import type { Component } from '@bramas/simulant-lang/ir';
+import { resolveComponent } from '@bramas/simulant-lang/standalone';
 import { generateComponent } from './component';
 
 /**

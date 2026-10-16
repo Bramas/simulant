@@ -46,7 +46,7 @@ Attributes go before a declaration: `@[equivariant rotations reflections]` (an e
 
 ## Two levels
 
-- **Model level.** A `def` whose type is `Component`, `Model`, `Sensor`, `Topology`, `FrameModel`, `Round`, `Memory` or a list of them is evaluated when an experiment is compiled. Arguments are positional or named (`blackHoleRing .mayEmerge .unknown (extra := [Faults.CrashStop 1])`), with defaults. Lists, `++`, `if ... then ... else`, `=` on constructors are available. Built in: `Ring`, `DynamicRing k`, `Frames.common`, `Frames.dynamicReflection`, `Frames.persistent field`.
+- **Model level.** A `def` whose type is `Component`, `Model`, `Sensor`, `Topology`, `FrameModel`, `Round`, `Memory` or a list of them is evaluated when an experiment is compiled. Arguments are positional or named (`blackHoleRing .mayEmerge .unknown (extra := [Faults.CrashStop 1])`), with defaults. Lists, `++`, `if ... then ... else`, `=` on constructors are available. Round constructors are `.fsync`, `.ssync` (fair nonempty subsets), and `.sequential` (fair singleton activations, with no bounded activation gap). Built in: `Ring`, `DynamicRing k`, `Frames.common`, `Frames.dynamicReflection`, `Frames.persistent field`.
 - **Object level.** Hook bodies, sensors, tasks, algorithm steps, initial values and parameter domains are expressions of the IR (`docs/ir.md`).
 
 ## Components

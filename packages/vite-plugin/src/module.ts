@@ -1,6 +1,6 @@
 /** What a compiled `.sim` module exports (shared by the plugin and the pages that import it). */
-import type { Experiment } from '../../lang/src/ir';
-import type { LeanRegion } from '../../lean-gen/src/model';
+import type { Experiment } from '@bramas/simulant-lang/ir';
+import type { LeanRegion } from '@bramas/simulant-lean-gen/model';
 
 /**
  * The Lean model of an experiment, as `simulant lean` generates it (in namespace

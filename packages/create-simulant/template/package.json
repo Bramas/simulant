@@ -1,0 +1,30 @@
+{
+  "name": "simulant-project",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --config vite.config.ts",
+    "build": "vite build --config vite.config.ts",
+    "preview": "vite preview --config vite.config.ts",
+    "check": "simulant check-all -p cautious-pair",
+    "lean": "simulant lean",
+    "typecheck": "tsc --noEmit"
+  },
+  "exports": {
+    "./projects": "./src/projects.ts"
+  },
+  "dependencies": {
+    "@bramas/simulant-core": "0.1.0",
+    "@bramas/simulant-ui": "0.1.0",
+    "solid-js": "1.9.14"
+  },
+  "devDependencies": {
+    "@bramas/simulant-cli": "0.1.0",
+    "@bramas/simulant-vite-plugin": "0.1.0",
+    "vite": "6.0.2",
+    "vite-plugin-solid": "2.11.0",
+    "typescript": "5.7.2",
+    "@types/node": "24.10.1"
+  }
+}

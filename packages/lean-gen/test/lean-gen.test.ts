@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { checkProofFile, checkProofs } from '@bramas/simulant-lean-gen/check-proofs';
 import { differential } from '@bramas/simulant-lean-gen/differential';
-import { examples, generateExamples } from '@bramas/simulant-lean-gen/examples';
+import { examples, generateExamples } from '../src/examples';
 import { generateLibrary } from '@bramas/simulant-lean-gen/library';
 
 const leanDir = new URL('../../../lean/', import.meta.url);

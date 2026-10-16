@@ -145,8 +145,8 @@ export type Model = {
   sensors: Sensor[];
   memory: 'persistent' | 'oblivious';
   frame: FrameModel;
-  /** `ssync`: the adversary activates a nonempty set of eligible agents; executions must be scheduler-fair. */
-  round: 'fsync' | 'ssync';
+  /** `ssync`: a nonempty eligible subset; `sequential`: one eligible agent. Both require scheduler fairness. */
+  round: 'fsync' | 'ssync' | 'sequential';
   movement: 'rigid';
   components: Component[];
   symmetries: 'derived' | 'none';

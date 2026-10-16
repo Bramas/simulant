@@ -3,12 +3,12 @@
  * derived from the IR, and the declarations it is built from as written in their files, so that a
  * reader can compare the experiment with the paper it comes from.
  */
-import type { Component, Experiment, Expr, Json, Type } from '../../../lang/src/ir';
-import { derivedGroup } from '../../../engine/src/symmetry';
-import { parameterValues } from '../../../engine/src/system';
-import type { LeanDescription, ModelDescription, ModelFact, SourceExcerpt, SourceRef } from '../../../core/src/types/project';
-import type { LeanOrigin } from '../../../lean-gen/src/model';
-import type { SimLean } from '../../../vite-plugin/src/module';
+import type { Component, Experiment, Expr, Json, Type } from '@bramas/simulant-lang/ir';
+import { derivedGroup } from '@bramas/simulant-engine/symmetry';
+import { parameterValues } from '@bramas/simulant-engine/system';
+import type { LeanDescription, ModelDescription, ModelFact, SourceExcerpt, SourceRef } from '@bramas/simulant-core/types/project';
+import type { LeanOrigin } from '@bramas/simulant-lean-gen/model';
+import type { SimLean } from '@bramas/simulant-vite-plugin/module';
 
 type Line = { number: number; text: string };
 
@@ -187,10 +187,13 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     },
     {
       label: 'Synchrony',
-      value: model.round === 'fsync' ? 'FSYNC (fully synchronous)' : 'SSYNC (semi-synchronous)',
+      value: model.round === 'fsync' ? 'FSYNC (fully synchronous)' : model.round === 'sequential' ? 'Sequential (fair)' : 'SSYNC (semi-synchronous)',
       note: model.round === 'fsync'
         ? 'Every agent able to act is activated in every round.'
-        : 'In every round, the adversary activates a nonempty set of the agents able to act. Only fair executions count: every agent that keeps acting is activated infinitely often.',
+        : (model.round === 'sequential'
+          ? 'In every round, the adversary activates exactly one agent able to act (or none if no agent can act). '
+          : 'In every round, the adversary activates a nonempty set of the agents able to act. ')
+          + 'Only fair executions count: every agent that keeps acting is activated infinitely often.',
       refs: modelRef('round'),
     },
     {
@@ -285,14 +288,14 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         {
           label: 'Goal',
           value: GOALS[task.goal].formula,
-          note: `${model.round === 'ssync' ? 'Over every fair execution' : 'Over every execution'}: ${GOALS[task.goal].text}.`,
+          note: `${model.round !== 'fsync' ? 'Over every fair execution' : 'Over every execution'}: ${GOALS[task.goal].text}.`,
           refs: refTo('goal', task.name),
         },
         {
           label: 'Adversary',
           value: 'Unrestricted',
           note: 'No fairness assumption forces an adversary choice (a hazard to appear, a missing edge to return)'
-            + (model.round === 'ssync' ? ', apart from fair activation.' : '.'),
+            + (model.round !== 'fsync' ? ', apart from fair activation.' : '.'),
         },
       ],
     },
@@ -333,10 +336,12 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     hook('beforeLook', 'Components update their state, all reading the same configuration.'),
     {
       phase: 'Activation',
-      what: (model.round === 'fsync' ? 'Every agent able to act is activated.' : 'A nonempty set of the agents able to act is activated.')
+      what: (model.round === 'fsync' ? 'Every agent able to act is activated.'
+        : model.round === 'sequential' ? 'Exactly one agent able to act is activated (none if no agent can act).'
+          : 'A nonempty set of the agents able to act is activated.')
         + (model.frame.kind === 'dynamicReflection' ? " Each activated agent's orientation is chosen." : ''),
       choices: [
-        ...(model.round === 'ssync' ? ['activated agents (fair)'] : []),
+        ...(model.round !== 'fsync' ? ['activated agents (fair)'] : []),
         ...(model.frame.kind === 'dynamicReflection' ? ['orientations'] : []),
       ],
     },

@@ -5,8 +5,8 @@
  * and its own actions through a class. A model provides the instances. A
  * lemma about the component then applies to every model that contains it.
  */
-import type { Component, Expr, Field, Type } from '../../lang/src/ir';
-import { T, showType, typeEq } from '../../lang/src/types';
+import type { Component, Expr, Field, Type } from '@bramas/simulant-lang/ir';
+import { T, showType, typeEq } from '@bramas/simulant-lang/types';
 import { fail, ident, Translator, type Env } from './translate';
 
 export type ComponentInfo = {

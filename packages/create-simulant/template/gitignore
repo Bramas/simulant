@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.simulant/
+lean/.lake/
+.DS_Store

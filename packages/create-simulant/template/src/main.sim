@@ -1,0 +1,39 @@
+/-! A starter experiment: two agents look for a black hole on a ring.
+
+Edit this file while the development server runs (`npm run dev`):
+saving it updates the open page. -/
+
+import "std/models.sim"
+import "std/tasks.sim"
+
+/-- A cautious walk: agent 0 probes the next node and comes back; agent 1 waits, and
+declares the hole in direction `cw` if agent 0 does not come back. -/
+algorithm CautiousPair uses otherStates where
+  Pub := { id : Nat, bh : Option Move }
+  output claim := pub.bh
+  init i := { pub := { id := i, bh := none } }
+
+  main :=
+    if pub.id = 0 then
+      repeat
+        move .cw
+        move .ccw
+        move .cw
+    else
+      repeat
+        stay
+        stay
+        if !(otherStates.length > 0) then
+          pub := { pub with bh := some .cw }
+          halt
+        move .cw
+
+/-- The hole is present from the start, anywhere but on the agents' node. -/
+experiment cautiousPair where
+  model := blackHoleRing .initiallyPresent .unknown
+  algorithm := CautiousPair
+  task := IdentifyBlackHole
+  param N : Nat := (range 9).filter (· ≥ 3)
+  param site : Node := ((range N).filter (· ≥ 1)).map node
+  agents := 2
+  position i := node 0

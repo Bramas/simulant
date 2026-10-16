@@ -41,4 +41,8 @@ export const builderExperiments: Record<string, Experiment> = {
     name: 'ssync', model: model({ name: 'ssync', topology: Ring(), sensors: [], round: 'ssync' }), algorithm: MarkActivated, task: EveryoneActivated,
     params: [{ name: 'N', type: T.nat }], agents: { count: 3, pos: i => node(i) },
   }),
+  sequential: experiment({
+    name: 'sequential', model: model({ name: 'sequential', topology: Ring(), sensors: [], round: 'sequential' }), algorithm: MarkActivated, task: EveryoneActivated,
+    params: [{ name: 'N', type: T.nat }], agents: { count: 3, pos: i => node(i) },
+  }),
 };

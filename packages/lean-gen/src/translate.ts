@@ -6,9 +6,9 @@
  * interpreter's evaluation order, so that witnesses coincide. Choice labels
  * are only for display and are dropped.
  */
-import { BUILTINS } from '../../lang/src/builtins';
-import type { Def, Expr, Json, Type } from '../../lang/src/ir';
-import { fieldType, isCollection, MOVES, resolvePub, showType, T, typeEq, VERDICTS } from '../../lang/src/types';
+import { BUILTINS } from '@bramas/simulant-lang/builtins';
+import type { Def, Expr, Json, Type } from '@bramas/simulant-lang/ir';
+import { fieldType, isCollection, MOVES, resolvePub, showType, T, typeEq, VERDICTS } from '@bramas/simulant-lang/types';
 
 export class GenError extends Error {}
 

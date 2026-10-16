@@ -17,6 +17,7 @@ const table: [string, string, Record<string, unknown>, number?][] = [
   ['gathering-with-crash', 'gatheringRobots', { N: 5, positions: [0, 1, 3], crashNode: 1 }],
   ['dynamic-ring', 'dynamicRing', { N: 4, positions: [0, 1], crashNode: 0 }],
   ['ssync', 'ssync', { N: 3 }],
+  ['sequential', 'sequential', { N: 3 }],
 ];
 
 const out = compile(loadProgram(stdlibDir + 'conformance.sim'));

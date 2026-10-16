@@ -1,5 +1,5 @@
 /** Types shared by renderers of new-engine experiments (plan, Section 6.5). */
-import type { AgentRenderInfo, ConfigRenderOptions } from '../../../core/src/types/project';
+import type { AgentRenderInfo, ConfigRenderOptions } from '@bramas/simulant-core/types/project';
 import type { Snapshot } from './snapshot';
 
 /** What a renderer knows of the experiment, besides the snapshot. */

@@ -428,13 +428,14 @@ export class System {
     return agents === C.agents && world === C.world ? C : { agents, world };
   }
 
-  /** FSYNC activates every agent that acts; SSYNC lets the adversary choose a nonempty set of them. */
+  /** FSYNC: all eligible agents; SSYNC: any nonempty subset; sequential: any singleton. */
   private activate(C: Config, k: (active: number[]) => void) {
     const eligible = C.agents.flatMap((a, i) => this.rt.acts(a) === 'never' ? [] : [i]);
     if (this.exp.model.round === 'fsync' || eligible.length === 0) return k(eligible);
     const w = this.rt.witness;
     let index = 0;
-    for (let size = 1; size <= eligible.length; size++) {
+    const maxSize = this.exp.model.round === 'sequential' ? 1 : eligible.length;
+    for (let size = 1; size <= maxSize; size++) {
       const pick = (from: number, current: number[]) => {
         if (current.length === size) {
           w.push({ site: 'activation', index: index++, label: `activates ${current.map(i => `a${i}`).join(', ')}` });

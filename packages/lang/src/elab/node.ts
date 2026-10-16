@@ -1,12 +1,12 @@
 /** Node.js helpers: reading `.sim` programs from disk. Not for the browser. */
 import { readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve, sep } from 'node:path';
+import { createRequire } from 'node:module';
 import { Elaborator } from './elaborate';
 import { Program, type SourceHost } from './program';
 
-/** The `.sim` standard library of this workspace. */
-export const stdlibDir = fileURLToPath(new URL('../../../stdlib/sim/', import.meta.url));
+/** Resolve data through its package, both in the workspace and in an npm installation. */
+export const stdlibDir = join(dirname(createRequire(import.meta.url).resolve('@bramas/simulant-stdlib/package.json')), 'sim') + sep;
 
 /** A host reading files from disk; `std/...` imports resolve in `stdlib`. */
 export function nodeHost(stdlib = stdlibDir): SourceHost {

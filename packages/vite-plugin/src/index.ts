@@ -10,18 +10,16 @@
  * so a page keeps its last good state and shows the diagnostics.
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-// Relative imports: Vite bundles them into the configuration that loads this plugin
-// (workspace packages are resolved through tsconfig paths, which Node does not read).
-import { compile } from '../../lang/src/elab/elaborate';
-import { nodeHost, stdlibDir } from '../../lang/src/elab/node';
-import { Program } from '../../lang/src/elab/program';
-import type { Experiment } from '../../lang/src/ir';
-import { libraryComponents, libraryNamespace } from '../../lean-gen/src/library';
-import { generateMappedModel, isLibrary } from '../../lean-gen/src/model';
-import { generateComponent } from '../../lean-gen/src/component';
-import { leanModuleName } from '../../lean-gen/src/names';
+import { compile } from '@bramas/simulant-lang/elab/elaborate';
+import { nodeHost, stdlibDir } from '@bramas/simulant-lang/elab/node';
+import { Program } from '@bramas/simulant-lang/elab/program';
+import type { Experiment } from '@bramas/simulant-lang/ir';
+import { libraryComponents, libraryNamespace } from '@bramas/simulant-lean-gen/library';
+import { generateMappedModel, isLibrary } from '@bramas/simulant-lean-gen/model';
+import { generateComponent } from '@bramas/simulant-lean-gen/component';
+import { leanModuleName } from '@bramas/simulant-lean-gen/names';
 import type { Plugin, ViteDevServer } from 'vite';
 import { formatDiagnostic as format, type SimDiagnostic, type SimLean, type SimModule } from './module';
 import { snapshotTypes } from './types';
@@ -117,7 +115,9 @@ export const sources = ${JSON.stringify(module.sources)};
 export const lean = ${JSON.stringify(module.lean ?? {})};
 export const revision = ${JSON.stringify(module.revision)};
 `;
-  if (node) return `import { watchRequested, watchSim } from ${JSON.stringify(new URL('./node-watch.ts', import.meta.url).href)};
+  const watchModule = new URL('./node-watch.js', import.meta.url);
+  if (!existsSync(watchModule)) watchModule.pathname = watchModule.pathname.replace(/\.js$/, '.ts');
+  if (node) return `import { watchRequested, watchSim } from ${JSON.stringify(watchModule.href)};
 ${head}const listeners = new Set();
 let started = false;
 export function subscribe(listener) {

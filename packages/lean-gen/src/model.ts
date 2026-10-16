@@ -4,10 +4,9 @@
  * state, the model, the algorithm, the task, the initial configurations,
  * the parameter domains, and the statements to prove.
  */
-// Relative imports: the Vite plugin bundles this generator into the configuration that loads it.
-import { check } from '../../lang/src/check';
-import type { Component, Experiment, Field, Type } from '../../lang/src/ir';
-import { showType, T, typeEq } from '../../lang/src/types';
+import { check } from '@bramas/simulant-lang/check';
+import type { Component, Experiment, Field, Type } from '@bramas/simulant-lang/ir';
+import { showType, T, typeEq } from '@bramas/simulant-lang/types';
 import { componentInfo, enumDecl, enumsInExpr, enumsOf, generateComponent, structDecl } from './component';
 import { libraryComponents, libraryNamespace } from './library';
 import { fail, ident, Translator, wrap, type Env } from './translate';

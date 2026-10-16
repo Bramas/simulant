@@ -1,13 +1,41 @@
 {
   "name": "@bramas/simulant-vite-plugin",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "private": false,
   "license": "CECILL-B",
   "type": "module",
-  "dependencies": { "@bramas/simulant-lang": "workspace:*" },
-  "peerDependencies": { "vite": "^6.0.0" },
+  "dependencies": {
+    "@bramas/simulant-lang": "workspace:*",
+    "@bramas/simulant-lean-gen": "workspace:*"
+  },
+  "peerDependencies": {
+    "vite": "^6.0.0"
+  },
   "exports": {
-    ".": "./src/index.ts",
-    "./*": "./src/*.ts"
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./dist/index.js"
+    },
+    "./*": {
+      "types": "./src/*.ts",
+      "default": "./dist/*.js"
+    },
+    "./bun-register": "./dist/bun-register.mjs",
+    "./sim.d.ts": "./sim.d.ts"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "files": [
+    "src",
+    "dist",
+    "sim.d.ts",
+    "LICENCE.txt"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bramas/simulant.git",
+    "directory": "packages/vite-plugin"
   }
 }

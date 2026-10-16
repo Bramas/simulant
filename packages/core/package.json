@@ -5,10 +5,27 @@
   "license": "CECILL-B",
   "type": "module",
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "exports": {
-    "./lib/*": "./src/lib/*.ts",
-    "./types/*": "./src/types/*.ts"
+    "./lib/*": {
+      "types": "./src/lib/*.ts",
+      "default": "./dist/lib/*.js"
+    },
+    "./types/*": {
+      "types": "./src/types/*.ts",
+      "default": "./dist/types/*.js"
+    }
+  },
+  "files": [
+    "src",
+    "dist",
+    "LICENCE.txt"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bramas/simulant.git",
+    "directory": "packages/core"
   }
 }

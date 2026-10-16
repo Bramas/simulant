@@ -24,7 +24,7 @@ Status: version 1. A change to the IR updates, together, the conformance fixture
 
 An `Experiment` is JSON data: `irVersion` (1), a `model`, an `algorithm`, a `task`, `params` (name, type, and a domain expression listing the values for `check-all`), and `agents` (`count`, and `pos` with the agent index `i` in scope). Experiments compiled from `.sim` also carry `source` (`{ file, line, endLine, uses }`): where the experiment is written and, in `uses`, every declaration it is built from (`kind` among `experiment`, `model`, `component`, `sensor`, `algorithm`, `task`, `goal`, `definition`, with its name, file and lines), the experiment first, then in order of use. It is for the model view only, like `Algorithm.source`: it has no meaning for the semantics, is ignored by the checker, the interpreter and the Lean generator, and is dropped from conformance fixtures.
 
-A `Model` names its topology (`ring` or `dynamicRing k`, with a size expression) and its round (`fsync` or `ssync`), lists its sensors and components, and chooses its memory model (`persistent` or `oblivious`), frame model (`common`, `dynamicReflection`, or `persistent` with an agent field of type `Frame`), movement (`rigid`) and symmetries (`derived` or `none`).
+A `Model` names its topology (`ring` or `dynamicRing k`, with a size expression) and its round (`fsync`, `ssync` or `sequential`), lists its sensors and components, and chooses its memory model (`persistent` or `oblivious`), frame model (`common`, `dynamicReflection`, or `persistent` with an agent field of type `Frame`), movement (`rigid`) and symmetries (`derived` or `none`).
 
 A `Component` owns world fields, agent fields, flags, sensors and actions, gives their initial values, and may define three hooks (`beforeLook`, `beforeMove`, `afterMove`), each an expression with `C : Config` in scope that returns an `effect`. An effect sets the component's own world fields and raises its own flags, on a collection of agents or on the agents satisfying a predicate.
 
@@ -63,7 +63,7 @@ The type `pub` stands for the algorithm's public state inside library pieces (`o
 | records | object | `{` fields in declared order, comma-separated `}` |
 | `List`, `Multiset` | array (multisets sorted by encoding) | `[` elements `]` |
 
-A configuration's key is its agents' keys, then the world's. An agent's key is its position, its flags (one bit each, declaration order), its component fields, its public state and its memory. Under FSYNC, agents are sorted by key (a multiset: anonymous agents gain no order); under SSYNC, they keep their index, because fairness is about identity.
+A configuration's key is its agents' keys, then the world's. An agent's key is its position, its flags (one bit each, declaration order), its component fields, its public state and its memory. Under FSYNC, agents are sorted by key (a multiset: anonymous agents gain no order); under SSYNC or sequential scheduling, they keep their index, because fairness is about identity.
 
 Arithmetic follows Lean: `Nat` subtraction and division are truncated, division by zero is zero, `Int` division and modulo are Euclidean.
 
@@ -72,13 +72,13 @@ Arithmetic follows Lean: `Nat` subtraction and division are truncated, division 
 `System.successors(C)`:
 
 1. The adversary chooses the topology state (on `dynamicRing k`: at most `k` missing edges). Then all `beforeLook` hooks run on the same snapshot and their effects are merged (fields have one owner; flags are merged by "or").
-2. Activation: FSYNC activates every agent whose flags do not say `acts never`; SSYNC lets the adversary choose a nonempty set of them.
+2. Activation: FSYNC activates every agent whose flags do not say `acts never`; SSYNC lets the adversary choose a nonempty set of them; `sequential` chooses exactly one. If none is eligible, the round idles. Both adversarial activation modes require every continuously acting agent to be activated infinitely often, without a bound on finite activation gaps.
 3. For each activated agent: a frame (one per model frame rule), its sensors (each evaluated once, with its choices), and `step`. The local move is mapped through the frame. An agent's decisions are deduplicated by their effect (global move, new state, actions). Agents with `acts adversary` choose any move. The decisions are combined over agents (a product).
 4. `beforeMove` hooks, which read the decisions through `decisionOf(a)` (total: agents that did not decide have `decided = false` and move `stay`).
 5. Move: agents that decided and still act apply their decision; rigid movement follows an edge only when it is present in this round's topology state.
 6. `afterMove` hooks.
 
-The topology state is then forgotten, and successors with the same key merge. Choices are enumerated in order, so successors come in the lexicographic order of their witnesses; a merged successor keeps the first witness, and under SSYNC the union of the agents activated by its witnesses.
+The topology state is then forgotten, and successors with the same key merge. Choices are enumerated in order, so successors come in the lexicographic order of their witnesses; a merged successor keeps the first witness, and under SSYNC or sequential scheduling the union of the agents activated by its witnesses.
 
 Initial configurations are the product of the choices of the components' initial values (agent fields per agent, then world fields).
 
@@ -88,7 +88,7 @@ Initial configurations are the product of the choices of the components' initial
 
 - A state with verdict `failure` is a counterexample (the shortest path to it).
 - Under `eventually`, `success` states are not expanded. Bad cycles are searched among the expanded non-`success` states. Under `eventuallyAlways`, among all expanded states, in a strongly connected component containing a non-`success` state.
-- A component counts only if it has a cycle (two states, or a self-loop) and, under SSYNC, if it is scheduler-fair: every agent that acts in it (flags are constant in a component, since they are never cleared) is activated on one of its edges. The lasso then visits those edges.
+- A component counts only if it has a cycle (two states, or a self-loop) and, under SSYNC or sequential scheduling, if it is scheduler-fair: every agent that acts in it (flags are constant in a component, since they are never cleared) is activated on one of its edges. The lasso then visits those edges.
 - `incomplete` is returned only when a limit was reached and no counterexample was found. A lasso among expanded states is a genuine counterexample even then.
 
 Counterexamples are replayed concretely, from a concrete initial configuration, so their configurations do not jump around the ring.

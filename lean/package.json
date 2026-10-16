@@ -1,0 +1,26 @@
+{
+  "name": "@bramas/simulant-lean",
+  "version": "0.1.0",
+  "description": "Lean semantic core and generated component library for Simulant",
+  "license": "CECILL-B",
+  "private": false,
+  "files": [
+    "Simulant",
+    "Simulant.lean",
+    "lakefile.toml",
+    "lean-toolchain",
+    "LICENCE.txt"
+  ],
+  "exports": {
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bramas/simulant.git",
+    "directory": "lean"
+  }
+}

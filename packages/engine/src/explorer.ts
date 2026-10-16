@@ -3,7 +3,7 @@
  *
  * A reachable `failure` verdict is a counterexample. Liveness goals are
  * decided on the expanded part of the graph with strongly connected
- * components: under a synchronous round every cycle counts; under SSYNC a
+ * components: under a synchronous round every cycle counts; under a fair scheduler a
  * cycle counts only if it is scheduler-fair, i.e. every agent that acts in
  * it is activated somewhere on it. Flags are never cleared, so which agents
  * act is the same in every state of a component.
@@ -38,7 +38,7 @@ export type State = {
   parent?: number;
   /** Successor ids; undefined while the state is not expanded. */
   succ?: number[];
-  /** Per successor edge, the agents some witness activates (SSYNC only). */
+  /** Per successor edge, the agents some witness activates (fair schedulers only). */
   act?: Set<number>[];
 };
 
@@ -133,7 +133,7 @@ export class Explorer {
         this.concreteInitial.set(id, { config: s.config, index });
       }
     });
-    const ssync = system.exp.model.round === 'ssync';
+    const fairScheduler = system.exp.model.round !== 'fsync';
     for (let cursor = 0; cursor < this.states.length; cursor++) {
       if ((cursor & 255) === 255) yield;
       const s = this.states[cursor];
@@ -152,13 +152,13 @@ export class Explorer {
         if (at === undefined) {
           successorIndex.set(id, succ.length);
           succ.push(id); act.push(new Set(t.activated));
-        } else if (ssync) for (const i of t.activated) act[at].add(i);
+        } else if (fairScheduler) for (const i of t.activated) act[at].add(i);
       }
       s.succ = succ;
-      if (ssync) s.act = act;
+      if (fairScheduler) s.act = act;
       this.edges += succ.length;
     }
-    const lasso = this.goal === 'safety' ? undefined : this.findLasso(ssync);
+    const lasso = this.goal === 'safety' ? undefined : this.findLasso(fairScheduler);
     if (lasso) return this.result('failure', `an execution never satisfies "${this.goal}"`, lasso);
     if (this.incomplete) return this.result('incomplete', this.incomplete);
     return this.result('success', 'every admissible execution satisfies the task');
@@ -183,7 +183,7 @@ export class Explorer {
     return this.goal === 'eventually' ? s.verdict !== 'success' : true;
   }
 
-  private findLasso(ssync: boolean): Counterexample | undefined {
+  private findLasso(fairScheduler: boolean): Counterexample | undefined {
     for (const scc of this.sccs()) {
       const members = new Set(scc);
       const inside = (u: number) => this.states[u].succ!.map((v, j) => [v, j] as const).filter(([v]) => members.has(v));
@@ -194,7 +194,7 @@ export class Explorer {
       if (bad === undefined) continue;
       // Scheduler fairness: every acting agent is activated on some edge of the component.
       const needed: [number, number][] = [];
-      if (ssync) {
+      if (fairScheduler) {
         const C = this.states[scc[0]].config;
         const acting = C.agents.flatMap((a, i) => this.system.rt.acts(a) === 'never' ? [] : [i]);
         let fair = true;

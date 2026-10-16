@@ -52,7 +52,7 @@ type MV =
   | { m: 'topology'; ir: Topology }
   | { m: 'frame'; ir: FrameModel };
 
-const ROUND = T.enum('Round', ['fsync', 'ssync']) as Type & { k: 'enum' };
+const ROUND = T.enum('Round', ['fsync', 'ssync', 'sequential']) as Type & { k: 'enum' };
 const MEMORY = T.enum('Memory', ['persistent', 'oblivious']) as Type & { k: 'enum' };
 const SYMMETRIES = T.enum('Symmetries', ['derived', 'none']) as Type & { k: 'enum' };
 const META_TYPES = new Set(['Component', 'Model', 'Sensor', 'Topology', 'FrameModel', 'Round', 'Memory', 'Symmetries']);

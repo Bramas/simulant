@@ -6,7 +6,7 @@
  * explorer's counterexamples are paths too (`packages/engine/src/check.ts`);
  * `getEdgeLabel` gives the witness of the last step.
  */
-import type { Choice, Explanation, Successor, System } from '../../../engine/src/system';
+import type { Choice, Explanation, Successor, System } from '@bramas/simulant-engine/system';
 import { Snapshot } from './snapshot';
 
 export interface Execution<S = Snapshot> {

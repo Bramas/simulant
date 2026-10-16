@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { casesOnLines, generateMappedModel, generateModel } from '@bramas/simulant-lean-gen/model';
-import { examples } from '@bramas/simulant-lean-gen/examples';
+import { examples } from '../src/examples';
 
 test('a root match is written one case per line, and nothing else changes', () => {
   assert.equal(casesOnLines('(match x with | A.a => (f "| b" (y || z)) | A.b => (match y with | c => 1 | d => 2))', '  '),

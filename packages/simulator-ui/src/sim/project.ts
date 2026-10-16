@@ -5,12 +5,12 @@
  * parameters, drawing from the default ring renderer or the project's own
  * `draw`, the algorithm view from the algorithm's source and line table.
  */
-import type { Experiment, Type } from '../../../lang/src/ir';
-import { parameterValues, System } from '../../../engine/src/system';
-import { checkFirstBranch, checkSetting, checkSettings, stateGraph, type CheckResult } from '../../../engine/src/check';
-import type { EditorField, EditorSchema } from '../../../core/src/types/editor-schema';
-import type { AlgorithmSource, CheckOptions, ModelDescription, ProjectType, ProjectUpdate } from '../../../core/src/types/project';
-import { formatDiagnostic, type SimDiagnostic, type SimLean } from '../../../vite-plugin/src/module';
+import type { Experiment, Type } from '@bramas/simulant-lang/ir';
+import { parameterValues, System } from '@bramas/simulant-engine/system';
+import { checkFirstBranch, checkSetting, checkSettings, stateGraph, type CheckResult } from '@bramas/simulant-engine/check';
+import type { EditorField, EditorSchema } from '@bramas/simulant-core/types/editor-schema';
+import type { AlgorithmSource, CheckOptions, ModelDescription, ProjectType, ProjectUpdate } from '@bramas/simulant-core/types/project';
+import { formatDiagnostic, type SimDiagnostic, type SimLean } from '@bramas/simulant-vite-plugin/module';
 import { isRenderer } from '../renderers/define';
 import { agentColor, drawRing, ringLayout } from '../renderers/ring';
 import { describeExperiment } from './describe';

@@ -4,7 +4,7 @@ import Simulant.Round
 # Executions, tasks and non-vacuity (plan, Sections 3.9, 3.10 and 5.2)
 
 Every execution permitted by the round is considered (no fairness on the
-adversary's choices), except that a semi-synchronous round only admits
+adversary's choices), except that semi-synchronous and sequential rounds only admit
 scheduler-fair executions: every agent that acts forever is activated
 infinitely often.
 -/
@@ -48,7 +48,7 @@ def Fair (e : Execution σ) : Prop :=
     ∀ n, ∃ j, n ≤ j ∧ a ∈ e.active j
 
 def Admissible (e : Execution σ) : Prop :=
-  m.Valid act0 init e ∧ (m.round = .ssync → Fair e)
+  m.Valid act0 init e ∧ (m.round ≠ .fsync → Fair e)
 
 /-- The correctness statement: every admissible execution satisfies the goal. -/
 def Correct (verdict : Config σ → Verdict) (goal : Goal) : Prop :=
@@ -144,7 +144,7 @@ theorem toExecution_valid (m : Model σ) (act0 : σ.A) (init : ND (Config σ)) (
 theorem hasExecution (m : Model σ) (act0 : σ.A) (init : ND (Config σ)) (l : Lasso σ)
     (hround : m.round = .fsync) (hv : l.Valid m act0) (hinit : ND.Can init l.start) :
     m.HasExecution act0 init :=
-  ⟨l.toExecution hv.1, toExecution_valid m act0 init l hv hinit, fun h => by rw [hround] at h; cases h⟩
+  ⟨l.toExecution hv.1, toExecution_valid m act0 init l hv hinit, fun h => False.elim (h hround)⟩
 
 end Lasso
 end Simulant

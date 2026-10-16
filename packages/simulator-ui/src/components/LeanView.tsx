@@ -6,7 +6,7 @@
  */
 import { For, Show, createEffect, createMemo, createSignal, on, type JSX } from 'solid-js';
 import type { LeanBlock, LeanDescription, SourceRef } from '@bramas/simulant-core/types/project';
-import { leanModuleName } from '../../../lean-gen/src/names';
+import { leanModuleName } from '@bramas/simulant-lean-gen/names';
 import { tokenizeLean } from './highlight';
 
 export interface LeanViewProps {

@@ -39,6 +39,7 @@ The IR is versioned JSON. A semantic change updates its types and documentation,
 | `packages/core/` | Shared project types and configuration-graph worker traversal |
 | `packages/simulator-ui/` | Execution adapter, snapshots, renderers and SolidJS interface |
 | `packages/cli/` | Discovery, checks, graph export, watch mode and Lean generation |
+| `packages/create-simulant/` | Dependency-free initializer and a standalone project template |
 | `lean/Simulant/` | Lean semantic core, generated component library and hand-written lemmas |
 | `apps/preview/` | Minimal development viewer for a `.sim` entry |
 
@@ -54,17 +55,17 @@ Components own their world fields, agent fields, flags and actions. At each hook
 
 The standard round chooses topology state, runs `beforeLook`, chooses activations and frames, evaluates sensors and algorithm decisions, runs `beforeMove`, applies movement, and runs `afterMove`. Each activated agent uses one frame and one evaluation of each sensor throughout that activation. Actions such as pebble operations are decisions consumed by component hooks; simultaneous pebble picks are truncated to the pebbles present.
 
-Topologies (`Ring`, `DynamicRing k`) and rounds (`fsync`, `ssync`) are implemented in the semantic core. Dynamic-ring missing edges are chosen anew each round and forgotten afterwards. Successors with equal full configurations merge, retaining the first witness and, under SSYNC, the union of possible activations for fairness analysis. History-dependent tasks store history in monitor components such as `Monitors.Visited`.
+Topologies (`Ring`, `DynamicRing k`) and rounds (`fsync`, `ssync`, `sequential`) are implemented in the semantic core. Dynamic-ring missing edges are chosen anew each round and forgotten afterwards. Successors with equal full configurations merge, retaining the first witness and, under SSYNC or sequential scheduling, the union of possible activations for fairness analysis. History-dependent tasks store history in monitor components such as `Monitors.Visited`.
 
 Nondeterministic arguments are evaluated left to right, including both operands of logical expressions. Algorithms cannot introduce adversary choices. Agent references are local to a round and cannot be stored. The current `acts adversary` behavior chooses a move while leaving the agent's public state and memory unchanged.
 
 ## State graphs and goals
 
-State keys include positions, flags, component fields, public state, private memory and monitor state. Values are immutable JavaScript data with type-directed canonical string encodings. FSYNC stores anonymous agents sorted; SSYNC preserves indices because fairness depends on identity.
+State keys include positions, flags, component fields, public state, private memory and monitor state. Values are immutable JavaScript data with type-directed canonical string encodings. FSYNC stores anonymous agents sorted; SSYNC and sequential rounds preserve indices because fairness depends on identity.
 
 The explorer builds a breadth-first state graph. Reachable failures yield shortest counterexamples. Liveness is decided using strongly connected components and repeatable cycles, with concrete replayable paths and lasso witnesses. A reached depth or state limit produces `incomplete` unless a counterexample has already been established.
 
-FSYNC considers every permitted execution, with no fairness assumption forcing a black hole to appear or an absent edge to return. SSYNC admits executions in which every agent that continues to act is activated infinitely often; the exhaustive explorer excludes starvation cycles. See the [known smoke-check issue](development.md#known-issues) for the first-branch command.
+FSYNC considers every permitted execution, with no fairness assumption forcing a black hole to appear or an absent edge to return. A sequential round activates exactly one eligible agent (or idles if none is eligible), while SSYNC permits a nonempty subset. SSYNC and sequential rounds admit executions in which every agent that continues to act is activated infinitely often; the exhaustive explorer excludes starvation cycles. See the [known smoke-check issue](development.md#known-issues) for the first-branch command.
 
 `IdentifyEmergingBlackHole` counts an inactive hole as `success`. With `eventually always .success`, an execution where the hole never activates succeeds; once it activates, identification must eventually persist. The UI displays a configuration's raw task verdict, while an exhaustive check decides the goal over executions.
 
@@ -80,7 +81,7 @@ Projects register an imported `.sim` experiment with `simProject`, which supplie
 
 The model view lets a reader compare an experiment with its paper without reading the toolchain. Its facts are derived from the same compiled IR the simulator, explorer and Lean generator use, not from separate prose, so they cannot drift from what is checked; the declarations beside them are shown as written. The frontend records which declarations an experiment uses (`Experiment.source`), because only elaboration knows which model definitions, components and sensors a model expression reached. Like the algorithm's line table, these locations are display metadata: a line-only edit redraws both views without restarting the execution.
 
-The model view can also show the generated Lean model beside the same sources. The Vite plugin (or the Node hooks) generates it when compiling a `.sim` file, with the generator `simulant lean` uses, so the page shows the file the CLI writes; only the module name differs until the page renames it after the simulation. Generation runs in Node because the library components are elaborated from the standard library on disk; for that reason the generator's modules use relative imports, which the plugin's bundled configuration can load. Each region of the file carries the part of the experiment it translates (`generateMappedModel`), and each case of the lowered step its program counter, which the line table maps to the statement it resumes after. An experiment the generator refuses (a native algorithm, definitions on nodes...) shows the generator's reason instead.
+The model view can also show the generated Lean model beside the same sources. The Vite plugin (or the Node hooks) generates it when compiling a `.sim` file, with the generator `simulant lean` uses, so the page shows the file the CLI writes; only the module name differs until the page renames it after the simulation. Generation runs in Node because the library components are elaborated from the standard library on disk. Package exports resolve the compiler and generator; the standard library is located through its installed package, so this also works outside the workspace. Each region of the file carries the part of the experiment it translates (`generateMappedModel`), and each case of the lowered step its program counter, which the line table maps to the statement it resumes after. An experiment the generator refuses (a native algorithm, definitions on nodes...) shows the generator's reason instead.
 
 The [VS Code extension](../extensions/vscode-simulant/README.md) uses a language server for diagnostics and editing features. The shared service compiles the same frontend IR and indexes AST declarations/scopes for navigation. Unsaved source overlays cover transitive imports. Its source host and LSP-shaped results are independent of Node and VS Code; a browser bundle allows a future editor adapter to reuse the service without running the simulator. Syntax coloring uses a separate TextMate grammar.
 
@@ -109,3 +110,33 @@ The TypeScript interpreter and frontend are not verified. Conformance fixtures a
 Current translation limits include native algorithms, multiset-to-list conversion, subsets of non-agent multisets and multiset equality. Lean represents multisets as lists; order can matter when evaluating a lasso with multiset world state. The lossy-view conformance experiment is explicitly refused. Definitions on values are supported; definitions on nodes or agents, or containing choices, are not yet generated. The generic equivariance lemma still needs generalization for conjugated component effects and dynamic topology states.
 
 Extensions should preserve existing definitions and state their relationship to established models through lemmas. Additional topologies, rounds or IR forms require coordinated interpreter, generator, conformance and documentation changes. Alternative interpreter implementations can use the same IR contract if profiling justifies them.
+
+## npm distribution
+
+Runtime packages publish explicit ESM exports and dependencies; cross-package
+imports use those exports rather than workspace-relative paths.
+`scripts/build-packages.mjs` compiles TypeScript into each package's ignored
+`dist/`, adds JavaScript extensions to relative imports and retains Solid JSX
+for the consuming Vite Solid plugin. Type exports retain the original source
+for editor tooling. The UI's `solid` export condition keeps that JSX out of
+Vite's ordinary dependency optimizer. Root installation builds the runtime
+packages; rebuild them after source changes with `pnpm packages:build`.
+
+The `.sim` library is the data-only `@bramas/simulant-stdlib` package; its
+hand-written TypeScript test helpers remain in the workspace. The Lean
+semantic library is the `@bramas/simulant-lean` package in `lean/`. Both resolve
+through package metadata, so generated models can use the installed Lean
+package without a repository checkout or a precompiled cache. Lake's module
+globs explicitly include `Simulant` itself as well as its submodules. Generated
+lakefiles compute relative paths from the physical output directory, including
+when the caller's temporary directory is reached through a symbolic link.
+
+The initializer copies a minimal standalone template and pins simulator
+dependencies to its release version. It does not install dependencies, create
+a Git repository or overwrite nonempty directories. The explicit ordered
+package list in `scripts/build-packages.mjs` controls packing and publication;
+private projects and development-only language-server packages are excluded.
+Archives include source licenses, runtime files and required data, with SHA-256
+hashes in `release.json`. Publication consumes those exact archives after
+validating the complete list and hashes. See [distribution](distribution.md)
+for verification and the release procedure.
