@@ -12,7 +12,8 @@ name or absolute package directory. The matching Chromium browser must already
 be installed. In the Codex sandbox used for this repository, launching Chromium
 and binding localhost require running this command outside the sandbox.
 
-Assertions cover rendering, forward/back navigation, presets, agent selection,
+Assertions cover rendering, forward/back navigation, presets, advisory initial-settings
+domain warnings (including edits and shared links), agent selection,
 branch selection, configuration-graph workers, semantic source updates,
 line-only updates, renderer updates, pausing navigation on invalid source,
 and diagnostics/recovery after both invalid saves and first-load errors.

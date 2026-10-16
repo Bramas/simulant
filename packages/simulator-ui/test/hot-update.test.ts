@@ -28,6 +28,7 @@ test('a semantic edit replaces the experiment and keeps the settings that still 
   const project = simProject(hot.module, 'algo1');
   const updates = record(project);
   const before = project.revision!();
+  assert.deepEqual(project.settingsWarnings!({ N: 10, site: 3 }), []);
   // A new parameter domain bound changes the experiment.
   hot.save(original.replace('(range 13).filter (· ≥ 5)', '(range 9).filter (· ≥ 5)'));
   assert.equal(updates.length, 1);
@@ -40,6 +41,7 @@ test('a semantic edit replaces the experiment and keeps the settings that still 
   assert.deepEqual(u.adjust({ N: -1, site: 3, old: 1 }), { settings: { N: 5, site: 3 }, notes: ['N reset from -1 to 5', 'parameter old no longer exists'] });
   assert.deepEqual(u.adjust(null), { settings: null, notes: [] });
   assert.equal([...project.settingsGenerator()].length, 5 + 6 + 7 + 8);
+  assert.deepEqual(project.settingsWarnings!({ N: 10, site: 3 }), ['N = 10 is outside its declared parameter domain.']);
 });
 
 test('an edit that only moves lines redraws, and the algorithm view follows', () => {

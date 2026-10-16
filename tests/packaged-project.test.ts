@@ -70,7 +70,15 @@ test('packed initializer creates an independent installable project, CLI, websit
   assert.match(await readFile(join(project, 'dist/index.html'), 'utf8'), /Simulant/);
 
   const server = spawn(process.execPath, [join(project, 'node_modules/vite/bin/vite.js'), '--config', 'vite.config.ts', '--host', '127.0.0.1', '--port', '0'], { cwd: project, env });
-  t.after(() => { server.kill(); });
+  const stopServer = async () => {
+    if (server.exitCode !== null || server.signalCode !== null) return;
+    const exited = new Promise<void>(resolve => server.once('exit', () => resolve()));
+    server.kill();
+    // A dev server may keep watcher handles during graceful shutdown; never leave CI waiting.
+    const force = setTimeout(() => server.kill('SIGKILL'), 3000);
+    try { await exited; } finally { clearTimeout(force); }
+  };
+  t.after(stopServer);
   let output = '';
   const ready = new Promise<number>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error(`Dev server did not start: ${output}`)), 15000);
@@ -95,5 +103,5 @@ test('packed initializer creates an independent installable project, CLI, websit
   const ui = await fetch(new URL(uiImport[1], `http://127.0.0.1:${port}/`));
   assert.equal(ui.status, 200);
   assert.doesNotMatch(await ui.text(), /React\.createElement/);
-  server.kill();
+  await stopServer();
 });

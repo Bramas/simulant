@@ -199,7 +199,7 @@ To publish a project's web page, add a `web/` app and a package `build` script, 
 
 [The Pages workflow](.github/workflows/pages.yml) deploys `dist/` to GitHub Pages. Set the repository's Pages source to **GitHub Actions**.
 
-[The package release workflow](.github/workflows/release-packages.yml) prepares and validates the public npm archives. A manual run prepares downloadable artifacts by default; its explicit publish input or a matching `simulator-v*` tag enables publication with npm credentials. See [the release procedure](docs/distribution.md) for versions, verification and authentication.
+[The package release workflow](.github/workflows/release-packages.yml) prepares and validates the public npm archives. Prepare a shared version with `pnpm release:version patch` (add `--dry-run` to preview), then review and commit it. A manual workflow run prepares downloadable artifacts by default; its explicit publish input or a matching `simulator-v*` tag enables publication through npm trusted publishing. See [the release procedure](docs/distribution.md) for versions, verification and authentication.
 
 For a paper artifact, record exact package versions or commits and tag the repository state, for example `paper-black-hole-search-v1`. `workspace:*` tracks the current local package; it does not preserve an older simulator version. Keep old artifacts reproducible through exact external package versions or their repository tag.
 

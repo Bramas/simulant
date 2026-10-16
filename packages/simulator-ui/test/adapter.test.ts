@@ -45,6 +45,17 @@ test('settings come from the parameters; setup and execute run the new engine', 
   assert.equal(next.world.active, false);
 });
 
+test('initial settings warnings use defaults, coercion and aliases without blocking execution', () => {
+  const source = simProject(algo1Sim, 'algo1', { aliases: { BH_node: 'site' } });
+  assert.deepEqual(source.settingsWarnings!(null), []);
+  assert.deepEqual(source.settingsWarnings!({ N: '6', BH_node: '5' }), []);
+  assert.deepEqual(source.settingsWarnings!({ N: '6', BH_node: '6' }), ['site = 6 is outside its declared parameter domain.']);
+  const outside = { N: 13, site: 2 };
+  assert.deepEqual(source.settingsWarnings!(outside), ['N = 13 is outside its declared parameter domain.']);
+  const model = source.setup(outside);
+  assert.equal(source.execute(model).get([0, 0]).size, 13);
+});
+
 test('the default ring renderer draws within its placement and gives hit positions', () => {
   const model: SimModel = project.setup({ N: 5, site: 2 });
   const snapshot: Snapshot = project.execute(model).get([0, 0]);

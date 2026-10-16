@@ -223,6 +223,15 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
     return schema ? formValues(schema, projectUserSettings()) : projectUserSettings() ?? {};
   });
 
+  const settingsWarnings = createMemo(() => {
+    projectRevision();
+    try {
+      return Projects[project()].settingsWarnings?.(projectUserSettings()) ?? [];
+    } catch (e) {
+      return [`Could not check initial settings: ${e instanceof Error ? e.message : String(e)}`];
+    }
+  });
+
   /** The task's verdict on the current configuration, with what it means under the task's goal. */
   const verdict = createMemo(() => {
     redrawTick();
@@ -469,10 +478,6 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
           </pre>
         )}
       </Show>
-      <Show when={setupLog()}>
-        <div class="sim-notice sim-error"><mark>{setupLog()}</mark></div>
-      </Show>
-
       <Show when={modelShown() && description()}>
         {d => <ModelView description={d()} simulation={project()} onCopyLink={() => copy(`${shareLink(effectiveSettings(), currentPath())}#model`)} />}
       </Show>
@@ -553,7 +558,7 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
         </div>
 
         <div class="sim-panels">
-          <section class="sim-card">
+          <section class="sim-card sim-settings">
             <h3>
               Settings
               <span class="sim-spacer" style={{ flex: 1 }} />
@@ -567,6 +572,16 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
                   onInput={(v: any) => batch(() => { setProjectUserSettings(v); goTo([0]); })}
                 />
               )}
+            </Show>
+            <Show when={setupLog()}>
+              <div class="sim-notice sim-error sim-settings-feedback" role="alert"><mark>{setupLog()}</mark></div>
+            </Show>
+            <Show when={!setupLog() && settingsWarnings().length > 0}>
+              <div class="sim-notice sim-settings-warning sim-settings-feedback" role="alert">
+                <strong>Initial settings warning</strong>
+                <For each={settingsWarnings()}>{warning => <div>{warning}</div>}</For>
+                <div>You can still explore this execution. Checks over the declared domains do not cover settings outside them.</div>
+              </div>
             </Show>
           </section>
           <section class="sim-card">

@@ -1,8 +1,8 @@
 # npm distribution and project creation
 
-The runtime packages and initializer are available on public npm as version
-`0.1.0`. Use the archive test below to verify a future release locally before
-publishing.
+The first public npm release of the runtime packages and initializer was
+`0.1.0`. Their package manifests record the version being prepared. Use the
+archive test below to verify each release locally before publishing.
 
 ## Creating an independent project
 
@@ -39,7 +39,7 @@ remove an old `@bramas` registry mapping to GitHub Packages before migrating.
 
 ## Package contents
 
-All runtime packages use version `0.1.0` for the initial release:
+All runtime packages share one release version:
 
 - `@bramas/simulant-core`: shared project types and graph worker traversal.
 - `@bramas/simulant-lang`, `simulant-engine` and `simulant-lean-gen`: compiler,
@@ -59,6 +59,23 @@ versions. Runtime exports use generated ESM JavaScript; type exports use the
 original TypeScript. The UI retains Solid JSX for Vite's Solid plugin.
 
 ## Preparing and validating archives
+
+Prepare the next version from the repository root:
+
+```sh
+pnpm release:version patch --dry-run
+pnpm release:version patch
+# Also accepts minor, major, or an explicit stable version such as 0.2.0
+```
+
+The command updates only the explicit public package list, including Lean and
+the initializer, plus release dependencies in the initializer template. It
+preserves `workspace:*` links, private projects, and the private root manifest.
+It runs `pnpm install --lockfile-only --ignore-scripts`; if that fails, the
+manifests and lockfile are restored. A dry run writes nothing. Inconsistent
+package versions, malformed versions and non-increasing versions are rejected
+before any changes. Review the resulting diff before committing. The command
+does not commit, create tags, push, pack, or publish.
 
 From the workspace, using Node.js 24 or newer and pnpm 10.22.0:
 
@@ -117,17 +134,32 @@ running while approving the browser prompts; each package may require approval.
 After npm accepts a publication, registry processing can take a few minutes.
 Wait for all dependencies to become available before testing the initializer.
 
-The [release workflow](../.github/workflows/release-packages.yml) uses the
-public npm registry. A manual run prepares and uploads archives by default.
-Its explicit `publish` input, or a `simulator-v<version>` tag, enables publication
-using the repository's `NPM_TOKEN` secret. GitHub Actions publications include
-provenance via its OIDC permission. The workflow installs elan and tests a clean
-Lean build before packing the final artifacts. Do not trigger publication
-before npm authentication and scope ownership are configured.
+The [release workflow](../.github/workflows/release-packages.yml) uses npm
+[trusted publishing](https://docs.npmjs.com/trusted-publishers/) with OIDC on
+a GitHub-hosted runner, without an `NPM_TOKEN` secret. Configure each public
+package on npm to trust owner `Bramas`, repository `simulant`, and workflow
+filename `release-packages.yml`, with direct `npm publish` allowed. Leave the
+environment name empty unless the workflow is also changed to use that
+environment. npm requires a first successful publication within two days of
+creating a trusted publisher; recreate an expired configuration if necessary.
 
-For subsequent releases, update every listed package version, including
-`lean/package.json` and the initializer, together. The initializer pins all
-simulator dependencies to its own version. Update template dependency examples
-and this document, run `pnpm install --lockfile-only`, then validate and repack.
+The workflow installs npm 12.2.0 on Node 24 for trusted publishing support and
+uses `id-token: write`; npm handles OIDC authentication and provenance. A manual
+run prepares and uploads archives by default. Its explicit `publish` input,
+or pushing a `simulator-v<version>` tag, enables publication. An ordinary
+branch push does not trigger the package release workflow. It validates the
+workspace and tests the exact packed archives, including a clean Lean build,
+before publishing them.
+
+After reviewing and committing the version changes, push that commit and its
+matching tag, for example for a prepared `0.1.1` release:
+
+```sh
+git push origin HEAD
+git tag simulator-v0.1.1
+git push origin simulator-v0.1.1
+```
+
 A release tag must match every package version. Existing npm versions cannot
-be replaced; publish a new version for a changed release.
+be replaced; prepare a new version for a changed release. Regenerate archives
+after a version change; publication rejects stale archives.

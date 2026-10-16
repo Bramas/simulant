@@ -207,6 +207,8 @@ export interface ProjectType<ConfigType = any, ModelType = any> {
   execute: (model: ModelType) => ExecutionLike<ConfigType>;
   /** Accepts settings of older versions (shared links, saved settings), renaming their parameters. */
   normalizeSettings?: (settings: any) => any;
+  /** Advisory warnings about initial settings; execution remains available. */
+  settingsWarnings?: (settings: any) => string[];
   /** Development updates of the project's sources; returns an unsubscribe function. */
   subscribe?: (listener: (update: ProjectUpdate) => void) => () => void;
   /** The revision of the sources the project runs (its graphs and verdicts belong to it). */

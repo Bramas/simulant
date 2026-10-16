@@ -79,6 +79,8 @@ Symmetries are derived from equivariance declarations on components, sensors and
 
 Projects register an imported `.sim` experiment with `simProject`, which supplies the settings form, execution adapter, checks, source viewer, state inspector and model view. A default ring renderer is available; projects can supply drawing functions with agent hit positions. The `aliases` option normalizes older parameter names for the UI, CLI, saved settings and shared links.
 
+The simulator warns when initial settings fall outside the experiment's declared parameter domains, including dependent domains evaluated with the current parameter values. The engine checks membership directly rather than enumerating the Cartesian product of settings. Parameters without domains impose no membership restriction. These warnings are advisory: execution and graph exploration stay available so readers can investigate other settings, while the warning makes clear that those runs lie outside the declared domains. Defaults, edits, presets, shared links and semantic source updates all use the same check. Warnings and setup errors appear directly below the settings fields so they stay near the user's edits; a setup error takes precedence over advisory warnings to avoid repeating the same problem.
+
 The model view lets a reader compare an experiment with its paper without reading the toolchain. Its facts are derived from the same compiled IR the simulator, explorer and Lean generator use, not from separate prose, so they cannot drift from what is checked; the declarations beside them are shown as written. The frontend records which declarations an experiment uses (`Experiment.source`), because only elaboration knows which model definitions, components and sensors a model expression reached. Like the algorithm's line table, these locations are display metadata: a line-only edit redraws both views without restarting the execution.
 
 The model view can also show the generated Lean model beside the same sources. The Vite plugin (or the Node hooks) generates it when compiling a `.sim` file, with the generator `simulant lean` uses, so the page shows the file the CLI writes; only the module name differs until the page renames it after the simulation. Generation runs in Node because the library components are elaborated from the standard library on disk. Package exports resolve the compiler and generator; the standard library is located through its installed package, so this also works outside the workspace. Each region of the file carries the part of the experiment it translates (`generateMappedModel`), and each case of the lowered step its program counter, which the line table maps to the statement it resumes after. An experiment the generator refuses (a native algorithm, definitions on nodes...) shows the generator's reason instead.
@@ -138,5 +140,10 @@ package list in `scripts/build-packages.mjs` controls packing and publication;
 private projects and development-only language-server packages are excluded.
 Archives include source licenses, runtime files and required data, with SHA-256
 hashes in `release.json`. Publication consumes those exact archives after
-validating the complete list and hashes. See [distribution](distribution.md)
+validating the complete list and hashes. The same explicit package list drives
+`pnpm release:version`, which prepares a shared stable version and template
+dependencies, preserving workspace links and rolling manifests back if the
+lockfile update fails. GitHub publication uses npm trusted publishing tied to
+the release workflow; Git operations remain separate from version preparation.
+See [distribution](distribution.md)
 for verification and the release procedure.

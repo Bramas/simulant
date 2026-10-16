@@ -11,7 +11,7 @@ import {
   Compiler, Runtime, type AgentV, type Choice, type Config, type DecisionV, type Effect, type RootFn, type TraceCall,
 } from './compile';
 import { DynamicRing, Ring, type Move, type TopologyRuntime } from './topology';
-import { encoder, show, type V } from './values';
+import { encoder, equality, show, type V } from './values';
 
 export type { AgentV, Choice, Config, DecisionV, TraceCall };
 
@@ -596,6 +596,24 @@ export function* parameterValues(exp: Experiment): Generator<Record<string, V>> 
     for (const v of runDet(domain, []) as V[]) yield* go(i + 1, { ...params, [exp.params[i].name]: v });
   }
   yield* go(0, {});
+}
+
+/** Parameters outside their declared domains, without enumerating the settings product. */
+export function parameterDomainViolations(exp: Experiment, params: Record<string, V>): string[] {
+  const checked = check(exp);
+  if (checked.errors.length) throw new IRError(checked.errors);
+  const rt = new Runtime(checked.layout);
+  rt.params = params;
+  const compiler = new Compiler(rt, checked.layout, new Map(exp.params.map(p => [p.name, p.type])));
+  const defs = new Map((exp.model.defs ?? []).map(d => [d.name, d]));
+  rt.topo = makeTopology(exp, runDet(compiler.root(exp.model.topology.size, [], defs), []));
+  return exp.params.filter(p => {
+    // Parameters without a domain are supplied by the user and impose no domain restriction.
+    if (!p.domain) return false;
+    const values = runDet(compiler.root(p.domain, [], defs), []) as V[];
+    const equal = equality(p.type);
+    return !values.some(value => equal(value, params[p.name]));
+  }).map(p => p.name);
 }
 
 const definitionCache = new WeakMap<Experiment, Map<string, (...args: V[]) => V>>();

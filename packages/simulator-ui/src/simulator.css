@@ -395,6 +395,15 @@
   border-color: var(--sim-failure);
 }
 
+.sim-settings-feedback {
+  font-family: inherit;
+  margin: 0;
+}
+
+.sim-settings-warning {
+  white-space: normal;
+}
+
 .sim-toast {
   position: fixed;
   bottom: 1.25rem;

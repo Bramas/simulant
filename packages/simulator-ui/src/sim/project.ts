@@ -6,7 +6,7 @@
  * `draw`, the algorithm view from the algorithm's source and line table.
  */
 import type { Experiment, Type } from '@bramas/simulant-lang/ir';
-import { parameterValues, System } from '@bramas/simulant-engine/system';
+import { parameterDomainViolations, parameterValues, System } from '@bramas/simulant-engine/system';
 import { checkFirstBranch, checkSetting, checkSettings, stateGraph, type CheckResult } from '@bramas/simulant-engine/check';
 import type { EditorField, EditorSchema } from '@bramas/simulant-core/types/editor-schema';
 import type { AlgorithmSource, CheckOptions, ModelDescription, ProjectType, ProjectUpdate } from '@bramas/simulant-core/types/project';
@@ -269,6 +269,11 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
     setup: setup as ProjectType<any, any>['setup'],
     execute: (model: SimModel) => simExecution(model.system),
     normalizeSettings,
+    settingsWarnings: settings => {
+      const params = paramsOf(settings);
+      return parameterDomainViolations(need().exp, params)
+        .map(name => `${name} = ${JSON.stringify(params[name])} is outside its declared parameter domain.`);
+    },
     subscribe: listener => {
       listeners.add(listener);
       return () => { listeners.delete(listener); };

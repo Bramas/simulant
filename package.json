@@ -31,6 +31,7 @@
     "prepare": "node scripts/build-packages.mjs",
     "packages:build": "node scripts/build-packages.mjs",
     "packages:pack": "node scripts/pack-packages.mjs",
+    "release:version": "node scripts/version-packages.mjs",
     "test:packages": "SIMULANT_PACKAGES=1 node --import tsx --test tests/packaged-project.test.ts"
   },
   "license": "CECILL-B",

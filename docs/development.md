@@ -60,6 +60,14 @@ The 2026-10-15 editor verification passed 148 ordinary tests with four Lean-only
 
 ## Package distribution
 
+Prepare a shared release version with `pnpm release:version patch` (or `minor`,
+`major`, or an explicit stable version); add `--dry-run` to preview without
+writing. This updates the public manifests, template release dependencies and
+lockfile, leaving commit, tag and push as separate review steps. Focused release
+tests run with `node --import tsx --import ./packages/vite-plugin/src/register.ts
+--test tests/release-version.test.ts`. GitHub release publication uses npm trusted
+publishing; see [distribution](distribution.md) for its per-package setup.
+
 `pnpm install` builds runtime package exports through the root `prepare` script.
 Run `pnpm packages:build` again after editing runtime sources used by external
 Node/Vite consumers. Run `pnpm packages:pack` to build the explicit public
@@ -75,7 +83,9 @@ It uses the configured npm registry for external dependencies; the simulator
 packages come from local archives. `SIMULANT_LEAN=1` also builds Lean from the
 installed source package, without reusing the workspace's `.lake` cache.
 `SIMULANT_PACKAGES_OFFLINE=1` requests an offline install when all dependency
-metadata and archives are already cached. Tests remove their temporary projects.
+metadata and archives are already cached. Tests stop their temporary dev server
+before removing the project, with a forced shutdown after three seconds if
+graceful shutdown leaves watcher handles running.
 
 ## Generated files and regression fixtures
 
@@ -111,6 +121,8 @@ construct its list before yielding its first value. These changes preserve state
 successor order, witnesses and the exploration semantics.
 
 ## Known issues
+
+- **Array-valued presets are not formatted as JSON by the generic settings editor.** Loading a preset with a list parameter passes the array through `formValues`; assigning it to the text input displays comma-separated elements without brackets. Normalize array-valued JSON fields to text in project adapters until the editor serializes loaded values according to its field schema. Reproduce by loading an array-valued preset and inspecting/editing its JSON field.
 
 - **Lean component export supports only its top-level world/agent record types.** A component with `World := { points : List Point }`, where `Point` is a record, or a component sensor returning a custom record, fails generation with `no Lean name for ...`. A transformed parameter input such as `xs := (param points).map (·.x)` also cannot infer the input parameter type unless it is used directly as an initial value. Generate nested record declarations and pass known parameter types into component generation. Until then, use directly initialized scalar lists and scalar/list-valued component sensors.
 
