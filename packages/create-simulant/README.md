@@ -1,8 +1,7 @@
 # Create Simulant
 
 A minimal standalone project for research on mobile entities and distributed
-algorithms. The initializer is prepared for its first public npm release.
-After publication:
+algorithms. Create a project with:
 
 ```sh
 npm create @bramas/simulant@latest my-project

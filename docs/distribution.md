@@ -105,7 +105,31 @@ the release workflow tests the exact files it will upload and publish.
 names, versions and SHA-256 hashes in dependency order. Inspect these exact
 archives before publication. The initializer is last, so its dependencies are
 published first. The publish script validates every archive and version before
-publishing anything and never repacks sources during publication.
+publishing anything and never repacks sources during publication. Every public
+archive includes a package README; archive acceptance checks that it is shipped.
+
+## Resuming a partial release
+
+The GitHub workflow publishes with `--skip-published`. After validating all
+local archives, it checks each exact package name and version on the public npm
+registry and publishes only the missing versions, in dependency order. An
+existing version is skipped without comparing or replacing its archive. Only
+HTTP 404 means a version is missing; authentication, network and registry errors
+abort the checks before any package is published.
+
+To preview or resume an interrupted release locally:
+
+```sh
+node scripts/publish-packages.mjs --dry-run --skip-published
+node scripts/publish-packages.mjs --publish --skip-published
+```
+
+All versions already present is a successful no-op. Omitting `--skip-published`
+preserves strict publication of the complete list. Keep the prepared release
+version when recovering from a partial publication; fix the affected package's
+trusted-publisher settings and start a new workflow on `main` with `publish`
+enabled. A new workflow run is needed to pick up script changes committed after
+the failed run. Existing published versions remain immutable.
 
 ## Publishing
 

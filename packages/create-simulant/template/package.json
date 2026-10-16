@@ -15,13 +15,13 @@
     "./projects": "./src/projects.ts"
   },
   "dependencies": {
-    "@bramas/simulant-core": "0.1.1",
-    "@bramas/simulant-ui": "0.1.1",
+    "@bramas/simulant-core": "0.1.2",
+    "@bramas/simulant-ui": "0.1.2",
     "solid-js": "1.9.14"
   },
   "devDependencies": {
-    "@bramas/simulant-cli": "0.1.1",
-    "@bramas/simulant-vite-plugin": "0.1.1",
+    "@bramas/simulant-cli": "0.1.2",
+    "@bramas/simulant-vite-plugin": "0.1.2",
     "vite": "6.0.2",
     "vite-plugin-solid": "2.11.0",
     "typescript": "5.7.2",

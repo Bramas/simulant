@@ -140,7 +140,13 @@ package list in `scripts/build-packages.mjs` controls packing and publication;
 private projects and development-only language-server packages are excluded.
 Archives include source licenses, runtime files and required data, with SHA-256
 hashes in `release.json`. Publication consumes those exact archives after
-validating the complete list and hashes. The same explicit package list drives
+validating the complete list and hashes. CI uses `--skip-published` to resume
+partial releases: public registry metadata identifies exact versions already
+published, which are left untouched; only missing versions are published in
+dependency order. Registry checks complete before publication, and errors other
+than a missing-version response abort the operation. Package READMEs are shipped
+in every public archive and checked during independent installation tests.
+The same explicit package list drives
 `pnpm release:version`, which prepares a shared stable version and template
 dependencies, preserving workspace links and rolling manifests back if the
 lockfile update fails. GitHub publication uses npm trusted publishing tied to

@@ -68,6 +68,10 @@ tests run with `node --import tsx --import ./packages/vite-plugin/src/register.t
 --test tests/release-version.test.ts`. GitHub release publication uses npm trusted
 publishing; see [distribution](distribution.md) for its per-package setup.
 
+The release workflow uses `--skip-published` to resume partial publications.
+Focused registry and retry tests are in `tests/release-publish.test.ts`; archive
+acceptance also verifies that every public package ships its README.
+
 `pnpm install` builds runtime package exports through the root `prepare` script.
 Run `pnpm packages:build` again after editing runtime sources used by external
 Node/Vite consumers. Run `pnpm packages:pack` to build the explicit public
@@ -121,8 +125,6 @@ construct its list before yielding its first value. These changes preserve state
 successor order, witnesses and the exploration semantics.
 
 ## Known issues
-
-- **The first trusted npm publication of 0.1.1 was rejected.** The `simulator-v0.1.1` release run passed workspace and archive checks, signed provenance, then npm rejected the first package with `E404` on its publish request. No 0.1.1 package was accepted. `setup-node@v4` had supplied a dummy token through its registry authentication configuration; npm can fall back to it when OIDC token exchange fails, hiding the underlying rejection. The workflow now omits that setup and uses an empty user config with verbose npm diagnostics. Remaining work: verify the package's trusted-publisher identity and direct-publish permission, then run the fixed workflow manually on `main` with publication enabled to confirm the exchange and publish the release.
 
 - **Array-valued presets are not formatted as JSON by the generic settings editor.** Loading a preset with a list parameter passes the array through `formValues`; assigning it to the text input displays comma-separated elements without brackets. Normalize array-valued JSON fields to text in project adapters until the editor serializes loaded values according to its field schema. Reproduce by loading an array-valued preset and inspecting/editing its JSON field.
 

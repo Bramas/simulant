@@ -30,6 +30,7 @@ test('packed initializer creates an independent installable project, CLI, websit
   };
   for (const item of packed) {
     const inventory = (await run('tar', ['-tzf', item.file])).stdout;
+    assert.match(inventory, /^package\/README\.md$/m, `${item.name} must ship its README`);
     assert.doesNotMatch(inventory, /(?:^|\/)(?:node_modules|test|tests|private|\.lake)\//m, item.name);
     if (item.name === '@bramas/simulant-lean-gen') assert.doesNotMatch(inventory, /\/examples\.(?:ts|js)$/m);
     const manifest = JSON.parse((await run('tar', ['-xOzf', item.file, 'package/package.json'])).stdout);

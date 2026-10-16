@@ -1,7 +1,6 @@
 # Simulant CLI
 
-Check `.sim` experiments and generate their Lean models. The package is prepared
-for its first public npm release. After publication, create a complete project
+Check `.sim` experiments and generate their Lean models. Create a complete project
 with `npm create @bramas/simulant@latest my-project`, or install this CLI into
 an existing Simulant project:
 

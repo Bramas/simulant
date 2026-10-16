@@ -69,7 +69,7 @@ jobs:
 
       - name: Publish the verified archives with npm trusted publishing
         if: github.event_name == 'push' || inputs.publish
-        run: node scripts/publish-packages.mjs --publish
+        run: node scripts/publish-packages.mjs --publish --skip-published
         env:
           NPM_CONFIG_USERCONFIG: /dev/null
           NODE_AUTH_TOKEN: ''

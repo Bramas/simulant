@@ -1,5 +1,25 @@
 # Standard library
 
+`@bramas/simulant-stdlib` supplies the model families, components, sensors and
+tasks used by Simulant experiments. It is installed with the compiler and CLI.
+Start a standalone project with `npm create @bramas/simulant@latest my-project`.
+
+Use it from `.sim` sources:
+
+```lean
+import "std/models.sim"
+import "std/tasks.sim"
+```
+
+The library includes black-hole and crash components, pebble storage, visit
+monitors, ring model families and example algorithms. Topologies and rounds are
+implemented in the semantic core; library definitions compose those capabilities.
+
+See the [language reference](https://github.com/Bramas/simulant/blob/main/docs/sim-language.md)
+for a complete experiment. The development notes below describe how the library
+is maintained in the source repository; test helpers are not part of this npm
+package. Licensed under CeCILL-B; see `LICENCE.txt`.
+
 The standard library used by project simulations and Lean generation is authored in [`sim/`](sim/). A `.sim` import such as `import "std/models.sim"` loads these sources and compiles them to IR.
 
 | Location | Role |
