@@ -32,11 +32,11 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org
-          scope: '@bramas'
 
       - name: Install npm with trusted publishing support
-        run: npm install --global npm@12.2.0
+        run: |
+          npm install --global npm@12.2.0
+          npm --version
 
       - name: Install and build packages
         run: pnpm install --frozen-lockfile
@@ -70,3 +70,7 @@ jobs:
       - name: Publish the verified archives with npm trusted publishing
         if: github.event_name == 'push' || inputs.publish
         run: node scripts/publish-packages.mjs --publish
+        env:
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NODE_AUTH_TOKEN: ''
+          NPM_CONFIG_LOGLEVEL: verbose

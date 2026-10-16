@@ -151,6 +151,20 @@ branch push does not trigger the package release workflow. It validates the
 workspace and tests the exact packed archives, including a clean Lean build,
 before publishing them.
 
+Do not add `registry-url` or `scope` to `setup-node` for this public-only
+workflow. Its v4 authentication setup writes a token-based `.npmrc` and a
+dummy `NODE_AUTH_TOKEN`. The publish step uses an empty user configuration
+and no token instead; verbose npm logging reports OIDC token-exchange errors
+that npm otherwise hides behind a fallback authentication failure. Successful
+provenance signing alone does not establish authorization to publish to npm.
+
+If publication fails before the first package is accepted, verify the trusted
+publisher's exact owner, repository, workflow filename and optional environment,
+and ensure direct `npm publish` is allowed. Retry by manually running the fixed
+workflow on `main` with `publish` enabled, retaining the same package version.
+Re-running an older failed run uses the old workflow, so it does not apply a
+workflow fix committed later. Do not move an existing release tag.
+
 After reviewing and committing the version changes, push that commit and its
 matching tag, for example for a prepared `0.1.1` release:
 
