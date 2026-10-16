@@ -24,3 +24,8 @@ private-projects/
 # Built editor extension and installable packages
 extensions/*/dist/
 extensions/*/LICENCE.txt
+
+# Packed npm releases and copied package licenses
+*.tgz
+packages/*/LICENCE.txt
+lean/LICENCE.txt

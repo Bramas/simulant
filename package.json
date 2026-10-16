@@ -12,7 +12,8 @@
     "packages/*",
     "extensions/*",
     "projects/*",
-    "projects/private/*"
+    "projects/private/*",
+    "lean"
   ],
   "scripts": {
     "start": "pnpm --filter @bramas/simulant-project-starter dev",
@@ -26,7 +27,11 @@
     "editor:build": "pnpm --filter simulant build",
     "editor:package": "pnpm --filter simulant package",
     "sim-types": "tsx scripts/sim-types.ts",
-    "test:browser": "node --import tsx --test --test-isolation=none --test-concurrency=1 tests/browser/*.test.ts"
+    "test:browser": "node --import tsx --test --test-isolation=none --test-concurrency=1 tests/browser/*.test.ts",
+    "prepare": "node scripts/build-packages.mjs",
+    "packages:build": "node scripts/build-packages.mjs",
+    "packages:pack": "node scripts/pack-packages.mjs",
+    "test:packages": "SIMULANT_PACKAGES=1 node --import tsx --test tests/packaged-project.test.ts"
   },
   "license": "CECILL-B",
   "devDependencies": {

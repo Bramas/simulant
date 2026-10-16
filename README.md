@@ -103,37 +103,36 @@ The CLI supports TypeScript registries and `.sim` imports, and includes its own 
 
 ## Using Simulant in a separate project
 
-Configure GitHub Packages in your project's `.npmrc`:
-
-```ini
-@bramas:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
-```
-
-Use released package versions for reproducible projects:
-
-```json
-{
-  "dependencies": {
-    "@bramas/simulant-core": "0.1.0",
-    "@bramas/simulant-ui": "0.1.0",
-    "solid-js": "^1.9.3"
-  }
-}
-```
-
-The CLI is prepared for release but has not yet been published. Once released, install it with `pnpm add -D @bramas/simulant-cli`. Before release, create local CLI and core tarballs and install them together in the consuming project:
+Simulant and its initializer are available on public npm. A new project needs
+Node.js 20.6 or newer, with no clone of this repository:
 
 ```bash
-# From the Simulant workspace
-pnpm --filter @bramas/simulant-core pack --pack-destination /tmp/simulant-packages
-pnpm --filter @bramas/simulant-cli pack --pack-destination /tmp/simulant-packages
-
-# From the consuming project
-pnpm add -D /tmp/simulant-packages/bramas-simulant-core-0.1.0.tgz /tmp/simulant-packages/bramas-simulant-cli-0.1.0.tgz
+npm create @bramas/simulant@latest my-project
+cd my-project
+npm install
+npm run dev
 ```
 
-During development, core and UI dependencies can point to a local checkout with `link:../simulant/packages/core` and `link:../simulant/packages/simulator-ui`. Run `pnpm install` after changing dependencies and restart the web development server. Keep unpublished research in separate private repositories and use exact released versions when freezing a paper artifact.
+The initializer creates one working experiment, its registry and a simulator
+page. It refuses to overwrite a nonempty directory. Then:
+
+```bash
+npm run check                  # every setting and admissible execution
+npm run build                  # static site in dist/
+npx simulant lean              # generate the Lean model
+npx simulant lean --build      # also compile it (Lean/elan installed separately)
+```
+
+Simulator versions are pinned to the initializer's release. Keep the generated
+package-manager lockfile to preserve the complete dependency versions. Public
+npm packages need no GitHub Packages configuration or token for installation;
+remove any old `@bramas:registry=https://npm.pkg.github.com` mapping when moving
+to the public npm release.
+
+To prepare and verify a release before publication, including a fresh project
+installed from the actual archives, see [npm distribution](docs/distribution.md).
+For workspace development, `pnpm install` also builds the runtime packages; run
+`pnpm packages:build` after changing package sources used by Vite configurations.
 
 ## Creating a project
 
@@ -200,7 +199,7 @@ To publish a project's web page, add a `web/` app and a package `build` script, 
 
 [The Pages workflow](.github/workflows/pages.yml) deploys `dist/` to GitHub Pages. Set the repository's Pages source to **GitHub Actions**.
 
-[The package release workflow](.github/workflows/release-packages.yml) publishes core, UI, and CLI packages to GitHub Packages. It runs manually or on tags matching `simulator-v*`, after typechecking and tests. Update package versions under `packages/` and the lockfile before releasing changed contents.
+[The package release workflow](.github/workflows/release-packages.yml) prepares and validates the public npm archives. A manual run prepares downloadable artifacts by default; its explicit publish input or a matching `simulator-v*` tag enables publication with npm credentials. See [the release procedure](docs/distribution.md) for versions, verification and authentication.
 
 For a paper artifact, record exact package versions or commits and tag the repository state, for example `paper-black-hole-search-v1`. `workspace:*` tracks the current local package; it does not preserve an older simulator version. Keep old artifacts reproducible through exact external package versions or their repository tag.
 

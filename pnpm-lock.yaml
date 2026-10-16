@@ -78,11 +78,25 @@ importers:
         specifier: 9.2.0
         version: 9.2.0
 
+  lean: {}
+
   packages/cli:
     dependencies:
       '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../core
+      '@bramas/simulant-lang':
+        specifier: workspace:*
+        version: link:../lang
+      '@bramas/simulant-lean':
+        specifier: workspace:*
+        version: link:../../lean
+      '@bramas/simulant-lean-gen':
+        specifier: workspace:*
+        version: link:../lean-gen
+      '@bramas/simulant-vite-plugin':
+        specifier: workspace:*
+        version: link:../vite-plugin
       commander:
         specifier: ^14.0.2
         version: 14.0.2
@@ -92,13 +106,19 @@ importers:
 
   packages/core: {}
 
+  packages/create-simulant: {}
+
   packages/engine:
     dependencies:
       '@bramas/simulant-lang':
         specifier: workspace:*
         version: link:../lang
 
-  packages/lang: {}
+  packages/lang:
+    dependencies:
+      '@bramas/simulant-stdlib':
+        specifier: workspace:*
+        version: link:../stdlib
 
   packages/language-server:
     dependencies:
@@ -126,6 +146,9 @@ importers:
 
   packages/lean-gen:
     dependencies:
+      '@bramas/simulant-engine':
+        specifier: workspace:*
+        version: link:../engine
       '@bramas/simulant-lang':
         specifier: workspace:*
         version: link:../lang
@@ -135,21 +158,32 @@ importers:
       '@bramas/simulant-core':
         specifier: workspace:*
         version: link:../core
+      '@bramas/simulant-engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@bramas/simulant-lang':
+        specifier: workspace:*
+        version: link:../lang
+      '@bramas/simulant-lean-gen':
+        specifier: workspace:*
+        version: link:../lean-gen
+      '@bramas/simulant-vite-plugin':
+        specifier: workspace:*
+        version: link:../vite-plugin
       solid-js:
         specifier: ^1.9.3
         version: 1.9.3
 
-  packages/stdlib:
-    dependencies:
-      '@bramas/simulant-lang':
-        specifier: workspace:*
-        version: link:../lang
+  packages/stdlib: {}
 
   packages/vite-plugin:
     dependencies:
       '@bramas/simulant-lang':
         specifier: workspace:*
         version: link:../lang
+      '@bramas/simulant-lean-gen':
+        specifier: workspace:*
+        version: link:../lean-gen
       vite:
         specifier: ^6.0.0
         version: 6.0.2(@types/node@24.10.1)(tsx@4.20.6)
@@ -254,6 +288,37 @@ importers:
         specifier: ^1.9.3
         version: 1.9.3
     devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.7.2
+      vite:
+        specifier: ^6.0.0
+        version: 6.0.2(@types/node@24.10.1)(tsx@4.20.6)
+      vite-plugin-solid:
+        specifier: ^2.11.0
+        version: 2.11.0(solid-js@1.9.3)(vite@6.0.2(@types/node@24.10.1)(tsx@4.20.6))
+
+  projects/private/rendezvous-in-orthogonal-polygons:
+    dependencies:
+      '@bramas/simulant-core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@bramas/simulant-engine':
+        specifier: workspace:*
+        version: link:../../../packages/engine
+      '@bramas/simulant-lang':
+        specifier: workspace:*
+        version: link:../../../packages/lang
+      '@bramas/simulant-ui':
+        specifier: workspace:*
+        version: link:../../../packages/simulator-ui
+      solid-js:
+        specifier: ^1.9.3
+        version: 1.9.3
+    devDependencies:
+      '@bramas/simulant-cli':
+        specifier: workspace:*
+        version: link:../../../packages/cli
       typescript:
         specifier: ^5.7.2
         version: 5.7.2

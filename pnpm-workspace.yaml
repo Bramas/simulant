@@ -4,3 +4,4 @@ packages:
   - "extensions/*"
   - "projects/*"
   - "projects/private/*"
+  - "lean"
