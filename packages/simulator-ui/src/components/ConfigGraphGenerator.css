@@ -1,101 +1,243 @@
-/* The configuration graph (tokens in simulator.css). */
+/* The configuration graph, filling its container (tokens in simulator.css). */
+
+.config-graph {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.cg-toolbar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sim-border);
+  background: var(--sim-surface);
+}
 
 .cg-controls {
   display: flex;
-  align-items: flex-end;
-  gap: 0.6rem;
+  align-items: center;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
 .cg-depth {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 8px;
   white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sim-text-2);
+  margin-right: 4px;
 }
 
 .cg-depth input {
-  width: 5.5rem;
+  width: 5rem !important;
 }
 
-.cg-views {
-  display: inline-flex;
-  gap: 0.25rem;
+.cg-divider {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+  background: var(--sim-border);
 }
 
 .cg-stats {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.4rem;
-  margin-top: 0.75rem;
+  gap: 6px;
 }
 
-.cg-selection {
+.cg-notes {
   display: flex;
-  align-items: center;
-  gap: 0.6rem;
   flex-wrap: wrap;
-  margin-top: 0.75rem;
-  padding: 0.45rem 0.6rem;
-  border-radius: 8px;
-  background: var(--sim-surface-2);
-  font-size: 0.85rem;
+  gap: 4px 16px;
+  font-size: 12px;
+  color: var(--sim-muted);
+}
+
+.cg-stale {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sim-progress);
+}
+
+.cg-toolbar .sim-feedback {
+  margin: 0;
+}
+
+.cg-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 .cg-frame {
   position: relative;
-  margin-top: 0.75rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .cg-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
-  background: var(--sim-surface-2);
-  border: 1px solid var(--sim-border);
-  border-radius: 8px;
+  background-color: var(--sim-stage);
+  background-image: radial-gradient(var(--sim-stage-dot) 1px, transparent 1.2px);
+  background-size: 18px 18px;
   cursor: grab;
   touch-action: none;
 }
 
 .cg-zoom {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
+  top: 12px;
+  right: 12px;
   display: flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: 2px;
   background: var(--sim-surface);
   border: 1px solid var(--sim-border);
   border-radius: 8px;
-  padding: 0.2rem 0.3rem;
+  padding: 3px;
+  box-shadow: var(--sim-shadow-md);
+}
+
+.cg-zoom-value {
+  min-width: 3.2em;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--sim-muted);
+}
+
+.cg-zoom-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 2px;
+  background: var(--sim-border);
 }
 
 .cg-help {
-  margin: 0.4rem 0 0;
-  font-size: 0.78rem;
+  position: absolute;
+  right: 12px;
+  bottom: 10px;
+  margin: 0;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: var(--sim-muted);
+  background: color-mix(in srgb, var(--sim-surface) 85%, transparent);
+  pointer-events: none;
+}
+
+/* The selected node, in a card over the graph */
+
+.cg-selection {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 196px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border);
+  box-shadow: var(--sim-shadow-lg);
+  font-size: 12.5px;
+}
+
+.cg-selection-head {
+  display: flex;
+  align-items: center;
+}
+
+.cg-preview {
+  align-self: center;
+  border-radius: 8px;
+  border: 1px solid var(--sim-border);
+  background-color: var(--sim-stage);
+  background-image: radial-gradient(var(--sim-stage-dot) 1px, transparent 1.2px);
+  background-size: 14px 14px;
+}
+
+.cg-selection-facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+}
+
+.cg-selection-facts dt {
+  color: var(--sim-muted);
+}
+
+.cg-selection-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.cg-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 28px 16px;
+  color: var(--sim-muted);
+  font-size: 13px;
+  text-align: center;
+  background-color: var(--sim-stage);
+  background-image: radial-gradient(var(--sim-stage-dot) 1px, transparent 1.2px);
+  background-size: 18px 18px;
+}
+
+.cg-empty strong {
+  color: var(--sim-text);
+  font-size: 14px;
+}
+
+.cg-empty span {
+  max-width: 28rem;
 }
 
 .cg-list,
 .cg-tree {
-  margin-top: 0.75rem;
-  max-height: 480px;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
-  border: 1px solid var(--sim-border);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  font-size: 0.85rem;
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+/* The selection card covers the top left: lists start beside it. */
+.cg-body:has(.cg-selection) :is(.cg-list, .cg-tree) {
+  padding-left: 224px;
 }
 
 .cg-list summary {
   cursor: pointer;
   font-weight: 600;
-  margin: 0.3rem 0;
+  margin: 4px 0;
 }
 
 .config-graph .cg-list-row,
 .config-graph .cg-node-link {
   display: flex;
-  gap: 0.8rem;
+  gap: 12px;
   align-items: baseline;
   width: 100%;
   text-align: left;
@@ -104,8 +246,8 @@
   border-left: 3px solid transparent;
   border-radius: 4px;
   color: var(--sim-text);
-  padding: 0.15rem 0.5rem;
-  font-size: 0.82rem;
+  padding: 2px 8px;
+  font-size: 12.5px;
 }
 
 .config-graph .cg-node-link {

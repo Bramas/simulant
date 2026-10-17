@@ -5,6 +5,7 @@
  */
 import { For, Show, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import type { ExecutionStatus } from '@bramas/simulant-core/types/project';
+import { Icon } from './Icon';
 import './BranchPicker.css';
 
 export type Branch = {
@@ -62,14 +63,17 @@ export function BranchPicker(props: BranchPickerProps) {
     <div class="bp-backdrop" onClick={e => { if (e.target === e.currentTarget) props.onClose(); }}>
       <div class="bp-window" role="dialog" aria-modal="true" aria-label="Branches">
         <div class="bp-header">
-          <h3>{props.branches.length} branches at this step</h3>
+          <Icon name="branch" />
+          <div class="bp-title">
+            <h3>{props.branches.length} branches at this step</h3>
+            <p class="bp-help">Each branch is one way the adversary can play this round; only the choices that differ between branches and are not the first option are listed.</p>
+          </div>
+          <span class="sim-spacer" />
           <Show when={props.branches.length > 8}>
             <input type="search" placeholder="Filter (index or choice)" value={filter()} onInput={e => setFilter(e.currentTarget.value)} aria-label="Filter the branches" />
           </Show>
-          <span style={{ flex: 1 }} />
-          <button class="sim-ghost sim-icon" onClick={props.onClose} title="Close (Esc)">✕</button>
+          <button class="sim-ghost sim-icon" onClick={props.onClose} aria-label="Close" title="Close (Esc)"><Icon name="close" /></button>
         </div>
-        <p class="sim-muted bp-help">Each branch is one way the adversary can play this round; only the choices that differ between branches and are not the first option are listed.</p>
         <div class="bp-grid">
           <For each={shown()} fallback={<p class="sim-muted">No branch matches.</p>}>
             {b => (
@@ -77,6 +81,7 @@ export function BranchPicker(props: BranchPickerProps) {
                 <Show when={props.draw}><Thumb index={b.index} /></Show>
                 <span class="bp-caption">
                   <strong>Branch {b.index}</strong>
+                  <Show when={b.index === props.current}><span class="bp-current-tag">current</span></Show>
                   <Show when={b.verdict}>{v => <span class={`sim-chip sim-${v()}`}>{VERDICT_TEXT[v()]}</span>}</Show>
                 </span>
                 <span class="bp-label">{b.short || b.label || '(no choice)'}</span>

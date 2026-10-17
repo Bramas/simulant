@@ -1,8 +1,9 @@
 /**
  * The default renderer of rings (plan, Section 6.5): nodes, agents with their
  * flags, and the markers of library components (the black hole's site,
- * pebbles). It returns the layout it used, so that custom renderers can add
- * overlays and hit tests on the same geometry:
+ * pebbles), in the colors of `options.theme` when the page gives them. It
+ * returns the layout it used, so that custom renderers can add overlays and
+ * hit tests on the same geometry:
  *
  *   const layout = drawRing(ctx, snapshot, model, options);
  *   const { x, y } = layout.nodePosition(snapshot.world.site);
@@ -39,24 +40,33 @@ export function ringLayout(snapshot: Snapshot, options: RenderOptions = {}): Lay
 export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _model: ModelInfo, options: RenderOptions = {}): Layout {
   const layout = ringLayout(snapshot, options);
   const { radius, center } = layout;
-  const { nodeRadius = 4, agentRadius = 7, showNodeLabels = true } = options;
+  const { nodeRadius = 4, agentRadius = 7, showNodeLabels = true, theme } = options;
+  const colors = {
+    line: theme?.line ?? '#666',
+    node: theme?.muted ?? '#666',
+    label: theme?.muted ?? '#666',
+    background: theme?.background ?? '#fff',
+    hole: theme?.danger ?? '#d32f2f',
+    pebble: theme?.dark ? '#bcaaa4' : '#795548',
+  };
   const N = snapshot.size;
   ctx.save();
   try {
-    ctx.strokeStyle = '#666';
-    ctx.lineWidth = 1;
+    ctx.strokeStyle = colors.line;
+    ctx.lineWidth = 1.25;
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
     ctx.stroke();
     for (let n = 0; n < N; n++) {
       const p = layout.nodePosition(n);
-      ctx.fillStyle = '#666';
+      ctx.fillStyle = colors.node;
       ctx.beginPath();
       ctx.arc(p.x, p.y, nodeRadius, 0, 2 * Math.PI);
       ctx.fill();
       if (showNodeLabels) {
         const q = { x: center.x + (p.x - center.x) * 0.8, y: center.y + (p.y - center.y) * 0.8 };
-        ctx.font = '12px sans-serif';
+        ctx.fillStyle = colors.label;
+        ctx.font = '12px system-ui, sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(`u${n}`, q.x, q.y);
@@ -67,7 +77,7 @@ export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
     if (typeof site === 'number') {
       const p = layout.nodePosition(site);
       const s = nodeRadius + 5;
-      ctx.strokeStyle = '#d32f2f';
+      ctx.strokeStyle = colors.hole;
       ctx.lineWidth = 2;
       ctx.setLineDash(snapshot.world.active ? [] : [3, 3]);
       ctx.beginPath();
@@ -84,7 +94,7 @@ export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
       for (const [n, c] of count) {
         const p = layout.nodePosition(n);
         const q = { x: center.x + (p.x - center.x) * 0.9, y: center.y + (p.y - center.y) * 0.9 };
-        ctx.fillStyle = '#795548';
+        ctx.fillStyle = colors.pebble;
         for (let i = 0; i < c; i++) ctx.fillRect(q.x - 3 + 4 * i, q.y - 3, 3, 3);
       }
     }
@@ -94,14 +104,14 @@ export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
       ctx.arc(p.x, p.y, agentRadius, 0, 2 * Math.PI);
       if (!a.present) {
         // Hidden (dead): a hollow grey circle.
-        ctx.strokeStyle = '#999';
+        ctx.strokeStyle = colors.node;
         ctx.lineWidth = 1.5;
         ctx.stroke();
       } else {
         ctx.fillStyle = a.correct ? agentColor(a.id) : '#9e9e9e';
         ctx.fill();
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = colors.background;
+        ctx.lineWidth = 1.5;
         ctx.stroke();
       }
     });

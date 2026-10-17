@@ -5,6 +5,7 @@
  */
 import { For, Show, createSignal } from 'solid-js';
 import type { PredefinedSetting } from '@bramas/simulant-core/types/project';
+import { Icon } from './Icon';
 
 export type SavedSetting = { name: string; settings: any; path?: number[] };
 
@@ -47,15 +48,16 @@ export function SettingsLibrary(props: SettingsLibraryProps) {
       <div class="sim-entry-text">
         <span class="sim-entry-name">{p.s.name}</span>
         <span class="sim-muted">
+          <Show when={same(p.s.settings, props.current)}><span class="sim-entry-badge">current · </span></Show>
           {summary(p.s.settings)}
           <Show when={p.s.path && p.s.path.length > 1}> · {p.s.path!.length - 1} steps</Show>
         </span>
       </div>
       <div class="sim-entry-actions">
-        <button class="sim-ghost" onClick={() => props.onLoad(p.s)}>Load</button>
-        <button class="sim-ghost sim-icon" title="Copy a link to these settings" onClick={() => props.onShare(p.s)}>Share</button>
+        <button class="sim-btn sim-sm" onClick={() => props.onLoad(p.s)}>Load</button>
+        <button class="sim-ghost sim-icon sim-sm" aria-label="Copy a link to these settings" title="Copy a link to these settings" onClick={() => props.onShare(p.s)}><Icon name="link" size={14} /></button>
         <Show when={p.deletable}>
-          <button class="sim-ghost sim-icon sim-danger" title="Delete" onClick={() => props.onDelete(p.s.name)}>Delete</button>
+          <button class="sim-ghost sim-icon sim-sm sim-danger" aria-label={`Delete ${p.s.name}`} title="Delete" onClick={() => props.onDelete(p.s.name)}><Icon name="trash" size={14} /></button>
         </Show>
       </div>
     </li>
@@ -70,14 +72,14 @@ export function SettingsLibrary(props: SettingsLibraryProps) {
         </ul>
       </Show>
       <h4>Saved in this browser</h4>
-      <Show when={props.saved.length > 0} fallback={<p class="sim-muted">Nothing saved yet: save the current settings and path below.</p>}>
+      <Show when={props.saved.length > 0} fallback={<p class="sim-library-empty">Nothing saved yet: name the current settings and path below to keep them.</p>}>
         <ul class="sim-entries">
           <For each={props.saved}>{(s) => <Entry s={s} deletable={true} />}</For>
         </ul>
       </Show>
       <form class="sim-save" onSubmit={save}>
         <input type="text" placeholder="Name the current settings and path" value={name()} onInput={e => setName(e.currentTarget.value)} aria-label="Name of the saved settings" />
-        <button type="submit" disabled={!name().trim()}>Save</button>
+        <button type="submit" class="sim-primary" disabled={!name().trim()}><Icon name="bookmark" size={14} /> Save</button>
       </form>
     </div>
   );

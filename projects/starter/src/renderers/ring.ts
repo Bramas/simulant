@@ -9,9 +9,9 @@ import type { Snapshot } from '../../.simulant/types/cautiousPair';
 
 export const draw = defineRenderer<Snapshot>('starter/cautiousPair', (ctx, snapshot, model, options) => {
   const layout = drawRing(ctx, snapshot, model, options);
-  ctx.font = '12px sans-serif';
+  ctx.font = '12px system-ui, sans-serif';
   ctx.textAlign = 'center';
-  ctx.fillStyle = '#111';
+  ctx.fillStyle = options.theme?.foreground ?? '#111';
   for (const agent of snapshot.agents) {
     if (agent.pub.bh === null) continue;
     const { x, y } = layout.agents[agent.index].position;

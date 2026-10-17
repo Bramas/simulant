@@ -68,10 +68,17 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     errors.push(`Unexpected dialog: ${dialog.message()}`);
     await dialog.dismiss();
   });
-  const round = (n: number) => page.getByText(`Round ${n}`, { exact: true }).waitFor();
+  const round = (n: number) => page.waitForFunction((n: number) => document.querySelector('.sim-round-value')?.textContent === String(n), n);
+  const branch = (text: string) => page.waitForFunction((text: string) => document.querySelector('.sim-branch')?.textContent === text, text);
   /** The configuration the state inspector shows, as JSON (`textContent()` like the former debug string). */
   const debug = () => ({ textContent: () => page.locator('.state-inspector').getAttribute('data-state') });
-  const next = () => page.getByRole('button', { name: '> Next', exact: true }).click();
+  const next = () => page.getByRole('button', { name: 'Next step', exact: true }).click();
+  /** The first agent of the starter, on the ring's top node: the stage centers the ring (`geometry` in SimulatorApp). */
+  const firstAgent = async () => {
+    const box = (await page.locator('canvas').first().boundingBox())!;
+    const radius = Math.max(40, Math.min(box.width, box.height) / 2 - 68);
+    return { x: box.width / 2, y: box.height / 2 - radius - 7.7 };
+  };
   const drawn = async () => assert.ok(await page.locator('canvas').first().evaluate((canvas: HTMLCanvasElement) =>
     canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data.some((value, index) => index % 4 === 3 && value > 0)));
 
@@ -83,23 +90,44 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     await next();
     await round(1);
     assert.notEqual(await debug().textContent(), initial);
-    await page.getByRole('button', { name: 'Previous <', exact: true }).click();
+    await page.getByRole('button', { name: 'Previous step', exact: true }).click();
     await round(0);
     assert.equal(await debug().textContent(), initial);
-    await page.locator('canvas').first().click({ position: { x: 250, y: 42 } });
+    await page.locator('canvas').first().click({ position: await firstAgent() });
     await page.locator('.state-inspector .si-agent.si-selected').waitFor();
     await page.getByRole('button', { name: 'Clear selection', exact: true }).click();
     assert.equal(await page.locator('.state-inspector .si-agent.si-selected').count(), 0);
     await page.getByRole('button', { name: 'Load', exact: true }).click();
-    assert.equal(await page.getByLabel('N:', { exact: true }).inputValue(), '6');
+    assert.equal(await page.getByLabel('N', { exact: true }).inputValue(), '6');
     for (let i = 0; i < 6; i++) await next();
     await round(6);
     assert.match(await page.locator('.state-inspector').getAttribute('data-state') ?? '', /"bh":"cw"/);
-    await page.getByRole('button', { name: 'Show Configuration Graph', exact: true }).click();
-    await page.getByLabel('Max Depth (rounds):').fill('8');
-    await page.getByRole('button', { name: 'Generate Graph', exact: true }).click();
+    await page.getByRole('tab', { name: 'Graph', exact: true }).click();
+    await page.getByLabel('Max depth (rounds)').fill('8');
+    await page.getByRole('button', { name: 'Generate graph', exact: true }).click();
     await page.locator('.cg-stats').waitFor();
     assert.match(await page.locator('.cg-stats .sim-chip').first().innerText(), /^[1-9]\d* nodes/);
+    assert.deepEqual(errors, []);
+  });
+
+  await t.test('panels move between docks, and the explanation card overlays the code', async () => {
+    await page.goto(starterUrl);
+    await round(0);
+    const dockOf = (panel: string) => page.locator(`[data-panel="${panel}"]`).evaluate((e: Element) => e.parentElement!.getAttribute('aria-label'));
+    assert.equal(await dockOf('state'), 'Below the configuration');
+    await page.getByRole('button', { name: 'Move state', exact: true }).click();
+    await page.getByRole('menuitemradio', { name: 'Right side bar' }).click();
+    assert.equal(await dockOf('state'), 'Right side bar');
+    await page.getByRole('button', { name: 'Reset the panel layout', exact: true }).click();
+    assert.equal(await dockOf('state'), 'Below the configuration');
+    // The card opens under the cursor without moving the code.
+    const line = page.locator('.algorithm-line.highlighted').first();
+    const before = await line.boundingBox();
+    await page.locator('.agent-marker').first().click();
+    await page.locator('.ex-card').waitFor();
+    assert.deepEqual(await line.boundingBox(), before);
+    await page.keyboard.press('Escape');
+    assert.equal(await page.locator('.ex-card').count(), 0);
     assert.deepEqual(errors, []);
   });
 
@@ -108,26 +136,26 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     await page.goto(starterUrl);
     const warning = page.locator('.sim-settings').getByRole('alert');
     assert.equal(await warning.count(), 0);
-    await page.getByLabel('site:', { exact: true }).fill('0');
+    await page.getByLabel('site', { exact: true }).fill('0');
     await warning.waitFor();
     assert.match(await warning.innerText(), /site = 0 is outside its declared parameter domain/);
     await next();
     await round(1);
-    await page.getByLabel('site:', { exact: true }).fill('5');
-    await page.getByLabel('N:', { exact: true }).fill('5');
+    await page.getByLabel('site', { exact: true }).fill('5');
+    await page.getByLabel('N', { exact: true }).fill('5');
     assert.match(await warning.innerText(), /site = 5 is outside/);
-    await page.getByLabel('N:', { exact: true }).fill('6');
+    await page.getByLabel('N', { exact: true }).fill('6');
     await warning.waitFor({ state: 'detached' });
     const beforeError = errors.length;
-    await page.getByLabel('N:', { exact: true }).fill('1');
+    await page.getByLabel('N', { exact: true }).fill('1');
     await warning.waitFor();
     assert.match(await warning.innerText(), /a ring needs at least 2 nodes/);
     assert.equal(await page.getByRole('alert').count(), 1);
     assert.equal(await page.locator('.sim-settings-warning').count(), 0);
-    assert.equal(await page.getByRole('button', { name: '> Next', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Next step', exact: true }).isDisabled(), true);
     assert.ok(errors.slice(beforeError).every(message => message.startsWith('Project setup failed:')));
     errors.splice(beforeError);
-    await page.getByLabel('N:', { exact: true }).fill('6');
+    await page.getByLabel('N', { exact: true }).fill('6');
     await warning.waitFor({ state: 'detached' });
     const shared = Buffer.from(encodeURIComponent(JSON.stringify({ project: 'cautious-pair', settings: { N: 9, site: 2 }, path: [0, 0] }))).toString('base64');
     await page.goto(`${starterUrl}?shared=${encodeURIComponent(shared)}`);
@@ -153,8 +181,8 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     await writeFile(sourceFile, original.replace('agents := 2', 'agents := 3'));
     await round(0);
     await page.waitForFunction(() => document.querySelector('.algorithm-viewer')?.textContent?.includes('a2'));
-    assert.equal(await page.getByLabel('N:', { exact: true }).inputValue(), '6');
-    assert.equal(await page.getByLabel('site:', { exact: true }).inputValue(), '2');
+    assert.equal(await page.getByLabel('N', { exact: true }).inputValue(), '6');
+    assert.equal(await page.getByLabel('site', { exact: true }).inputValue(), '2');
     assert.equal(await page.locator('.cg-stats').count(), 0);
     await sameDocument();
   });
@@ -194,7 +222,7 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     assert.equal(await debug().textContent(), before);
     assert.match(await page.locator('pre').first().innerText(), /main\.sim:\d+:\d+/);
     assert.equal(await page.locator('.config-graph').count(), 0);
-    assert.equal(await page.getByRole('button', { name: '> Next', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'Next step', exact: true }).isDisabled(), true);
     await page.keyboard.press('ArrowRight');
     assert.equal(await debug().textContent(), before);
     await writeFile(sourceFile, original);
@@ -232,25 +260,25 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     await next();
     await round(1);
     // The branches of this step, by index, with what distinguishes them.
-    await page.getByText('Branch 0 ∈ [0, 1]', { exact: true }).waitFor();
+    await branch('Branch 0 of 2');
     assert.equal(await page.locator('.sim-branch-label').innerText(), 'stays inactive');
-    await page.getByRole('button', { name: '›', exact: true }).click();
-    await page.getByText('Branch 1 ∈ [0, 1]', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Next branch', exact: true }).click();
+    await branch('Branch 1 of 2');
     // All branches, drawn, to pick one: back to branch 0.
     await page.getByRole('button', { name: 'All branches', exact: true }).click();
     assert.equal(await page.locator('.bp-branch').count(), 2);
     await page.locator('.bp-branch').first().click();
-    await page.getByText('Branch 0 ∈ [0, 1]', { exact: true }).waitFor();
-    await page.getByRole('button', { name: '›', exact: true }).click();
-    await page.getByText('Branch 1 ∈ [0, 1]', { exact: true }).waitFor();
+    await branch('Branch 0 of 2');
+    await page.getByRole('button', { name: 'Next branch', exact: true }).click();
+    await branch('Branch 1 of 2');
     assert.match(await debug().textContent(), /"active":true/);
     await page.getByRole('button', { name: 'Load', exact: true }).click();
-    assert.equal(await page.getByLabel('N:', { exact: true }).inputValue(), '10');
+    assert.equal(await page.getByLabel('N', { exact: true }).inputValue(), '10');
     for (let i = 0; i < 7; i++) await next();
     await round(7);
-    await page.getByRole('button', { name: 'Show Configuration Graph', exact: true }).click();
-    await page.getByLabel('Max Depth (rounds):').fill('4');
-    await page.getByRole('button', { name: 'Generate Graph', exact: true }).click();
+    await page.getByRole('tab', { name: 'Graph', exact: true }).click();
+    await page.getByLabel('Max depth (rounds)').fill('4');
+    await page.getByRole('button', { name: 'Generate graph', exact: true }).click();
     await page.locator('.cg-stats').waitFor();
     assert.deepEqual(errors, []);
   });

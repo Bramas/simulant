@@ -187,32 +187,8 @@ function CodeEditor(props: {
   };
 
   return (
-    <div
-      style={{
-        display: 'grid',
-        'grid-template-columns': '3.5em minmax(0, 1fr)',
-        border: '1px solid #c9d2dc',
-        'border-radius': '6px',
-        overflow: 'hidden',
-        'background-color': '#f8fafc'
-      }}
-    >
-      <div
-        ref={gutterRef}
-        aria-hidden="true"
-        style={{
-          'font-family': 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
-          'font-size': '0.9em',
-          'line-height': '1.5',
-          padding: '0.75em 0.5em',
-          'text-align': 'right',
-          color: '#6b7280',
-          'background-color': '#eef2f7',
-          'border-right': '1px solid #d7dee7',
-          overflow: 'hidden',
-          'user-select': 'none'
-        }}
-      >
+    <div class="sim-code-editor">
+      <div ref={gutterRef} class="sim-code-gutter" aria-hidden="true">
         <For each={lineNumbers()}>
           {(lineNumber) => <div>{lineNumber}</div>}
         </For>
@@ -226,27 +202,23 @@ function CodeEditor(props: {
         placeholder={props.placeholder}
         rows={props.rows ?? 12}
         spellcheck={false}
-        style={{
-          width: '100%',
-          margin: '0',
-          border: 'none',
-          outline: 'none',
-          resize: 'vertical',
-          padding: '0.75em',
-          'background-color': '#fcfdff',
-          color: '#17202a',
-          'font-family': 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace',
-          'font-size': '0.9em',
-          'line-height': '1.5',
-          'white-space': 'pre',
-          'tab-size': '2'
-        }}
       />
     </div>
   );
 }
 
 type SetField = (key: string, value: any) => void;
+
+/** A field's label, with its placeholder as a hint. */
+function FieldLabel(props: { field: EditorField }) {
+  const hint = () => 'placeholder' in props.field ? props.field.placeholder : undefined;
+  return (
+    <span class="sim-field-label">
+      {props.field.label}
+      {hint() && <span class="sim-field-hint">{hint()}</span>}
+    </span>
+  );
+}
 
 function renderTextArea(
   field: Extract<EditorField, { type: 'text' | 'textarea' | 'code' }>,
@@ -258,10 +230,7 @@ function renderTextArea(
   return (
     <div class="sim-field sim-field-wide">
       <label>
-        {field.label}:{' '}
-        {'placeholder' in field && field.placeholder && (
-          <span class="sim-muted">({field.placeholder})</span>
-        )}
+        <FieldLabel field={field} />
         {isCodeEditor ? (
           <CodeEditor
             value={fieldStore[field.key] ?? ''}
@@ -291,7 +260,7 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
           {(f) => (
             <div class="sim-field">
               <label>
-                {f().label}:{' '}
+                <span class="sim-field-label">{f().label}</span>
                 <input
                   type="number"
                   value={props.fieldStore[props.field.key]}
@@ -312,13 +281,10 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
         <Match when={props.field.type === 'text' && props.field && !('multiline' in props.field && props.field.multiline)}>
           <div class="sim-field sim-field-wide">
             <label>
-              {props.field.label}:{' '}
-              {'placeholder' in props.field && props.field.placeholder && (
-                <span class="sim-muted">({props.field.placeholder})</span>
-              )}
+              <FieldLabel field={props.field} />
               <input
-                type="text" 
-                value={props.fieldStore[props.field.key] ?? ''} 
+                type="text"
+                value={props.fieldStore[props.field.key] ?? ''}
                 onInput={(e) => props.setFieldStore(props.field.key, e.currentTarget.value)}
                 placeholder={'placeholder' in props.field ? props.field.placeholder : undefined}
                 pattern={'pattern' in props.field ? props.field.pattern : undefined}
@@ -335,17 +301,17 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
             props.setFieldStore
           )}
         </Match>
-        
+
         <Match when={props.field.type === 'boolean' && props.field}>
           {(f) => (
-            <div class="sim-field">
+            <div class="sim-field sim-field-check">
               <label>
                 <input
                   type="checkbox"
                   checked={props.fieldStore[props.field.key]}
                   onInput={(e) => props.setFieldStore(props.field.key, e.currentTarget.checked)}
                 />
-                {' '}{props.field.label}
+                {f().label}
               </label>
             </div>
           )}
@@ -355,11 +321,11 @@ function RenderField(props: {field: EditorField, fieldStore: {[key: string]: any
           {(f) => (
             <div class="sim-field">
               <label>
-                {props.field.label}:{' '}
-                <select 
-                  value={props.fieldStore[props.field.key]} 
+                <span class="sim-field-label">{f().label}</span>
+                <select
+                  value={props.fieldStore[props.field.key]}
                   onInput={(e) => props.setFieldStore(props.field.key,
-                    typeof props.field.defaultValue === 'number' 
+                    typeof props.field.defaultValue === 'number'
                       ? parseFloat(e.currentTarget.value)
                       : e.currentTarget.value
                   )}

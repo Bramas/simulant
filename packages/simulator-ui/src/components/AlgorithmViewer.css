@@ -1,52 +1,136 @@
-/**
- * Algorithm Viewer Styles: the algorithm's .sim source, with agent markers (tokens in simulator.css).
+/*
+ * The algorithm's .sim source as an editor panel, with agent markers (tokens in simulator.css).
+ * The model view reuses the panel, header and line styles for its declarations.
  */
 
 .algorithm-viewer {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
   font-family: var(--sim-mono);
-  font-size: 13px;
+  font-size: 12.5px;
   background-color: var(--sim-surface);
   color: var(--sim-text);
   border: 1px solid var(--sim-border);
   border-radius: var(--sim-radius);
-  padding: 0.75rem 0 0.5rem;
-  max-width: 100%;
-  overflow-x: auto;
+  box-shadow: var(--sim-shadow-sm);
+  overflow: hidden;
   text-align: left;
 }
 
 .algorithm-header {
   display: flex;
-  align-items: baseline;
-  gap: 0.75rem;
-  padding: 0 1rem 0.6rem;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  min-height: 42px;
+  padding: 6px 10px 6px 14px;
   border-bottom: 1px solid var(--sim-border);
+  background: var(--sim-surface);
+  font-family: var(--sim-font);
+}
+
+.algorithm-header > .sim-svg {
+  color: var(--sim-muted);
 }
 
 .algorithm-caption {
   margin: 0;
-  font-size: 1rem;
+  font-size: 13px;
   font-weight: 600;
   color: var(--sim-text);
-  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-family: var(--sim-font);
+  white-space: nowrap;
 }
 
 .algorithm-file {
   color: var(--sim-muted);
-  font-size: 0.8rem;
+  font-family: var(--sim-mono);
+  font-size: 12px;
+}
+
+.algorithm-crumb {
+  color: var(--sim-faint);
+}
+
+/* The agents, in the header: each opens the explanation of its last step */
+
+.algorithm-agents {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
+}
+
+.algorithm-viewer button.algorithm-agent,
+.algorithm-viewer .ex-agent {
+  --agent-ink: color-mix(in oklab, var(--agent) 78%, var(--sim-agent-mix));
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--agent) 30%, transparent);
+  background: color-mix(in srgb, var(--agent) 9%, transparent);
+  color: var(--agent-ink);
+  font-family: var(--sim-mono);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: background-color 0.1s;
+}
+
+.algorithm-viewer button.algorithm-agent:hover,
+.algorithm-viewer button.algorithm-agent.selected {
+  background: color-mix(in srgb, var(--agent) 20%, transparent);
+  border-color: color-mix(in srgb, var(--agent) 60%, transparent);
+}
+
+.algorithm-agent-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--agent);
+}
+
+.algorithm-agent-line {
+  font-weight: 400;
+  color: var(--sim-muted);
+}
+
+.algorithm-agent-line::before {
+  content: 'L';
+  opacity: 0.7;
+}
+
+/* The code */
+
+.algorithm-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 .algorithm-body {
-  padding: 0.4rem 0;
-  line-height: 1.6;
+  padding: 6px 0 10px;
+  line-height: 1.7;
+  overflow-x: auto;
+}
+
+/* In the scrolling panel, the lines' background spans the longest line. */
+.algorithm-scroll > .algorithm-body {
+  min-width: max-content;
+  overflow-x: visible;
 }
 
 .algorithm-line {
   display: flex;
   align-items: baseline;
-  min-height: 1.6em;
-  border-left: 3px solid transparent;
+  min-height: 1.7em;
   padding-right: 1rem;
+  box-shadow: inset 3px 0 0 transparent;
 }
 
 .algorithm-line:hover {
@@ -54,25 +138,36 @@
 }
 
 .algorithm-line.highlighted {
-  border-left-color: var(--sim-highlight);
+  box-shadow: inset 3px 0 0 var(--sim-highlight);
   background-color: var(--sim-highlight-soft);
 }
 
 /* The call that led to an agent's line. */
 .algorithm-line.calling {
-  border-left-color: var(--sim-highlight-soft);
+  box-shadow: inset 3px 0 0 var(--sim-highlight-soft);
   background-color: var(--sim-highlight-faint);
+}
+
+/* The line a definition returned from, in an agent's last step. */
+.algorithm-line.returned {
+  box-shadow: inset 3px 0 0 var(--sim-accent);
+  background-color: var(--sim-accent-soft);
 }
 
 .line-number {
   display: inline-block;
-  width: 3.5em;
-  padding-right: 1em;
+  width: 3.6em;
+  padding-right: 1.2em;
   text-align: right;
-  color: var(--sim-muted);
-  opacity: 0.7;
+  color: var(--sim-faint);
   user-select: none;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.algorithm-line.highlighted .line-number {
+  color: var(--sim-highlight);
+  font-weight: 600;
 }
 
 .line-content {
@@ -81,21 +176,48 @@
 
 .agent-markers {
   display: inline-flex;
-  gap: 6px;
+  gap: 4px;
   margin-left: 1.5em;
   flex-shrink: 0;
-  font-family: var(--pico-font-family, system-ui, sans-serif);
-  font-size: 12px;
+  align-self: center;
 }
 
 .agent-marker {
+  --agent-ink: color-mix(in oklab, var(--agent) 78%, var(--sim-agent-mix));
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-family: var(--sim-font);
+  font-size: 11px;
   font-weight: 600;
+  line-height: 1;
   white-space: nowrap;
+  cursor: pointer;
+  color: var(--agent-ink);
+  background: color-mix(in srgb, var(--agent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--agent) 35%, transparent);
+  transition: background-color 0.1s;
+}
+
+.agent-marker:hover,
+.agent-marker.selected {
+  background: color-mix(in srgb, var(--agent) 26%, transparent);
+  border-color: var(--agent);
 }
 
 .agent-marker.call-marker {
-  font-weight: 400;
+  font-weight: 500;
   opacity: 0.6;
+  border-style: dashed;
+  background: transparent;
+}
+
+.agent-marker.return-marker {
+  font-weight: 500;
+  background: transparent;
 }
 
 /* Syntax highlighting */
@@ -112,12 +234,6 @@
   .algorithm-viewer { font-size: 12px; }
 }
 
-/* The line a definition returned from, in an agent's last step. */
-.algorithm-line.returned {
-  border-left-color: var(--sim-accent);
-  background-color: var(--sim-accent-soft);
-}
-
 .algorithm-line.flash {
   animation: flash 1.6s ease-out;
 }
@@ -125,22 +241,6 @@
 @keyframes flash {
   0%, 40% { background-color: var(--sim-highlight-soft); }
   100% { background-color: transparent; }
-}
-
-.agent-marker {
-  cursor: pointer;
-  border-radius: 4px;
-  padding: 0 0.2rem;
-}
-
-.agent-marker:hover,
-.agent-marker.selected {
-  background-color: var(--sim-surface-2);
-  outline: 1px solid currentColor;
-}
-
-.agent-marker.return-marker {
-  font-weight: 500;
 }
 
 .tok-link {
@@ -155,16 +255,38 @@
 
 .algorithm-defs {
   border-top: 1px solid var(--sim-border);
-  padding-top: 0.4rem;
+  padding: 4px 0 8px;
+  min-width: max-content;
 }
 
 .defs-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   user-select: none;
-  padding: 0.2rem 1rem 0.4rem;
-  font-family: var(--pico-font-family, system-ui, sans-serif);
-  font-size: 0.85rem;
+  padding: 6px 14px;
+  font-family: var(--sim-font);
+  font-size: 12.5px;
   font-weight: 600;
+  color: var(--sim-text-2);
+}
+
+.defs-title:hover {
+  color: var(--sim-text);
+}
+
+.defs-title .sim-muted {
+  font-weight: 400;
+}
+
+.defs-chevron {
+  color: var(--sim-muted);
+  transition: transform 0.15s;
+}
+
+.defs-chevron.open {
+  transform: rotate(90deg);
 }
 
 .def-folded {
@@ -177,49 +299,115 @@
 }
 
 .def-open {
-  margin: 0.2rem 0;
+  margin: 4px 0;
   border-top: 1px dashed var(--sim-border);
   border-bottom: 1px dashed var(--sim-border);
 }
 
 .def-fold {
   cursor: pointer;
-  padding: 0.1rem 1rem;
-  font-size: 0.75rem;
+  padding: 2px 14px;
+  font-size: 11.5px;
   color: var(--sim-muted);
-  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-family: var(--sim-font);
 }
 
-/* The explanation of an agent's last step */
+/* The explanation of an agent's last step: a card under the agent's cursor, over the code */
 
-.ex-panel {
-  margin: 0.5rem 0.75rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--sim-border);
-  border-radius: 8px;
-  background: var(--sim-surface-2);
+.algorithm-scroll {
+  position: relative;
+}
+
+.ex-card {
+  --agent-ink: color-mix(in oklab, var(--agent) 78%, var(--sim-agent-mix));
+  position: absolute;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: min(340px, 70%);
+  overflow: auto;
+  padding: 10px 12px 12px;
+  border-radius: 10px;
+  background: var(--sim-surface);
+  border: 1px solid var(--sim-border-strong);
+  border-top: 3px solid var(--agent);
+  box-shadow: var(--sim-shadow-lg);
   font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  animation: ex-in 0.12s ease-out;
+}
+
+@keyframes ex-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+
+/* The arrow toward the cursor. */
+.ex-card::before {
+  content: '';
+  position: absolute;
+  top: -9px;
+  left: calc(var(--arrow) - 6px);
+  border: 6px solid transparent;
+  border-bottom-color: var(--agent);
 }
 
 .ex-head {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  font-family: var(--pico-font-family, system-ui, sans-serif);
-  font-size: 0.85rem;
+  gap: 8px;
+  font-family: var(--sim-font);
+}
+
+.ex-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--sim-text);
+}
+
+.ex-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  color: var(--sim-text-2);
+}
+
+.ex-meta > span + span::before {
+  content: '·';
+  margin-right: 12px;
+  color: var(--sim-faint);
+}
+
+.ex-section h4 {
+  margin: 0 0 4px;
+  font-family: var(--sim-font);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--sim-muted);
 }
 
 .ex-view {
-  margin: 0.4rem 0;
   display: grid;
-  gap: 0.1rem;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 3px 10px;
+  margin: 0;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--sim-surface-2);
 }
 
-.ex-view > div,
-.ex-call {
+.ex-view dt {
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.ex-view dd {
+  margin: 0;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .ex-calls {
@@ -228,7 +416,7 @@
   padding-left: 1rem;
 }
 
-.ex-panel > .ex-calls {
+.ex-section > .ex-calls {
   padding-left: 0;
 }
 
@@ -241,6 +429,10 @@
   display: flex;
   gap: 0.35rem;
   align-items: baseline;
+  line-height: 1.6;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .ex-toggle {
@@ -266,5 +458,7 @@
 }
 
 .ex-none {
-  margin: 0.3rem 0 0;
+  margin: 0;
+  color: var(--sim-muted);
+  font-family: var(--sim-font);
 }

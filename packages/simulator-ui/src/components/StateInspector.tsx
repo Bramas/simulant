@@ -3,7 +3,7 @@
  * component fields, public state, memory) and the parameters, as trees whose nodes expand. What
  * is expanded is kept while stepping through the execution.
  */
-import { For, Show, createSignal, type JSX } from 'solid-js';
+import { For, Show, createEffect, createSignal, type JSX } from 'solid-js';
 import type { InspectedState } from '@bramas/simulant-core/types/project';
 import './StateInspector.css';
 
@@ -11,6 +11,8 @@ export interface StateInspectorProps {
   state: InspectedState;
   /** The agent selected on the canvas: shown expanded and highlighted. */
   selected?: number | null;
+  /** Selects an agent (opening its row). */
+  onSelect?: (id: number) => void;
   onClearSelection?: () => void;
 }
 
@@ -70,8 +72,37 @@ export function StateInspector(props: StateInspectorProps) {
     </For>
   );
 
+  // An agent selected elsewhere (on the canvas, in the algorithm) is brought into view, within
+  // the inspector's scrolling panel only: the page itself does not move.
+  let root: HTMLDivElement | undefined;
+  createEffect(() => {
+    const id = props.selected;
+    if (id === null || id === undefined) return;
+    queueMicrotask(() => {
+      const row = root?.querySelector(`[data-agent="${id}"]`);
+      const pane = root?.parentElement;
+      if (!row || !pane) return;
+      const r = row.getBoundingClientRect(), v = pane.getBoundingClientRect();
+      if (r.top < v.top) pane.scrollTop += r.top - v.top - 8;
+      else if (r.bottom > v.bottom) pane.scrollTop += Math.min(r.bottom - v.bottom + 8, r.top - v.top - 8);
+    });
+  });
+
+  /** A row opens its agent and selects it; a second click folds it again. */
+  const clickAgent = (id: number, path: string, selected: boolean) => {
+    if (selected) {
+      setOpen(o => ({ ...o, [path]: false }));
+      props.onClearSelection?.();
+    } else if (isOpen(path, false)) {
+      toggle(path, false);
+    } else {
+      toggle(path, false);
+      props.onSelect?.(id);
+    }
+  };
+
   return (
-    <div class="state-inspector" data-state={JSON.stringify(props.state)}>
+    <div class="state-inspector" ref={root} data-state={JSON.stringify(props.state)}>
       <div class="si-section">
         <h4>World</h4>
         <Fields value={props.state.world} path="world" />
@@ -81,7 +112,7 @@ export function StateInspector(props: StateInspectorProps) {
         <h4>
           Agents
           <Show when={props.selected !== null && props.selected !== undefined}>
-            <button class="si-clear" onClick={() => props.onClearSelection?.()}>Clear selection</button>
+            <button class="sim-ghost sim-sm si-clear" onClick={() => props.onClearSelection?.()}>Clear selection</button>
           </Show>
         </h4>
         <For each={props.state.agents}>
@@ -91,7 +122,7 @@ export function StateInspector(props: StateInspectorProps) {
             const expanded = () => selected() || isOpen(path, false);
             return (
               <div class={`si-agent si-${agent.status}${selected() ? ' si-selected' : ''}`} data-agent={agent.id}>
-                <div class="si-row si-clickable" onClick={() => toggle(path, false)}>
+                <div class="si-row si-clickable" onClick={() => clickAgent(agent.id, path, selected())}>
                   <span class="si-toggle">{expanded() ? '▾' : '▸'}</span>
                   <span class="si-swatch" style={{ 'background-color': agent.color }} />
                   <span class="si-agent-name">{agent.name}</span>

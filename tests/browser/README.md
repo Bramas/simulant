@@ -14,7 +14,7 @@ and binding localhost require running this command outside the sandbox.
 
 Assertions cover rendering, forward/back navigation, presets, advisory initial-settings
 domain warnings (including edits and shared links), agent selection,
-branch selection, configuration-graph workers, semantic source updates,
+branch selection, panel docking, the step explanation card, configuration-graph workers, semantic source updates,
 line-only updates, renderer updates, pausing navigation on invalid source,
 and diagnostics/recovery after both invalid saves and first-load errors.
 Hot updates must keep the same browser document.

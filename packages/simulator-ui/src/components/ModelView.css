@@ -1,7 +1,6 @@
 /**
  * The model view: facts on the left, the declarations as written on the right (tokens and code
- * lines from simulator.css and AlgorithmViewer.css). The blocks are not <article>s: Pico gives an
- * article's <header> negative margins, which pushed the header over the block's border.
+ * lines from simulator.css and AlgorithmViewer.css).
  */
 
 .model-view {
@@ -19,8 +18,9 @@
 
 .mv-intro h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.2rem;
   font-family: var(--sim-mono);
+  letter-spacing: -0.01em;
 }
 
 .mv-chips {
@@ -93,8 +93,8 @@
 }
 
 .mv-facts dt {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--sim-muted);
   padding-top: 0.12rem;
 }
@@ -248,11 +248,11 @@
 
 .mv-sources {
   position: sticky;
-  top: 0.75rem;
+  top: 0;
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  max-height: calc(100vh - 1.5rem);
+  max-height: calc(100vh - var(--sim-topbar-h) - var(--sim-statusbar-h) - 2 * var(--sim-gap));
   min-width: 0;
 }
 
@@ -272,8 +272,8 @@
   gap: 0.35rem;
   font-family: var(--sim-mono);
   font-size: 0.75rem;
-  padding: 0.1rem 0.5rem;
-  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
   border: 1px solid var(--sim-border);
   background: var(--sim-surface);
   color: var(--sim-text);
@@ -320,7 +320,7 @@
 }
 
 .mv-kind {
-  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-family: var(--sim-font);
   font-size: 0.68rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -360,7 +360,7 @@
 }
 
 .sim-app button.mv-defs-head .sim-muted {
-  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-family: var(--sim-font);
   font-size: 0.8rem;
 }
 
@@ -478,7 +478,7 @@
   flex-direction: column;
   align-items: flex-end;
   padding: 0 0.6rem 0 0.4rem;
-  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-family: var(--sim-font);
   font-size: 0.7rem;
   line-height: 1.35;
   text-align: right;
@@ -505,9 +505,9 @@
 }
 
 .sim-app button.mv-lean-button {
-  font-size: 0.75rem !important;
-  --pico-form-element-spacing-vertical: 0.05rem;
-  --pico-form-element-spacing-horizontal: 0.5rem;
+  height: 24px;
+  font-size: 12px;
+  padding: 0 8px;
 }
 
 .mv-source .algorithm-line.mv-to-lean {

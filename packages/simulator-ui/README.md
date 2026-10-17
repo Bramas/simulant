@@ -45,6 +45,11 @@ Projects can supply a custom drawing function, agent names and aliases for
 older parameter names. Settings outside declared domains produce advisory
 warnings; execution remains available.
 
+Renderers receive the page's colors in `options.theme` (light or dark): draw
+labels and marks with `theme.foreground` and `theme.muted` so that drawings stay
+readable in both themes. `simulator.css` is the whole stylesheet; the interface
+no longer uses Pico CSS, and `pico.min.css` is kept empty for older pages.
+
 The package uses subpath exports: `SimulatorApp`, `sim/*`, `components/*`,
 `renderers/*`, and the CSS files. It has no root import.
 

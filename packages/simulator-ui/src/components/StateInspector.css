@@ -1,46 +1,50 @@
-/* The state inspector: the configuration as expandable trees (tokens in simulator.css). */
+/* The state inspector: the configuration as expandable trees, inside its panel (tokens in simulator.css). */
 
 .state-inspector {
-  margin-top: 0.75rem;
   text-align: left;
   font-family: var(--sim-mono);
-  font-size: 12.5px;
-  background-color: var(--sim-surface);
+  font-size: 12px;
   color: var(--sim-text);
-  border: 1px solid var(--sim-border);
-  border-radius: var(--sim-radius);
-  padding: 0.6rem 0.85rem;
+}
+
+.si-section {
+  padding: 4px 0;
 }
 
 .si-section + .si-section {
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
+  margin-top: 4px;
+  padding-top: 8px;
   border-top: 1px solid var(--sim-border);
 }
 
 .state-inspector h4 {
-  margin: 0 0 0.25rem;
-  font-size: 0.8rem;
+  margin: 0 0 4px;
+  padding: 0 4px;
+  min-height: 24px;
+  font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   color: var(--sim-muted);
-  font-family: var(--pico-font-family, system-ui, sans-serif);
+  font-family: var(--sim-font);
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .state-inspector h4.si-inline {
   display: inline;
   margin: 0;
+  padding: 0;
 }
 
 .si-row {
   display: flex;
   align-items: baseline;
-  gap: 0.4rem;
-  line-height: 1.55;
+  gap: 6px;
+  padding: 1px 4px;
+  line-height: 1.65;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -48,7 +52,7 @@
 
 .si-clickable {
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 5px;
 }
 
 .si-clickable:hover {
@@ -59,13 +63,14 @@
   display: inline-block;
   width: 1em;
   flex-shrink: 0;
-  color: var(--sim-muted);
+  color: var(--sim-faint);
+  font-size: 10px;
 }
 
 .si-children {
-  margin-left: 1.1em;
-  border-left: 1px dotted var(--sim-border);
-  padding-left: 0.4em;
+  margin-left: 11px;
+  border-left: 1px solid var(--sim-border);
+  padding-left: 6px;
 }
 
 .si-key {
@@ -74,7 +79,7 @@
 
 .si-key::after {
   content: ':';
-  color: var(--sim-muted);
+  color: var(--sim-faint);
 }
 
 .si-summary,
@@ -91,14 +96,17 @@
 .si-compound { color: var(--sim-text); }
 
 .si-agent {
-  border-radius: 4px;
-  border-left: 3px solid transparent;
-  padding-left: 0.2rem;
+  border-radius: 6px;
+  scroll-margin: 8px;
 }
 
 .si-agent.si-selected {
-  border-left-color: var(--sim-highlight);
-  background-color: var(--sim-highlight-soft);
+  background-color: var(--sim-accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--sim-accent) 40%, transparent);
+}
+
+.si-agent.si-selected > .si-row:hover {
+  background-color: transparent;
 }
 
 .si-agent.si-hidden .si-agent-name,
@@ -112,11 +120,12 @@
 }
 
 .si-swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
   flex-shrink: 0;
   align-self: center;
+  box-shadow: 0 0 0 2px var(--sim-surface);
 }
 
 .si-agent-name {
@@ -128,9 +137,26 @@
 }
 
 .state-inspector .si-clear {
-  font-size: 0.72rem;
-  --pico-form-element-spacing-vertical: 0;
-  --pico-form-element-spacing-horizontal: 0.45rem;
+  height: 22px;
+  font-size: 11.5px;
   text-transform: none;
   letter-spacing: 0;
+}
+
+/* In a wide panel (below the configuration), the world, the agents and the parameters side by side. */
+@container (min-width: 720px) {
+  .state-inspector {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr);
+    align-items: start;
+    gap: 0 16px;
+  }
+
+  .si-section + .si-section {
+    margin-top: 0;
+    padding-top: 4px;
+    padding-left: 16px;
+    border-top: none;
+    border-left: 1px solid var(--sim-border);
+  }
 }

@@ -135,6 +135,20 @@ export type ConfigRenderOptions = {
     showNodeLabels?: boolean;
     showDebugText?: boolean;
     onAgentClick?: (agentInfo: AgentRenderInfo) => void;
+    /** The page's colors: draw on `background`, with `foreground` and `muted` for marks and text. */
+    theme?: RenderTheme;
+};
+
+/** The colors of the surface a configuration is drawn on, in the page's current theme. */
+export type RenderTheme = {
+    dark: boolean;
+    background: string;
+    foreground: string;
+    muted: string;
+    /** Edges and outlines. */
+    line: string;
+    accent: string;
+    danger: string;
 };
 
 
