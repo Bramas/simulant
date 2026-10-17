@@ -333,3 +333,35 @@ test('stand-up visibility bounds are advisory, attributed to phi and quiet in th
   assert.equal(await next.isEnabled(), true);
   assert.deepEqual(errors, []);
 });
+
+test('stand-up main algorithms open rule guards and highlight their actions', { timeout: 120_000 }, async t => {
+  const server = await createServer({
+    ...projectViteConfig('standup-gathering'), configFile: false, logLevel: 'error',
+    server: { host: '127.0.0.1', port: 0, fs: { allow: [repo] } },
+  });
+  await server.listen();
+  let browser: any;
+  t.after(async () => { await browser?.close(); await server.close(); });
+  browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(15_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error: Error) => errors.push(error.message));
+  page.on('console', (message: any) => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.goto(server.resolvedUrls!.local[0], { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  for (const [name, guard] of [
+    ['standup-gathering-h-plus-three', 'h3NeighborMove1'],
+    ['standup-gathering-h-plus-one', 'h1Border'],
+    ['standup-gathering-two-colors', 'colorXMerge'],
+  ]) {
+    await page.getByLabel('Simulation', { exact: true }).selectOption(name);
+    await page.locator('.algorithm-viewer').getByTitle(`Show the definition of ${guard}`, { exact: true }).first().click();
+    await page.locator('.def-open .def-fold').filter({ hasText: guard }).waitFor();
+    await page.getByRole('button', { name: 'Next step', exact: true }).click();
+    await page.waitForFunction(() => document.querySelector('.sim-round-value')?.textContent === '1');
+    const highlighted = page.locator('.algorithm-body .algorithm-line.highlighted');
+    await highlighted.first().waitFor();
+    for (const line of await highlighted.allTextContents()) assert.match(line, /move \.|stay/);
+  }
+  assert.deepEqual(errors, []);
+});

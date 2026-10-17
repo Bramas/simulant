@@ -40,6 +40,32 @@ def Faults.CrashAtNode : Component where
       labels fun S => if S.isEmpty then "no crash" else "crash " ++ show S
     { raise crashed := S }
 
+/-- A fixed visibility radius, supplied by `param phi`. Sensors choose what is
+observable inside that radius; this component stores no robot state. -/
+@[equivariant rotations reflections]
+def Vision.Radius : Component where
+  World := { phi : Nat }
+  init := { phi := param phi }
+
+/-- External lights with a fixed positive palette size. Color 0 is initial;
+`light := none` keeps the color, and `some c` requests color c. Out-of-palette
+requests are ignored. Slots are internal; this storage assumes no geometry,
+visibility, population parameter or private algorithm memory. -/
+@[equivariant rotations reflections]
+def Storage.Lights (colors : Nat) : Component where
+  World := { colorCount : Nat, lights : List Nat }
+  Agent := { slot : Nat }
+  actions := [action light : Option Nat := none]
+  init := { colorCount := colors, lights := [] }
+  init i := { slot := i }
+  beforeMove C :=
+    let lights := ofFn C.agents.length fun i =>
+      let previous := if i < C.world.lights.length then C.world.lights.at i else 0
+      let updates := C.agents.filter fun a => a.slot = i ∧ (decisionOf a).decided ∧
+        (decisionOf a).light.isSome ∧ (decisionOf a).light.getD 0 < C.world.colorCount
+      if updates.isEmpty then previous else (updates.map fun a => (decisionOf a).light.getD 0).sum
+    { world := { C.world with lights } }
+
 inductive PebbleAction | none | drop | pick
 
 /-- Pebbles on nodes, one multiset entry per pebble. Dropping and picking are actions,

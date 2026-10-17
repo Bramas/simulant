@@ -13,7 +13,7 @@ import { Explorer, explore, type Result } from '@bramas/simulant-engine/explorer
 import { equivarianceViolations, Symmetry } from '@bramas/simulant-engine/symmetry';
 import { parameterValues, System } from '@bramas/simulant-engine/system';
 import {
-  blackHoleRing, DynamicRing, dynamicRingBH, dynamicRingRobots, Exploration, Faults, Gathering, gatheringWithCrash, Hazards,
+  blackHoleRing, DynamicRing, Exploration, Faults, Gathering, Hazards,
   Monitors, obliviousRing, otherStatesLossy, Ring, ringCount, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
@@ -107,7 +107,7 @@ describe('black-hole search: local view, persistent memory, common chirality', (
 });
 
 describe('oblivious robots: full-ring presence, dynamic reflection, crash at a node', () => {
-  const exp = robots(gatheringWithCrash(), NearestNeighbour, Gathering);
+  const exp = robots(obliviousRing({ components: [Faults.CrashAtNode()] }), NearestNeighbour, Gathering);
 
   test('the model is oblivious and the derived group has rotations and reflections', () => {
     const sys = new System(exp, { N: 5, positions: [0, 2], crashNode: 0 });
@@ -167,7 +167,7 @@ describe('oblivious robots: full-ring presence, dynamic reflection, crash at a n
 });
 
 describe('robots on a dynamic ring: the adversary removes an edge each round', () => {
-  const m = dynamicRingRobots([Monitors.Visited()]);
+  const m = obliviousRing({ topology: DynamicRing(1), sensor: ringCount, frame: { kind: 'common' }, components: [Monitors.Visited()] });
 
   test('a robot that always moves clockwise explores a static ring but not a dynamic one', () => {
     const staticExp = robots(obliviousRing({ sensor: m.sensors[0], frame: { kind: 'common' }, components: [Monitors.Visited()] }), AlwaysClockwise, Exploration);
@@ -188,7 +188,7 @@ describe('robots on a dynamic ring: the adversary removes an edge each round', (
 
 describe('the black-hole ring over a dynamic ring', () => {
   test('reuses the black-hole component unchanged', () => {
-    const dyn = dynamicRingBH();
+    const dyn = blackHoleRing({ policy: 'mayEmerge', size: 'unknown', topology: DynamicRing(1) });
     const stat = blackHoleRing({ policy: 'mayEmerge', size: 'unknown' });
     assert.deepEqual(dyn.components, stat.components);
     assert.deepEqual(dyn.components[0], Hazards.BlackHole('mayEmerge'));
@@ -197,9 +197,9 @@ describe('the black-hole ring over a dynamic ring', () => {
   });
 
   test('runs, with missing edges in its witnesses', () => {
-    const r = explore(new System(cautiousPairExperiment(dynamicRingBH()), { N: 4, site: 2 }));
+    const r = explore(new System(cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown', topology: DynamicRing(1) })), { N: 4, site: 2 }));
     assert.equal(r.status, 'failure');
-    const sys = new System(cautiousPairExperiment(dynamicRingBH()), { N: 4, site: 2 });
+    const sys = new System(cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown', topology: DynamicRing(1) })), { N: 4, site: 2 });
     const witnesses = sys.successors(sys.initial()[0].config).flatMap(s => s.witness.map(w => w.label));
     assert.ok(witnesses.some(l => l.startsWith('missing')), witnesses.join(', '));
   });

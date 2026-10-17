@@ -3,45 +3,134 @@ Gathering on Lines: oblivious robots, phi >= H_init + 3 (phi >= 4), and odd
 O_init or odd M_init. Rules below follow the paper's decreasing priorities. -/
 import "./model.sim"
 
-/-- Match the paper's guard with its inward arrow pointing to the right.
-Here p is phi, v[p] is [X], and every nonzero color set counts as X. -/
-def h3Rule (v : List Nat) : Nat :=
+/-- phi4: the paper's guard in the displayed orientation. -/
+def h3Phi4 (v : List Nat) : Bool :=
   let p := v.length / 2
-  let border := empty v 0 p
-  let neighbor := empty v 0 (p - 1) ∧ occupied v (p - 1)
-  let second := empty v 0 (p - 2) ∧ occupied v (p - 2) ∧ occupied v (p - 1)
-  if p = 4 ∧ nonempty v 0 p ∧ nonempty v (p + 1) p then 1 -- phi4: idle
-  else if border ∧ empty v (p + 1) 1 ∧ occupied v (p + 2) ∧ occupied v (p + 3) ∧ empty v (p + 4) (p - 3) then 2 -- wait
-  else if neighbor ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1) then 3 -- neig, move, 1
-  else if second ∧ empty v (p + 1) 2 ∧ nonempty v (p + 3) (p - 2) then 4 -- 2neig, move
-  else if border ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ occupied v (p + 3) ∧ empty v (p + 4) (p - 3) then 5 -- sym,1: idle
-  else if p = 5 ∧ empty v 0 (p - 2) ∧ occupied v (p - 2) ∧ empty v (p - 1) 1 ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ occupied v (p + 4) ∧ empty v (p + 5) 1 then 6 -- false-wait
-  else if p = 5 ∧ neighbor ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ empty v (p + 3) 2 ∧ occupied v (p + 5) then 7 -- false-sym,1: left
-  else if p = 5 ∧ second ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ occupied v (p + 4) ∧ empty v (p + 5) 1 then 8 -- false-sym,2
-  else if border ∧ nonempty v (p + 1) p then 9 -- border
-  else if neighbor ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ nonempty v (p + 4) (p - 3) then 10 -- neig, move, 2
-  else if neighbor ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ empty v (p + 3) (p - 2) then 11 -- sym,2: left
-  else if second then 12 -- 2neig, merge: left
-  else 0
+  p = 4 ∧ nonempty v 0 p ∧ nonempty v (p + 1) p
+
+/-- wait: the paper's guard in the displayed orientation. -/
+def h3Wait (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ empty v (p + 1) 1 ∧ occupied v (p + 2) ∧ occupied v (p + 3) ∧ empty v (p + 4) (p - 3)
+
+/-- neig, move, 1: the paper's guard in the displayed orientation. -/
+def h3NeighborMove1 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  borderNeighbor v ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1)
+
+/-- 2neig, move: the paper's guard in the displayed orientation. -/
+def h3SecondNeighborMove (v : List Nat) : Bool :=
+  let p := v.length / 2
+  secondBorderNeighbor v ∧ empty v (p + 1) 2 ∧ nonempty v (p + 3) (p - 2)
+
+/-- sym,1: the paper's guard in the displayed orientation. -/
+def h3Symmetric1 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ occupied v (p + 3) ∧ empty v (p + 4) (p - 3)
+
+/-- false-wait: the paper's guard in the displayed orientation. -/
+def h3FalseWait (v : List Nat) : Bool :=
+  let p := v.length / 2
+  p = 5 ∧ empty v 0 (p - 2) ∧ occupied v (p - 2) ∧ empty v (p - 1) 1 ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ occupied v (p + 4) ∧ empty v (p + 5) 1
+
+/-- false-sym,1: the paper's guard in the displayed orientation. -/
+def h3FalseSymmetric1 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  p = 5 ∧ borderNeighbor v ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ empty v (p + 3) 2 ∧ occupied v (p + 5)
+
+/-- false-sym,2: the paper's guard in the displayed orientation. -/
+def h3FalseSymmetric2 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  p = 5 ∧ secondBorderNeighbor v ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ occupied v (p + 4) ∧ empty v (p + 5) 1
+
+/-- border: the paper's guard in the displayed orientation. -/
+def h3Border (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ nonempty v (p + 1) p
+
+/-- neig, move, 2: the paper's guard in the displayed orientation. -/
+def h3NeighborMove2 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  borderNeighbor v ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ nonempty v (p + 4) (p - 3)
+
+/-- sym,2: the paper's guard in the displayed orientation. -/
+def h3Symmetric2 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  borderNeighbor v ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ empty v (p + 3) (p - 2)
+
+/-- 2neig, merge: the paper's guard in the displayed orientation. -/
+def h3SecondNeighborMerge (v : List Nat) : Bool :=
+  secondBorderNeighbor v
 
 algorithm ObliviousHPlusThree uses lineView where
-  init i := {}
-  step mem pub view :=
-    let a := h3Rule view.lineView
-    let b := h3Rule (mirrored view.lineView)
-    let r := priority a b
-    let inward := if r = a then .cw else .ccw
-    if r = 0 ∨ r = 1 ∨ r = 2 ∨ r = 5 then { move := .stay }
-    else if r = 7 ∨ r = 11 ∨ r = 12 then { move := inward.opposite }
-    else { move := inward }
+  main :=
+    let v := lineView
+    let vm := mirrored v
+    -- phi4
+    if h3Phi4 v ∨ h3Phi4 vm then
+      stay
+    -- wait
+    else if h3Wait v ∨ h3Wait vm then
+      stay
+    -- neig, move, 1
+    else if h3NeighborMove1 v then
+      move .cw
+    else if h3NeighborMove1 vm then
+      move .ccw
+    -- 2neig, move
+    else if h3SecondNeighborMove v then
+      move .cw
+    else if h3SecondNeighborMove vm then
+      move .ccw
+    -- sym,1
+    else if h3Symmetric1 v ∨ h3Symmetric1 vm then
+      stay
+    -- false-wait
+    else if h3FalseWait v then
+      move .cw
+    else if h3FalseWait vm then
+      move .ccw
+    -- false-sym,1
+    else if h3FalseSymmetric1 v then
+      move .ccw
+    else if h3FalseSymmetric1 vm then
+      move .cw
+    -- false-sym,2
+    else if h3FalseSymmetric2 v then
+      move .cw
+    else if h3FalseSymmetric2 vm then
+      move .ccw
+    -- border
+    else if h3Border v then
+      move .cw
+    else if h3Border vm then
+      move .ccw
+    -- neig, move, 2
+    else if h3NeighborMove2 v then
+      move .cw
+    else if h3NeighborMove2 vm then
+      move .ccw
+    -- sym,2
+    else if h3Symmetric2 v then
+      move .ccw
+    else if h3Symmetric2 vm then
+      move .cw
+    -- 2neig, merge
+    else if h3SecondNeighborMerge v then
+      move .ccw
+    else if h3SecondNeighborMerge vm then
+      move .cw
+    else
+      stay
 
 experiment hPlusThree where
   model := lineModel
   algorithm := ObliviousHPlusThree
-  task := StandUpGathering
+  task := Gathering
   param N : Nat where N ≥ 3
   param positions : List Nat where admissiblePositions positions false
   param phi : Nat where phi ≥ requiredVisibility positions 3 ∧ fitsLine N positions phi
+  param crashNode : Node
   agents := positions.length
-  position i := node (phi + 1 + positions.at i)
+  position i := node (positions.at i)
   limits := { depth := 100, states := 20000 }

@@ -4,11 +4,11 @@
  * graphs, which checks that the builder's standard library and the `.sim`
  * one agree.
  */
-import { experiment, lit, model, node, param, range, subsets } from '@bramas/simulant-lang/builder';
+import { algorithm, experiment, ite, lit, model, move, node, param, range, subsets, unit, some } from '@bramas/simulant-lang/builder';
 import type { Algorithm, Experiment, Model, Task } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
 import {
-  blackHoleRing, dynamicRingRobots, Exploration, Faults, Gathering, gatheringWithCrash, Monitors, otherStatesLossy, Ring, Storage,
+  blackHoleRing, colorView, DynamicRing, Exploration, Faults, Gathering, Monitors, obliviousRing, otherStatesLossy, Ring, ringCount, Storage, Vision,
 } from '../../stdlib/test/helpers/index';
 import {
   AlwaysClockwise, cautiousPairExperiment, EveryoneActivated, MarkActivated, NearestNeighbour, Observe, PebbleTest,
@@ -35,8 +35,8 @@ export const builderExperiments: Record<string, Experiment> = {
     name: 'pebbles', model: blackHoleRing({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
     params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.node }], agents: { count: 2, pos: () => node(0) },
   }),
-  'gathering-with-crash': robots(gatheringWithCrash(), NearestNeighbour, Gathering),
-  'dynamic-ring': robots(dynamicRingRobots([Monitors.Visited()]), AlwaysClockwise, Exploration),
+  'gathering-with-crash': robots(obliviousRing({ components: [Faults.CrashAtNode()] }), NearestNeighbour, Gathering),
+  'dynamic-ring': robots(obliviousRing({ topology: DynamicRing(1), sensor: ringCount, frame: { kind: 'common' }, components: [Monitors.Visited()] }), AlwaysClockwise, Exploration),
   ssync: experiment({
     name: 'ssync', model: model({ name: 'ssync', topology: Ring(), sensors: [], round: 'ssync' }), algorithm: MarkActivated, task: EveryoneActivated,
     params: [{ name: 'N', type: T.nat }], agents: { count: 3, pos: i => node(i) },
@@ -44,6 +44,14 @@ export const builderExperiments: Record<string, Experiment> = {
   'parameter-acceptance': experiment({
     name: 'parameterAcceptance', model: model({ name: 'sequential', topology: Ring(), sensors: [], round: 'sequential' }), algorithm: MarkActivated, task: EveryoneActivated,
     params: [{ name: 'N', type: T.nat, accepts: param('N').ge(3) }], agents: { count: 3, pos: i => node(i) },
+  }),
+  lights: experiment({
+    name: 'lights', model: obliviousRing({ sensor: colorView, components: [Vision.Radius(), Storage.Lights(3), Faults.CrashAtNode()] }),
+    algorithm: algorithm({ name: 'CycleLight', pub: T.unit, uses: ['colorView'], init: { pub: () => unit() }, step: ({ view }) => ({
+      move: move('cw'), light: some(view.colorView.at(view.colorView.length().div(2)).sum().add(1).mod(3)),
+    }) }), task: Observe,
+    params: [{ name: 'N', type: T.nat }, { name: 'positions', type: T.list(T.node) }, { name: 'phi', type: T.nat }, { name: 'crashNode', type: T.node }],
+    agents: { count: param('positions').length(), pos: i => param('positions').at(i) },
   }),
   sequential: experiment({
     name: 'sequential', model: model({ name: 'sequential', topology: Ring(), sensors: [], round: 'sequential' }), algorithm: MarkActivated, task: EveryoneActivated,

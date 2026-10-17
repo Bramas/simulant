@@ -19,10 +19,10 @@ line-only updates, renderer updates, pausing navigation on invalid source,
 and diagnostics/recovery after both invalid saves and first-load errors.
 Hot updates must keep the same browser document.
 
-Run just the stand-up visibility regression with:
+Run the stand-up project regressions with:
 
 ```bash
-node --import tsx --test --test-name-pattern='stand-up visibility' tests/browser/ui.test.ts
+node --import tsx --test --test-name-pattern='stand-up (visibility|main)' tests/browser/ui.test.ts
 ```
 
-It checks both minimum-radius and initial-gap warnings, attribution to φ, stepping outside the declared bounds, correction of the settings, and console-free inline validation errors.
+They check minimum-radius and initial-gap warnings, attribution to φ, stepping outside the declared bounds, correction of the settings, and console-free inline validation errors. The algorithm checks open named rule guards from `main` and verify that the chosen move or stay statement is highlighted in each of the three algorithms.

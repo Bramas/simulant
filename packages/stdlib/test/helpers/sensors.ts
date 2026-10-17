@@ -3,7 +3,7 @@
  * Project simulations and Lean generation use ../../sim/sensors.sim; see ../../README.md.
  */
 import {
-  agents, and, choose, concat, ite, let_, ofFn, offset, present, sensor, show, size, str, subsetsUpTo, type X,
+  agents, and, range, choose, concat, ite, let_, ofFn, offset, present, sensor, show, size, str, subsetsUpTo, type X,
 } from '@bramas/simulant-lang/builder';
 import type { Equivariance } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
@@ -34,3 +34,14 @@ export const ringPresence = sensor('ringPresence', T.list(T.bool), ({ C, me, fra
 /** How many agents are at each local offset (strong multiplicity). */
 export const ringCount = sensor('ringCount', T.list(T.nat), ({ C, me, frame }) =>
   ofFn(size(C), i => agents(C).count(b => and(present(b), b.pos.eq(offset(me.pos, frame, i))))), equivariant);
+
+/** Centered finite-radius occupancy, with no multiplicity or size observation. */
+export const lineView = sensor('lineView', T.list(T.nat), ({ C, me, frame }) =>
+  ofFn(C.world.phi.mul(2).add(1), i => let_('p', offset(me.pos, frame, size(C).add(i).sub(C.world.phi).mod(size(C))), p =>
+    ite(agents(C).any(a => and(present(a), a.pos.eq(p))), 1, 0))), equivariant);
+
+/** Centered sets of colors in the model's finite palette. */
+export const colorView = sensor('colorView', T.list(T.list(T.nat)), ({ C, me, frame }) =>
+  ofFn(C.world.phi.mul(2).add(1), i => let_('p', offset(me.pos, frame, size(C).add(i).sub(C.world.phi).mod(size(C))), p =>
+    range(C.world.colorCount).filter(color => agents(C).any(a => and(present(a), a.pos.eq(p),
+      ite(a.slot.lt(C.world.lights.length()), C.world.lights.at(a.slot), 0).eq(color)))))), equivariant);

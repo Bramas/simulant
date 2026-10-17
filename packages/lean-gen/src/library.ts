@@ -14,7 +14,8 @@ import { generateComponent } from './component';
  */
 export const libraryComponents: Component[] = (() => {
   const elab = stdlibElaborator();
-  return ['Hazards.BlackHole .mayEmerge', 'Faults.CrashStop 1', 'Faults.CrashAtNode', 'Storage.Pebbles',
+  return ['Hazards.BlackHole .mayEmerge', 'Faults.CrashStop 1', 'Faults.CrashAtNode',
+    'Vision.Radius', 'Storage.Lights 3', 'Storage.Pebbles',
     'Frames.PersistentReflection', 'Monitors.Visited'].map(e => resolveComponent(elab.evaluate(e) as Component));
 })();
 

@@ -46,6 +46,7 @@ type MV =
   | { m: 'str'; v: string }
   | { m: 'enum'; type: Type & { k: 'enum' }; ctor: string }
   | { m: 'list'; items: MV[] }
+  | { m: 'option'; value?: MV }
   | { m: 'component'; ir: Component }
   | { m: 'model'; ir: Model }
   | { m: 'sensor'; ir: Sensor }
@@ -236,8 +237,12 @@ export class Elaborator {
       case 'ascribe':
         return this.meval(e.e, env, e.type);
       case 'name':
+        if (e.name === 'none' && expected?.t === 'name' && expected.name === 'Option') return { m: 'option' };
         return env.get(e.name) ?? this.metaCall(e.name, [], e.span, env);
       case 'app': {
+        if (e.fn.t === 'name' && e.fn.name === 'some' && expected?.t === 'name' && expected.name === 'Option' && e.args.length === 1) {
+          return { m: 'option', value: this.meval(e.args[0].value, env, expected.args[0]) };
+        }
         if (e.fn.t !== 'name') fail('expected the name of a definition', e.fn.span);
         return this.metaCall((e.fn as { name: string }).name, e.args, e.span, env);
       }
@@ -307,6 +312,7 @@ export class Elaborator {
       case 'nat': case 'bool': case 'str': return v.v;
       case 'enum': return v.ctor;
       case 'list': return v.items.map(i => this.json(i, span));
+      case 'option': return v.value ? this.json(v.value, span) : null;
       default: return fail('expected a value', span);
     }
   }

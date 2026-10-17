@@ -1,81 +1,25 @@
 /-! A Visibility vs. Memory Trade-off for Stand-Up Indulgent Gathering on Lines.
 
 FSYNC, anonymous disoriented robots, no multiplicity detection, and crashes at
-one location. A padded ring encodes the finite occupied interval of the infinite
+a fixed location. A padded ring encodes the finite occupied interval of the infinite
 line. Sensors expose only a radius-phi view; no robot learns its identity,
 the population, crash status, or the size of the finite encoding. -/
 
-/-- At either phase the adversary may crash any colocated subset. Once a crash
-has occurred, the visible, immobile crashed robots fix the only allowed site.
-Choosing the empty subset at every round gives a fault-free execution. -/
-def SingleLocationCrashes : Component where
-  flags := [flag crashed visible, acts never]
-  beforeLook C :=
-    let S := choose (subsets (C.agents.filter correct))
-      such that fun S => S.all (fun a => S.all (fun b => a.pos = b.pos) ∧ C.agents.all (fun b => !b.crashed ∨ a.pos = b.pos))
-      labels fun S => if S.isEmpty then "no crash before Look" else "crash before Look: " ++ show S
-    { raise crashed := S }
-  beforeMove C :=
-    let S := choose (subsets (C.agents.filter correct))
-      such that fun S => S.all (fun a => S.all (fun b => a.pos = b.pos) ∧ C.agents.all (fun b => !b.crashed ∨ a.pos = b.pos))
-      labels fun S => if S.isEmpty then "no crash after Compute" else "crash after Compute: " ++ show S
-    { raise crashed := S }
+import "std/models.sim"
+import "std/tasks.sim"
 
-/-- The oblivious algorithms have occupancy detection and no light storage. -/
-def LineRobots : Component where
-  World := { initialPositions : List Nat, phi : Nat }
-  sensors := [lineView]
-  init := { initialPositions := param positions, phi := param phi }
+/-- Coordinates retained only for the padded-line encoding and its drawing. -/
+def LineDomain : Component where
+  World := { initialPositions : List Nat }
+  init := { initialPositions := param positions }
 
-/-- One bit per visible node: 0 is empty and 1 is occupied, regardless of multiplicity. -/
-sensor LineRobots.lineView (C : Config) (me : Agent) (frame : Frame) : List Nat :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    if C.agents.any (fun a => present a ∧ a.pos = p) then 1 else 0
-
-inductive LightUpdate | keep | x | y
-
-/-- Every external light starts at X (false). Slots associate lights with robots
-inside the simulator and are never sensed. Committing colors before movement
-preserves the new light when a crash stops the subsequent atomic move. -/
-def LuminousRobots : Component where
-  World := { initialPositions : List Nat, phi : Nat, lights : List Bool }
-  Agent := { slot : Nat }
-  actions := [action light : LightUpdate := .keep]
-  sensors := [lineView]
-  init := { initialPositions := param positions, phi := param phi,
-            lights := (param positions).map (fun p => false) }
-  init i := { slot := i }
-  beforeMove C :=
-    let lights := ofFn C.world.lights.length fun i =>
-      if C.agents.any (fun a => a.slot = i ∧ (decisionOf a).decided ∧ (decisionOf a).light = .y) then true
-      else if C.agents.any (fun a => a.slot = i ∧ (decisionOf a).decided ∧ (decisionOf a).light = .x) then false
-      else C.world.lights.at i
-    { world := { C.world with lights } }
-
-/-- Color sets: 0 = empty, 1 = X only, 2 = Y only, 3 = Z (X and Y).
-Equal-colored multiplicities are indistinguishable. -/
-sensor LuminousRobots.lineView (C : Config) (me : Agent) (frame : Frame) : List Nat :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    let x := C.agents.any fun a => present a ∧ a.pos = p ∧ !C.world.lights.at a.slot
-    let y := C.agents.any fun a => present a ∧ a.pos = p ∧ C.world.lights.at a.slot
-    (if x then 1 else 0) + (if y then 2 else 0)
-
-/-- No private memory in either variant; only the luminous variant has external lights. -/
-def lineModel (luminous : Bool := false) : Model where
-  topology := Ring
-  round := .fsync
-  frame := Frames.dynamicReflection
-  memory := .oblivious
-  components := [if luminous then LuminousRobots else LineRobots, SingleLocationCrashes]
-  symmetries := .none
-
-/-- SUIG includes crashed robots and requires permanent gathering. -/
-task StandUpGathering (C : Config) : Verdict :=
-  if C.agents.all (fun a => C.agents.all (fun b => a.pos = b.pos)) then .success else .inProgress
-
-goal StandUpGathering := eventually always .success
+/-- The paper selects finite-radius observations and a fixed crash node. -/
+def lineModel (luminous : Bool := false) : Model :=
+  obliviousRing
+    (view := if luminous then colorView else lineView)
+    (components := [LineDomain, Vision.Radius] ++
+      (if luminous then [Storage.Lights 2] else []) ++ [Faults.CrashAtNode])
+    (symmetries := .none)
 
 /-- Reflect a view, leaving the observing robot at its center. -/
 def mirrored (v : List Nat) : List Nat :=
@@ -92,10 +36,19 @@ def empty (v : List Nat) (start : Nat) (count : Nat) : Bool :=
 def nonempty (v : List Nat) (start : Nat) (count : Nat) : Bool :=
   (range count).any fun i => occupied v (start + i)
 
-/-- Rule priority applies across both orientations, including idle rules.
-Equal matching priorities let the adversary's local frame pick the direction. -/
-def priority (a : Nat) (b : Nat) : Nat :=
-  if a = 0 then b else if b = 0 then a else min a b
+/-- Empty nodes precede the observing border in this orientation. -/
+def border (v : List Nat) : Bool :=
+  empty v 0 (v.length / 2)
+
+/-- The observing robot is one occupied node after the visible border. -/
+def borderNeighbor (v : List Nat) : Bool :=
+  let p := v.length / 2
+  empty v 0 (p - 1) ∧ occupied v (p - 1)
+
+/-- The observing robot is two consecutive occupied nodes after the border. -/
+def secondBorderNeighbor (v : List Nat) : Bool :=
+  let p := v.length / 2
+  empty v 0 (p - 2) ∧ occupied v (p - 2) ∧ occupied v (p - 1)
 
 /-- Maximum neighboring distance, computed only for initial-domain assumptions.
 The coordinates are sorted and can contain multiplicities. -/

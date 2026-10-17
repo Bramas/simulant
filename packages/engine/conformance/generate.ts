@@ -19,6 +19,7 @@ const table: [string, string, Record<string, unknown>, number?][] = [
   ['ssync', 'ssync', { N: 3 }],
   ['sequential', 'sequential', { N: 3 }],
   ['parameter-acceptance', 'parameterAcceptance', { N: 4 }],
+  ['lights', 'lights', { N: 3, positions: [0, 0, 2], phi: 1, crashNode: 1 }, 24],
 ];
 
 const out = compile(loadProgram(stdlibDir + 'conformance.sim'));

@@ -7,7 +7,7 @@ type Snapshot = LuminousSnapshot | ObliviousSnapshot;
 export const draw = defineRenderer<Snapshot>('standup-gathering/line', (ctx, snapshot, model, options) => {
   const { centerX = 150, centerY = 150, radius = 100, agentRadius = 7, theme } = options;
   const initial = snapshot.world.initialPositions;
-  const origin = snapshot.world.phi + 1;
+  const origin = 0;
   const low = Math.min(...initial) - 1;
   const high = Math.max(...initial) + 1;
   const step = 2 * radius / Math.max(1, high - low);
@@ -47,7 +47,7 @@ export const draw = defineRenderer<Snapshot>('standup-gathering/line', (ctx, sna
     stacks.set(a.pos, k + 1);
     const node = at(a.pos);
     const position = { x: node.x, y: node.y - 20 - k * (2 * agentRadius + 5) };
-    const light = 'lights' in snapshot.world && 'slot' in a.fields && snapshot.world.lights[a.fields.slot] ? 'Y' : 'X';
+    const light = 'lights' in snapshot.world && 'slot' in a.fields && (snapshot.world.lights[a.fields.slot] ?? 0) === 1 ? 'Y' : 'X';
     ctx.fillStyle = luminous ? lightColors[light] : foreground;
     ctx.strokeStyle = a.correct ? background : (theme?.danger ?? '#c33');
     ctx.lineWidth = a.correct ? 1.5 : 3;

@@ -8,14 +8,18 @@ import * as colors from '../sim/two-colors.sim';
 import { draw } from './renderer';
 import { crashPreset, faultFreePreset } from './presets';
 
-type Settings = { positions: string; phi: number; N: number };
+type Settings = { positions: string; phi: number; N: number; crashNode: number };
 
 function lineProject(module: SimSources, experiment: string, extraVisibility: number, examples: number[][]) {
   const base = simProject(module, experiment, {
     draw,
     defaults: { N: 64, positions: [0, 2, 4] },
     checkSettings: function* () {
-      for (const positions of examples) yield normalize({ positions });
+      for (const positions of examples) {
+        for (let crashNode = positions[0]; crashNode <= positions[positions.length - 1] + 1; crashNode++) {
+          yield normalize({ positions, crashNode });
+        }
+      }
     },
   });
   const ir = () => base.experiment!().ir as Experiment;
@@ -32,10 +36,14 @@ function lineProject(module: SimSources, experiment: string, extraVisibility: nu
     if (!Number.isSafeInteger(phi) || phi < 0) {
       throw new Error('Visibility φ must be a nonnegative integer.');
     }
+    const crashNode = Number(given.crashNode ?? ps[0]);
+    if (!Number.isSafeInteger(crashNode) || crashNode < 0) {
+      throw new Error('The crash node must be a nonnegative integer coordinate.');
+    }
     return {
-      positions: JSON.stringify(ps), phi,
+      positions: JSON.stringify(ps), phi, crashNode,
       // Keep radius-phi views on both sides of the initial hull clear of wraparound.
-      N: Math.max(64, ps[ps.length - 1] + 2 * phi + 3),
+      N: Math.max(64, ps[ps.length - 1] + 2 * phi + 3, crashNode + phi + 2),
     };
   };
   return {
@@ -60,7 +68,7 @@ function lineProject(module: SimSources, experiment: string, extraVisibility: nu
     stateGraph: (settings, options) => base.stateGraph!(normalize(settings ?? {}), options),
     get editorSchema() {
       return { fields: base.editorSchema!.fields.filter(f => f.key !== 'N').map(f => ({
-        ...f, label: ({ positions: 'Initial robot coordinates (JSON)', phi: 'Visibility φ' } as Record<string, string>)[f.key] ?? f.label,
+        ...f, label: ({ positions: 'Initial robot coordinates (JSON)', phi: 'Visibility φ', crashNode: 'Crash node' } as Record<string, string>)[f.key] ?? f.label,
       })) };
     },
     describe: () => {
@@ -91,7 +99,7 @@ export function getPredefinedSettings(project: string): PredefinedSetting[] {
     crashPreset(projects[project as keyof typeof projects], 'Interior crash · round 2', [0, 3, 6], 3, 2),
     ...(extra === 1 ? [preset('Five-node block · parity-preserving merges', [0, 1, 2, 3, 4])]
       : [preset('Even occupied nodes · odd span', [0, 1, 3, 4])]),
-    crashPreset(projects[project as keyof typeof projects], `Partial crash · round 1${extra === 0 ? ' after Compute' : ''}`, [0, 0, 1, 2], 0, 1, true, extra === 0),
+    crashPreset(projects[project as keyof typeof projects], `Partial crash · round 1${extra === 0 ? ' after Compute' : ''}`, [0, 0, 1, 2], 0, 1, true),
     ...(extra === 0 ? [
       preset('Paper example · odd occupied count', [0, 2, 3, 5, 8, 9, 11, 16, 17]),
       preset('Paper example · even occupied count', [0, 2, 4, 8, 13, 14]),

@@ -4,7 +4,7 @@ import { check } from '@bramas/simulant-lang/check';
 import { agents, algorithm, choose, component, effect, flag, lit, none, param, rec, sensor } from '@bramas/simulant-lang/builder';
 import type { Experiment } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
-import { blackHoleRing, Faults, gatheringWithCrash, Storage } from '../../stdlib/test/helpers/index';
+import { blackHoleRing, Faults, obliviousRing, Storage } from '../../stdlib/test/helpers/index';
 import { cautiousPairExperiment, CautiousPair } from '../../stdlib/test/helpers/examples';
 
 const errorsOf = (exp: Experiment) => check(exp).errors;
@@ -27,7 +27,7 @@ test('nondeterminism is inferred through definitions', () => {
 });
 
 test('an oblivious model rejects an algorithm with memory', () => {
-  const exp = { ...cautiousPairExperiment(blackHoleRing({ policy: 'none', size: 'unknown' })), model: gatheringWithCrash() };
+  const exp = { ...cautiousPairExperiment(blackHoleRing({ policy: 'none', size: 'unknown' })), model: obliviousRing({ components: [Faults.CrashAtNode()] }) };
   assert.ok(errorsOf(exp).some(e => e.includes('oblivious')));
 });
 

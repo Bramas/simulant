@@ -1,42 +1,94 @@
 /-! Algorithm 3 of A Visibility vs. Memory Trade-off for Stand-Up Indulgent
 Gathering on Lines: two persistent colors X/Y, phi >= H_init, odd O_init or
 odd M_init. All lights start X; Z denotes a node containing both X and Y.
-Crashes may occur before Look or after a light update but before movement. -/
+Crashes may occur at crashNode after a light update and before movement. -/
 import "./model.sim"
 
-/-- The six guards of Algorithm 3. Color sets are 1 = X!, 2 = Y!, 3 = Z. -/
-def colorRule (v : List Nat) : Nat :=
-  let p := v.length / 2
-  let border := empty v 0 p
-  if p = 0 then 0 -- No directional guard is observable with radius zero.
-  else if border ∧ v.at p = 1 ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1) then 1 -- X-in
-  else if border ∧ v.at p = 3 ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1) then 2 -- Z-in
-  else if border ∧ v.at p = 1 ∧ v.at (p + 1) = 1 then 3 -- X-merge: Y, right
-  else if border ∧ v.at p = 3 ∧ v.at (p + 1) = 1 then 4 -- Z-merge: X, right
-  else if border ∧ v.at p = 1 ∧ v.at (p + 1) = 3 ∧ empty v (p + 2) (p - 1) then 5 -- final: Y, idle
-  else if border ∧ nonempty v (p + 1) p then 6 -- border-move
-  else 0
+/-- The paper uses colors X and Y from the library's numeric palette. -/
+def X : Nat := 0
+def Y : Nat := 1
 
-algorithm TwoColors uses lineView where
-  init i := {}
-  step mem pub view :=
-    let a := colorRule view.lineView
-    let b := colorRule (mirrored view.lineView)
-    let r := priority a b
-    let inward := if r = a then .cw else .ccw
-    if r = 0 then { move := .stay }
-    else if r = 3 then { move := inward, light := .y }
-    else if r = 4 then { move := inward, light := .x }
-    else if r = 5 then { move := .stay, light := .y }
-    else { move := inward }
+/-- Encode the generic color-set observation using the paper's X/Y/Z notation. -/
+def paperView (colors : List (List Nat)) : List Nat :=
+  colors.map fun here => (if here.contains X then 1 else 0) + (if here.contains Y then 2 else 0)
+
+/-- Match a color set without reading outside the observed view: 1 = X!, 3 = Z. -/
+def hasColor (v : List Nat) (i : Nat) (color : Nat) : Bool :=
+  if i < v.length then v.at i = color else false
+
+/-- X-in: the paper's guard in the displayed orientation. -/
+def colorXIn (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ hasColor v p 1 ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1)
+
+/-- Z-in: the paper's guard in the displayed orientation. -/
+def colorZIn (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ hasColor v p 3 ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1)
+
+/-- X-merge: the paper's guard in the displayed orientation. -/
+def colorXMerge (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ hasColor v p 1 ∧ hasColor v (p + 1) 1
+
+/-- Z-merge: the paper's guard in the displayed orientation. -/
+def colorZMerge (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ hasColor v p 3 ∧ hasColor v (p + 1) 1
+
+/-- final: the paper's guard in the displayed orientation. -/
+def colorFinal (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ hasColor v p 1 ∧ hasColor v (p + 1) 3 ∧ empty v (p + 2) (p - 1)
+
+/-- border-move: the paper's guard in the displayed orientation. -/
+def colorBorderMove (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ nonempty v (p + 1) p
+
+algorithm TwoColors uses colorView where
+  main :=
+    let v := paperView colorView
+    let vm := mirrored v
+    -- X-in
+    if colorXIn v then
+      move .cw
+    else if colorXIn vm then
+      move .ccw
+    -- Z-in
+    else if colorZIn v then
+      move .cw
+    else if colorZIn vm then
+      move .ccw
+    -- X-merge
+    else if colorXMerge v then
+      move .cw with { light := some Y }
+    else if colorXMerge vm then
+      move .ccw with { light := some Y }
+    -- Z-merge
+    else if colorZMerge v then
+      move .cw with { light := some X }
+    else if colorZMerge vm then
+      move .ccw with { light := some X }
+    -- final
+    else if colorFinal v ∨ colorFinal vm then
+      stay with { light := some Y }
+    -- border-move
+    else if colorBorderMove v then
+      move .cw
+    else if colorBorderMove vm then
+      move .ccw
+    else
+      stay
 
 experiment twoColors where
   model := lineModel true
   algorithm := TwoColors
-  task := StandUpGathering
+  task := Gathering
   param N : Nat where N ≥ 3
   param positions : List Nat where admissiblePositions positions false
   param phi : Nat where phi ≥ requiredVisibility positions 0 ∧ fitsLine N positions phi
+  param crashNode : Node
   agents := positions.length
-  position i := node (phi + 1 + positions.at i)
+  position i := node (positions.at i)
   limits := { depth := 100, states := 20000 }

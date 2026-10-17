@@ -31,6 +31,8 @@ pnpm --filter @bramas/simulant-project-standup-gathering build
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
 # Domain syntax, defaults, finite project checks and source updates
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/parameter-acceptance.test.ts packages/simulator-ui/test/parameter-defaults.test.ts
+# Shared lights, visibility, crash policies and their independent builder counterparts
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none packages/stdlib/test/reusable-robots.test.ts packages/engine/test/conformance.test.ts
 pnpm cli check-all -p standup-gathering-h-plus-three
 pnpm cli check-all -p standup-gathering-h-plus-one
 pnpm cli check-all -p standup-gathering-two-colors
@@ -51,8 +53,8 @@ SIMULANT_LEAN=1 pnpm test:packages
 
 # Browser acceptance
 pnpm test:browser
-# Visibility warnings and inline errors, without the known line-highlight scenario
-node --import tsx --test --test-name-pattern='stand-up visibility' tests/browser/ui.test.ts
+# Stand-up visibility warnings, rule navigation and chosen-action highlights
+node --import tsx --test --test-name-pattern='stand-up (visibility|main)' tests/browser/ui.test.ts
 ```
 
 `pnpm typecheck` first generates snapshot types with `pnpm sim-types`. Ordinary tests do not require Lean or a browser. Bun is optional: run the same CLI with
@@ -72,6 +74,12 @@ The 2026-10-15 editor verification passed 148 ordinary tests with four Lean-only
 The 2026-10-17 stand-up gathering visibility verification passed 203 ordinary tests (208 total, five optional skips), strict typechecking, the project page build, and all nine check-all samples. The focused Chromium regression passed minimum-radius and gap-dependent warnings on φ, stepping below the declared bounds, clearing warnings after correction, and inline structural errors without console logging. Earlier browser checks also verified the simplified settings, absence of light state in the oblivious models, and recorded crash presets. All three generated gathering models compiled with Lake in a temporary output directory; no correctness theorem was proved. The earlier full public-site build also passed. The manuscript figure discrepancy is recorded below.
 
 The subsequent parameter-domain verification passed 210 ordinary tests (215 total, five optional skips), strict typechecking, runtime and editor builds, and the gathering page build. Tests cover `in` finite domains, predicate-only domains, their intersections, bounded default selection, project default overrides, finite project check settings and source updates. All nine gathering check settings passed after moving samples out of the models. The focused Chromium visibility regression also passed. Lake compiled both the predicate-only gathering model and a separate model combining a finite domain with a predicate; these are compilation checks, not correctness proofs.
+
+The stand-up rule readability refactor passed all 12 project tests, strict typechecking and the page build. A before/after comparison checked identical decisions on 76,797 local views (exhaustive occupancy views through radius 7, exhaustive color-set views through radius 3, plus deterministic color samples through radius 8) and identical complete state graphs for all nine project check settings. The focused Chromium main-algorithm regression passed guard navigation and chosen-action highlighting in all three algorithms. All three rewritten models compiled with Lake; their guards and ordered `main` branches still require no private memory. The full ordinary suite was not repeated for this project-only refactor.
+
+The shared-robot-library extraction passed 214 ordinary tests (219 total, five optional skips), strict typechecking, runtime and editor builds, the gathering page build and both focused Chromium regressions. All nine gathering check settings passed, and their complete state graphs matched the previous project after normalizing the sparse light representation. New conformance fixtures agree with their hand-written builder counterparts; standalone lights and bounded rotation/reflection checks passed. Lake built `Simulant`, `Examples` and all three gathering models. Bounded TypeScript/Lean comparisons for both new fixtures reported no mismatches across 46 configurations and 571 successors; no new correctness theorem was proved.
+
+The generic-light revision passed 216 ordinary tests (221 total, five optional skips). It uses `Storage.Lights k`, the existing `Faults.CrashAtNode` and the existing `Gathering` task/goal. Palette tests cover one, two, three and five colors, distinct color-set observations, unchanged colors and invalid writes. Strict typechecking, runtime/editor builds, the gathering page build, both focused Chromium regressions and all 57 gathering check settings passed. Lake built `Simulant`, `Examples` and all three gathering models; the generic three-color fixture matched TypeScript and Lean across 27 configurations and 258 successors. The affected private migration, paper-rule and settings tests passed (11 tests), including the bounded checker after replacing its removed model alias. These checks do not prove the unbounded paper theorem.
 
 ## Package distribution
 
@@ -93,6 +101,10 @@ Node/Vite consumers. Run `pnpm packages:pack` to build the explicit public
 package list into `dist/packages/`; that directory is ignored. Inspect
 `release.json` and run `node scripts/publish-packages.mjs --dry-run` before an
 actual release. See [distribution](distribution.md).
+
+Finish runtime package rebuilding before starting CLI or package-consumer tests.
+The build replaces `dist/` files, so overlapping it with a running consumer can
+produce transient `ERR_MODULE_NOT_FOUND` errors.
 
 The ordinary suite checks initializer creation and overwrite refusal. Sequential scheduling has a public conformance fixture and tests for singleton activation, stable identities, unbounded finite activation gaps and fair liveness; Lean differential verification includes that fixture.
 `pnpm test:packages` separately installs the real archives into a temporary
@@ -120,6 +132,7 @@ git diff -- lean
 npx tsx packages/engine/conformance/generate.ts
 # Regenerate just a selected fixture
 node --import tsx packages/engine/conformance/generate.ts parameter-acceptance
+node --import tsx packages/engine/conformance/generate.ts lights
 ```
 
 `lean/Simulant/Library/` and `lean/Examples/*/Model.lean` are generated. Hand-written component lemmas live in `lean/Simulant/LibraryLemmas/`; example proofs and equivariance proofs live beside their generated models. Project Lean generation writes `lean/Generated/` and preserves `lean/Proofs/` and existing Lake configuration. `.simulant/types/` contains ignored generated renderer types.

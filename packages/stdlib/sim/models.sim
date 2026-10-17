@@ -1,4 +1,4 @@
-/-! Model families of the reference projects (plan, Sections 1.1 and 3.7). -/
+/-! Reusable models composed from independently configurable capabilities. -/
 
 import "./sensors.sim"
 import "./components.sim"
@@ -13,20 +13,14 @@ def blackHoleRing (policy : HolePolicy) (size : SizeKnowledge) (extra : List Com
   components := [Hazards.BlackHole policy] ++ extra
   round := round
 
-/-- Oblivious robots with a global view. -/
+/-- Oblivious robots with configurable observations, orientation and topology. -/
 def obliviousRing (topology : Topology := Ring) (view : Sensor := ringPresence)
     (frame : FrameModel := Frames.dynamicReflection) (components : List Component := [])
-    (round : Round := .fsync) : Model where
+    (round : Round := .fsync) (symmetries : Symmetries := .derived) : Model where
   topology := topology
   sensors := [view]
   memory := .oblivious
   frame := frame
   components := components
   round := round
-
-def gatheringWithCrash : Model := obliviousRing (components := [Faults.CrashAtNode])
-
-def dynamicRingRobots (components : List Component := []) : Model :=
-  obliviousRing (topology := DynamicRing 1) (view := ringCount) (frame := Frames.common) (components := components)
-
-def dynamicRingBH : Model := blackHoleRing .mayEmerge .unknown (topology := DynamicRing 1)
+  symmetries := symmetries

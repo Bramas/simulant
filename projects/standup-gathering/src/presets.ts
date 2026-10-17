@@ -8,16 +8,17 @@ function recordedPreset(
   project: ProjectType,
   name: string,
   positions: number[],
-  select: (successor: Successor, round: number, origin: number) => boolean,
+  select: (successor: Successor, round: number) => boolean,
   lastEvent = 0,
+  crashNode = positions[0],
 ): PredefinedSetting {
-  const settings = project.normalizeSettings!({ positions });
+  const settings = project.normalizeSettings!({ positions, crashNode });
   const { system }: SimModel = project.setup(settings);
   let config = system.initial()[0].config;
   const path = [0];
   for (let round = 1; round <= 50; round++) {
     const next = system.successors(config);
-    const branch = next.findIndex(s => select(s, round, Number(settings.phi) + 1));
+    const branch = next.findIndex(s => select(s, round));
     if (branch < 0) throw new Error(`${name}: no matching branch at round ${round}`);
     path.push(branch);
     config = next[branch].config;
@@ -30,7 +31,7 @@ export function faultFreePreset(project: ProjectType, name: string, positions: n
   return recordedPreset(project, name, positions, s => s.config.agents.every(a => !a.f.crashed));
 }
 
-/** The crash coordinate and time select an execution, rather than restricting the model. */
+/** The coordinate supplies crashNode; the round selects a recorded execution. */
 export function crashPreset(
   project: ProjectType,
   name: string,
@@ -38,14 +39,12 @@ export function crashPreset(
   coordinate: number,
   round: number,
   partial = false,
-  afterCompute = false,
 ): PredefinedSetting {
   const count = partial ? 1 : positions.filter(p => p === coordinate).length;
   if (!count) throw new Error(`${name}: no robot starts at the crash coordinate`);
-  return recordedPreset(project, name, positions, (s, r, origin) => {
+  return recordedPreset(project, name, positions, (s, r) => {
     const crashed = s.config.agents.filter(a => a.f.crashed);
     if (r < round) return crashed.length === 0;
-    if (crashed.length !== count || !crashed.every(a => a.pos === origin + coordinate)) return false;
-    return r !== round || !afterCompute || s.witness.some(w => w.label.startsWith('crash after Compute:'));
-  }, round);
+    return crashed.length === count && crashed.every(a => a.pos === coordinate);
+  }, round, coordinate);
 }

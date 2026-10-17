@@ -28,3 +28,23 @@ sensor ringPresence (C : Config) (me : Agent) (frame : Frame) : List Bool :=
 @[equivariant rotations reflections]
 sensor ringCount (C : Config) (me : Agent) (frame : Frame) : List Nat :=
   ofFn C.size fun i => C.agents.count fun b => present b ∧ b.pos = offset me.pos frame i
+
+/-- Centered radius-phi occupancy view, from -phi to +phi: 0 = empty, 1 = occupied.
+Needs `Vision.Radius`. It exposes neither multiplicities nor the topology size.
+On a padded ring it also represents a finite-radius observation of a line. -/
+@[equivariant rotations reflections]
+sensor lineView (C : Config) (me : Agent) (frame : Frame) : List Nat :=
+  ofFn (2 * C.world.phi + 1) fun i =>
+    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
+    if C.agents.any (fun a => present a ∧ a.pos = p) then 1 else 0
+
+/-- Centered finite-radius sets of colors, in palette order. Needs `Vision.Radius`
+and `Storage.Lights`. Each node is a list of distinct colors in 0..colorCount-1;
+an empty list means unoccupied. Multiplicities, slots and faults are not observable. -/
+@[equivariant rotations reflections]
+sensor colorView (C : Config) (me : Agent) (frame : Frame) : List (List Nat) :=
+  ofFn (2 * C.world.phi + 1) fun i =>
+    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
+    (range C.world.colorCount).filter fun color => C.agents.any fun a =>
+      present a ∧ a.pos = p ∧
+      (if a.slot < C.world.lights.length then C.world.lights.at a.slot else 0) = color

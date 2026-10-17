@@ -6,7 +6,7 @@
  */
 import {
   agents, and, choose, component, concat, correct, decisionOf, effect, flag, frames, ite, let_, lit, param, present,
-  sensor, show, str, subsets, type X,
+  ofFn, sensor, show, str, subsets, type X,
 } from '@bramas/simulant-lang/builder';
 import type { Component, Equivariance } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
@@ -77,9 +77,29 @@ export const Faults = {
   }),
 };
 
+export const Vision = {
+  Radius: (): Component => component({
+    name: 'Radius', world: { phi: T.nat },
+    init: { world: { phi: param('phi') } }, equivariance: equivariant,
+  }),
+};
+
 export const PebbleAction = T.enum('PebbleAction', ['none', 'drop', 'pick']);
 
 export const Storage = {
+  /** Fixed finite palette, initial color 0 and optional color updates. */
+  Lights: (colors: number): Component => component({
+    name: 'Lights', params: { colors: T.nat }, args: { colors },
+    world: { colorCount: T.nat, lights: T.list(T.nat) }, agent: { slot: T.nat },
+    actions: [{ name: 'light', type: T.option(T.nat), default: null }],
+    init: { world: { colorCount: p => p.colors, lights: lit(T.list(T.nat), []) }, agent: { slot: i => i } },
+    beforeMove: C => effect({ world: { lights: ofFn(agents(C).length(), i =>
+      let_('previous', ite(i.lt(C.world.lights.length()), C.world.lights.at(i), 0), previous =>
+        let_('updates', agents(C).filter(a => and(a.slot.eq(i), decisionOf(a).decided,
+          decisionOf(a).light.isSome(), decisionOf(a).light.getD(0).lt(C.world.colorCount))), updates =>
+          ite(updates.isEmpty(), previous, updates.map((a: X) => decisionOf(a).light.getD(0)).sum())))) } }),
+    equivariance: equivariant,
+  }),
   /**
    * Pebbles on nodes, one multiset entry per pebble. Dropping and picking are
    * actions, applied in `beforeMove`. Conflicts: all drops succeed; picks at

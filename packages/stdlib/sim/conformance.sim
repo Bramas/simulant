@@ -92,7 +92,7 @@ experiment pebbles where
   position i := node 0
 
 experiment gatheringRobots where
-  model := gatheringWithCrash
+  model := obliviousRing (components := [Faults.CrashAtNode])
   algorithm := NearestNeighbour
   task := Gathering
   param N : Nat
@@ -102,7 +102,8 @@ experiment gatheringRobots where
   position i := positions.at i
 
 experiment dynamicRing where
-  model := dynamicRingRobots (components := [Monitors.Visited])
+  model := obliviousRing (topology := DynamicRing 1) (view := ringCount) (frame := Frames.common)
+    (components := [Monitors.Visited])
   algorithm := AlwaysClockwise
   task := Exploration
   param N : Nat
@@ -135,3 +136,22 @@ experiment parameterAcceptance where
   param N : Nat where N ≥ 3
   agents := 3
   position i := node i
+
+/-- Exercise a three-color palette, color-set observations and fixed-node crashes. -/
+algorithm CycleLight uses colorView where
+  init i := {}
+  step mem pub view :=
+    let v := view.colorView
+    { move := .cw, light := some (((v.at (v.length / 2)).sum + 1) % 3) }
+
+experiment lights where
+  model := obliviousRing (view := colorView)
+    (components := [Vision.Radius, Storage.Lights 3, Faults.CrashAtNode])
+  algorithm := CycleLight
+  task := Observe
+  param N : Nat
+  param positions : List Node
+  param phi : Nat
+  param crashNode : Node
+  agents := positions.length
+  position i := positions.at i

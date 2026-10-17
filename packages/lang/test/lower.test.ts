@@ -17,7 +17,7 @@ function compileSource(source: string) {
 
 const errorsOf = (source: string) => Object.values(compileSource(source)).flatMap(r => r.diagnostics.map(d => `${d.span?.start.line}: ${d.message}`));
 
-const ROBOTS = (algorithm: string, model = 'gatheringWithCrash') => `import "std/conformance.sim"
+const ROBOTS = (algorithm: string, model = 'obliviousRing (components := [Faults.CrashAtNode])') => `import "std/conformance.sim"
 ${algorithm}
 experiment e where
   model := ${model}

@@ -13,10 +13,10 @@ test('the public line projects expose only model settings and every preset recor
   for (const [name, project] of Object.entries(projects)) {
     assert.equal(await loadProject(name), project);
     assert.equal(project.experiment!().ir && project.describe!().lean && 'error' in project.describe!().lean!, false);
-    assert.deepEqual(project.editorSchema.fields.map(f => f.key), ['positions', 'phi']);
+    assert.deepEqual(project.editorSchema.fields.map(f => f.key), ['positions', 'phi', 'crashNode']);
     for (const preset of getPredefinedSettings(name)) {
       const model: SimModel = project.setup(preset.settings);
-      assert.deepEqual(Object.keys(model.params).sort(), ['N', 'phi', 'positions']);
+      assert.deepEqual(Object.keys(model.params).sort(), ['N', 'crashNode', 'phi', 'positions']);
       assert.deepEqual(project.settingsWarnings!(preset.settings), [], preset.name);
       assert.equal(typeof preset.settings.positions, 'string');
       assert.ok(preset.path);
@@ -26,7 +26,7 @@ test('the public line projects expose only model settings and every preset recor
   }
 });
 
-test('all algorithms satisfy permanent SUIG with crashes chosen at any single location', async () => {
+test('all algorithms gather using the shared fixed-node crash component', async () => {
   for (const [name, project] of Object.entries(projects)) {
     for (const positions of [[0, 2, 4], [0, 0, 1, 2]]) {
       const result = await project.check!({ positions }, { maxStates: 5000 });
@@ -37,10 +37,14 @@ test('all algorithms satisfy permanent SUIG with crashes chosen at any single lo
         assert.ok(sites.size <= 1, 'every crash in the execution occurs at the same location');
       }
     }
-    const model: SimModel = project.setup({ positions: [0, 2, 4] });
-    const successors = model.system.successors(model.system.initial()[0].config);
-    const sites = new Set(successors.flatMap(s => s.config.agents.filter(a => a.f.crashed).map(a => a.pos)));
-    assert.deepEqual([...sites].sort((a, b) => a - b), [0, 2, 4].map(p => p + Number(model.params.phi) + 1));
+    for (const crashNode of [0, 2, 4]) {
+      const model: SimModel = project.setup({ positions: [0, 2, 4], crashNode });
+      assert.equal(model.system.exp.task.name, 'Gathering');
+      assert.equal(model.system.exp.task.goal, 'eventually');
+      const successors = model.system.successors(model.system.initial()[0].config);
+      const sites = new Set(successors.flatMap(s => s.config.agents.filter(a => a.f.crashed).map(a => a.pos)));
+      assert.deepEqual([...sites], [crashNode]);
+    }
   }
 });
 
@@ -57,8 +61,8 @@ test('two-color execution reproduces both fault-free examples from the paper', (
     for (const row of rows) {
       const snapshot = execution.get(path);
       const actual = Array.from({ length: rows[0].length }, (_, i) => {
-        const colors = new Set(snapshot.agents.filter((a: any) => a.pos === model.params.phi + 1 + i)
-          .map((a: any) => snapshot.world.lights[a.fields.slot]));
+        const colors = new Set(snapshot.agents.filter((a: any) => a.pos === i)
+          .map((a: any) => (snapshot.world.lights[a.fields.slot] ?? 0) === 1));
         return colors.size === 2 ? 'Z' : colors.has(true) ? 'Y' : colors.has(false) ? 'X' : '.';
       }).join('').replace(/\.+$/, '');
       assert.equal(actual, row, `round ${path.length - 1}`);
@@ -93,7 +97,7 @@ test('Algorithm 1 matches its figure; Algorithm 2 matches its prefix and formal 
       const expected = occupied(row);
       const matches = system.successors(config).filter(s => {
         if (s.config.agents.some(a => a.f.crashed)) return false;
-        const actual = [...new Set(s.config.agents.map(a => a.pos - phi - 1))].sort((a, b) => a - b);
+        const actual = [...new Set(s.config.agents.map(a => a.pos))].sort((a, b) => a - b);
         return JSON.stringify(actual) === JSON.stringify(expected);
       });
       assert.ok(matches.length, `${name}: no successor matches ${row}`);
@@ -102,25 +106,22 @@ test('Algorithm 1 matches its figure; Algorithm 2 matches its prefix and formal 
   }
 });
 
-test('crash phases retain the old light before Compute and the new light after Compute', () => {
-  const { system, params }: SimModel = colorProject.setup({ positions: [0, 1, 2], phi: 1 });
+test('CrashAtNode retains a Compute-phase color update while preventing movement', () => {
+  const { system, params }: SimModel = colorProject.setup({ positions: [0, 1, 2], phi: 1, crashNode: 0 });
   const initial = system.initial()[0].config;
   const first = system.successors(initial);
   const slotZero = (c: Config) => c.agents.find(a => a.f.slot === 0)!;
-  const before = first.find(s => slotZero(s.config).f.crashed && !(s.config.world.lights as boolean[])[0]);
-  const after = first.find(s => slotZero(s.config).f.crashed && (s.config.world.lights as boolean[])[0]);
-  assert.ok(before, 'before Look: robot crashes with X');
-  assert.ok(after, 'after Compute: robot crashes with Y');
-  assert.equal(slotZero(before.config).pos, Number(params.phi) + 1);
-  assert.equal(slotZero(after.config).pos, Number(params.phi) + 1);
-  assert.ok(first.some(s => !slotZero(s.config).f.crashed && slotZero(s.config).pos === Number(params.phi) + 2));
+  const after = first.find(s => slotZero(s.config).f.crashed);
+  assert.ok(after);
+  assert.equal((after.config.world.lights as number[])[0], 1);
+  assert.equal(slotZero(after.config).pos, Number(params.crashNode));
+  assert.ok(first.some(s => !slotZero(s.config).f.crashed && slotZero(s.config).pos === 1));
 });
 
 test('the local sensor exposes color sets without multiplicity or fault information', () => {
   const { system }: SimModel = colorProject.setup({ positions: [0, 0, 2], phi: 2 });
   const C = system.initial()[0].config;
-  const component = system.exp.model.components[0];
-  const sensor = component.sensors![0];
+  const sensor = system.exp.model.sensors[0];
   const compiler = new Compiler(system.rt, system.lay, new Map(system.exp.params.map(p => [p.name, p.type])));
   const fn = compiler.root(sensor.body, [['C', { k: 'config' }], ['me', { k: 'agent' }], ['frame', { k: 'frame' }]], new Map());
   const observer = C.agents.findIndex(a => a.f.slot === 2);
@@ -131,10 +132,9 @@ test('the local sensor exposes color sets without multiplicity or fault informat
   assert.deepEqual(view(crashed), seen);
   const duplicated = structuredClone(C);
   duplicated.agents.push({ ...duplicated.agents.find(a => a.f.slot === 0)!, f: { slot: 3, crashed: false } });
-  (duplicated.world.lights as boolean[]).push(false);
   delete duplicated.idx;
   assert.deepEqual(view(duplicated), seen);
-  (duplicated.world.lights as boolean[])[3] = true;
+  duplicated.world.lights = [0, 0, 0, 1];
   assert.notDeepEqual(view(duplicated), seen);
 });
 
@@ -168,9 +168,9 @@ test('every preset satisfies the general domain and crash recordings crash at th
       assert.equal(project.verdict!(last, model).verdict, 'success');
       if (preset.name.includes('after Compute')) {
         const when = preset.path.slice(0, round + 1);
-        assert.ok(execution.getEdgeWitness!(when).some(w => w.label.startsWith('crash after Compute:')));
+        assert.ok(execution.getEdgeWitness!(when).some(w => w.label.startsWith('crash ')));
         const crashed = execution.get(when).agents.find((a: any) => !a.correct);
-        assert.equal(execution.get(when).world.lights[crashed.fields.slot], true);
+        assert.equal(execution.get(when).world.lights[crashed.fields.slot], 1);
       }
     }
   }
@@ -197,9 +197,9 @@ test('oblivious models have no lights and luminous robots always initialize to X
   for (const [name, project] of Object.entries(projects)) {
     const { system }: SimModel = project.setup({ initialLights: [true, true, true], crashes: false, crashNode: 1, crashSite: 7 });
     const initial = system.initial()[0].config;
-    assert.deepEqual(system.exp.params.map(p => p.name), ['N', 'positions', 'phi']);
+    assert.deepEqual(system.exp.params.map(p => p.name), ['N', 'positions', 'phi', 'crashNode']);
     if (name.endsWith('two-colors')) {
-      assert.deepEqual(initial.world.lights, [false, false, false]);
+      assert.deepEqual(initial.world.lights, []);
       assert.ok(initial.agents.every(a => typeof a.f.slot === 'number'));
     } else {
       assert.equal('lights' in initial.world, false);

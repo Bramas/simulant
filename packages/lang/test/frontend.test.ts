@@ -115,7 +115,7 @@ algorithm Stay uses ringPresence where
 
 /-- Doc comments are not part of the declaration's span. -/
 experiment idle where
-  model := gatheringWithCrash
+  model := obliviousRing (components := [Faults.CrashAtNode])
   algorithm := Stay
   task := Gathering
   param N : Nat := [3]
@@ -126,8 +126,28 @@ experiment idle where
   const r = compileSource(source).experiments.idle;
   assert.deepEqual(errors(source), []);
   assert.deepEqual(r.experiment?.source?.uses.map(u => `${u.kind} ${u.name}`), [
-    'experiment idle', 'model gatheringWithCrash', 'model obliviousRing', 'sensor ringPresence', 'component Faults.CrashAtNode',
+    'experiment idle', 'model obliviousRing', 'sensor ringPresence', 'component Faults.CrashAtNode',
     'algorithm Stay', 'task Gathering', 'goal Gathering',
   ]);
   assert.deepEqual([r.experiment?.source?.line, r.experiment?.source?.endLine], [9, 16]);
+});
+
+test('optional action defaults accept none and some values', () => {
+  const source = `import "std/models.sim"
+import "std/tasks.sim"
+def OptionalActions : Component where
+  actions := [action keep : Option Nat := none, action set : Option Nat := (some 2)]
+algorithm Idle where
+  main :=
+    stay
+experiment optionalDefaults where
+  model := obliviousRing (components := [OptionalActions])
+  algorithm := Idle
+  task := Gathering
+  param N : Nat in [3]
+  agents := 1
+  position i := node 0
+`;
+  assert.deepEqual(errors(source), []);
+  assert.deepEqual(compileSource(source).experiments.optionalDefaults.experiment?.model.components[0].actions?.map(a => a.default), [null, 2]);
 });
