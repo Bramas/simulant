@@ -30,7 +30,7 @@ export type Token = {
 export const KEYWORDS = new Set([
   'import', 'def', 'structure', 'inductive', 'sensor', 'task', 'goal', 'algorithm', 'experiment', 'where', 'let',
   'if', 'then', 'else', 'match', 'with', 'fun', 'choose', 'such', 'that', 'labels', 'param', 'flag', 'uses',
-  'true', 'false', 'raise', 'nothing', 'action',
+  'true', 'false', 'raise', 'nothing', 'action', 'in',
 ]);
 
 /** Operators, longest first. Unicode and ASCII spellings are both accepted. */

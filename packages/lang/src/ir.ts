@@ -196,8 +196,10 @@ export type Goal =
 /** A verdict on configurations (`C` in scope) and a goal over executions. */
 export type Task = { name: string; verdict: Expr; goal: Goal; equivariance?: Equivariance; defs?: Def[] };
 
-/** A parameter, with the list of its values for `check-all` (earlier parameters in scope). */
-export type Param = { name: string; type: Type; domain?: Expr };
+/** A parameter's domain: an optional exact finite list and/or a Boolean refinement.
+ * Both constraints apply when present. Earlier parameters are in scope in the
+ * list; the refinement also sees the parameter itself. No simulator defaults. */
+export type Param = { name: string; type: Type; domain?: Expr; accepts?: Expr };
 
 /** Where a declaration is written (display only). */
 export type DeclSource = {

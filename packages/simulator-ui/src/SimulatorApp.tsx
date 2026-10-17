@@ -371,7 +371,6 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
       setSetupLog('');
       return { baseModel, execution: current.execute(baseModel) };
     } catch (e) {
-      console.error('Project setup failed:', e);
       setSetupLog(e instanceof Error ? e.message : String(e));
       return { baseModel: null, execution: null };
     }

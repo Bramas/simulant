@@ -618,6 +618,7 @@ export class Elaborator {
       const p: Param = { name: i.name, type: this.type(i.param!.type) };
       if (i.value.t !== 'nothing') p.domain = this.tr(i.value, { scope: new Map(), params: new Set(paramNames), owner: decl.name });
       paramNames.add(i.name);
+      if (i.param!.accepts) p.accepts = this.tr(i.param!.accepts, { scope: new Map(), params: new Set(paramNames), owner: decl.name });
       return p;
     });
     const ictx = (extra: [string, string][] = []): OCtx => ({ scope: new Map(extra), params: paramNames, owner: decl.name });

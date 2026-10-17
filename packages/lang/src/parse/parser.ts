@@ -252,13 +252,15 @@ export class Parser {
       const output = algorithm && this.peek().text === 'output' && this.peek(1).kind === 'ident';
       if (output) this.next();
       if (this.is('param')) {
-        // `param N : Nat := domain`
+        // `param N : Nat in domain where predicate` (both clauses optional).
+        // Keep `:=` as an alias for the original finite-domain syntax.
         this.next();
         const name = this.ident();
         this.expect(':');
         const type = this.type();
-        const value: SExpr = this.is(':=') ? (this.next(), this.expr()) : { t: 'nothing', span: this.span(start) };
-        items.push({ name, args: [], value, span: this.span(start), param: { type } });
+        const value: SExpr = this.is('in') || this.is(':=') ? (this.next(), this.expr()) : { t: 'nothing', span: this.span(start) };
+        const accepts = this.is('where') ? (this.next(), this.expr()) : undefined;
+        items.push({ name, args: [], value, span: this.span(start), param: { type, ...(accepts ? { accepts } : {}) } });
         return;
       }
       // Item names may be keywords: `algorithm := ...`, `task := ...`.

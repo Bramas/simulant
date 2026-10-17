@@ -113,6 +113,7 @@ export class Symbols {
       } else if (item.param) {
         const b = this.add(uri, item.name, item.span, SymbolKind.Variable, `${item.name} : ${typeText(item.param.type)}`, { type: item.param.type, scope, readonly: true }, parent);
         this.expression(uri, item.value, b);
+        if (item.param.accepts) this.expression(uri, item.param.accepts, b);
       } else {
         if (item.value.t === 'typeValue') {
           const b = this.add(uri, item.name, item.span, SymbolKind.Struct, `${item.name} := ${typeText(item.value.type)}`, { scope, type: item.value.type, readonly: true }, parent);

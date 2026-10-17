@@ -18,6 +18,7 @@ test('the actual TextMate grammar colors declarations, imports, Unicode operator
   assert.ok(colored('def rotate (v : List Bool) : Nat := 2').some(t => t.text === 'rotate' && t.scopes.includes('entity.name.function.simulant')));
   assert.ok(colored('move .cw').some(t => t.text === '.cw' && t.scopes.includes('constant.other.constructor.simulant')));
   assert.ok(colored('if x ≥ 2 ∧ !b then').some(t => t.text === '≥' && t.scopes.includes('keyword.operator.simulant')));
+  assert.ok(colored('param N : Nat in [3, 4] where N ≥ 3').some(t => t.text === 'in' && t.scopes.includes('keyword.control.simulant')));
   let stack = grammar.tokenizeLine('/- outer /- nested', INITIAL).ruleStack;
   const inner = grammar.tokenizeLine('def hidden := 1 -/ still outer', stack);
   assert.ok(inner.tokens.every(t => t.scopes.some(s => s.startsWith('comment.block'))));

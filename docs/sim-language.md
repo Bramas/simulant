@@ -141,11 +141,43 @@ experiment cautiousPair where
   model := blackHoleRing .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := (range 7).filter (· ≥ 3)              -- domain, for check-all
-  param site : Node := ((range N).filter (· ≥ 1)).map node
+  param N : Nat in (range 7).filter (· ≥ 3)              -- exact finite domain
+  param site : Node in ((range N).filter (· ≥ 1)).map node
   agents := 2
   position i := node 0
   limits := { depth := 200 }
 ```
 
 The ring size parameter is `N`. Diagnostics give the file, line and column of the expression at fault, including type errors found by the checker.
+
+### Parameter domains and simulator defaults
+
+A parameter declares its domain, independently of the simulator's starting values:
+
+```lean
+param N : Nat in [3, 5, 7]                         -- exact finite domain
+param site : Node in (range N).map node            -- dependent finite domain
+param phi : Nat where phi ≥ 4                     -- predicate-only domain
+param positions : List Nat where positions.length ≥ 2
+param k : Nat in (range 10) where k % 2 = 1        -- finite domain refined by a property
+```
+
+`in` always restricts membership to the given list. `where` always adds a Boolean property; with both clauses, both restrictions apply. The original `:= list` spelling remains an alias for `in list`, with exactly the same meaning. Neither spelling declares default values or check samples. Without either clause, the parameter ranges over its entire type.
+
+A finite-domain expression sees earlier parameters. A predicate sees the parameter itself and earlier parameters. Predicates must be deterministic and Boolean, with the same capabilities as domain expressions. The interpreter's initial-settings warnings and generated Lean assumptions use these same domains. Warnings remain advisory, allowing execution outside them.
+
+The simulator tries a bounded search for matching starting values: finite domains in their given order, small integers (Nat/Node 0–63; Int 0 then ±1–63), Boolean values and enum constructors. It checks at most 1,024 candidates across parameters. For complex or unsatisfied predicates, it chooses parameters in order using at most 128 candidates each, falling back to editable values such as `0`, `false`, `[]` or a record of field defaults. This search is a convenience, not a solver or an enumeration of infinite domains. Developers can override starting values in `project.ts`:
+
+```ts
+simProject(module, 'example', {
+  defaults: { N: 64, positions: [0, 2, 4], phi: 5 },
+  checkSettings: () => [
+    { N: 64, positions: [0, 2, 4], phi: 5 },
+    { N: 64, positions: [0, 1, 3, 4], phi: 5 },
+  ],
+});
+```
+
+`defaults` changes the simulator's starting values without changing the model domain, its Lean statements or the settings checked. Omitted defaults are derived using the supplied values. They are also used for newly added or incompatible parameters on source updates. An explicit default outside the domain produces the usual advisory warning.
+
+`check-all` enumerates exact finite model domains and filters any refinements. If a parameter has only a predicate (or no restriction), supply a finite `checkSettings` iterable in `project.ts`; otherwise enumeration reports which parameter has no finite domain. Each supplied setting must give every parameter, and settings outside the declared domains are skipped. These finite checks do not restrict the model's domains or establish correctness for all values in them.

@@ -18,10 +18,13 @@ const table: [string, string, Record<string, unknown>, number?][] = [
   ['dynamic-ring', 'dynamicRing', { N: 4, positions: [0, 1], crashNode: 0 }],
   ['ssync', 'ssync', { N: 3 }],
   ['sequential', 'sequential', { N: 3 }],
+  ['parameter-acceptance', 'parameterAcceptance', { N: 4 }],
 ];
 
 const out = compile(loadProgram(stdlibDir + 'conformance.sim'));
+const selected = new Set(process.argv.slice(2));
 for (const [file, name, params, maxStates] of table) {
+  if (selected.size && !selected.has(file)) continue;
   const r = out.experiments[name];
   if (!r?.experiment) throw new Error(`${name}: ${r?.diagnostics.map(d => d.message).join('\n')}`);
   // `source` is display metadata holding absolute paths: fixtures must not depend on the machine.

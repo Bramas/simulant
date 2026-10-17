@@ -6,7 +6,7 @@
  * `draw`, the algorithm view from the algorithm's source and line table.
  */
 import type { Experiment, Type } from '@bramas/simulant-lang/ir';
-import { parameterDomainViolations, parameterValues, System } from '@bramas/simulant-engine/system';
+import { parameterDefaults, parameterDomainViolations, parameterValues, System } from '@bramas/simulant-engine/system';
 import { checkFirstBranch, checkSetting, checkSettings, stateGraph, type CheckResult } from '@bramas/simulant-engine/check';
 import type { EditorField, EditorSchema } from '@bramas/simulant-core/types/editor-schema';
 import type { AlgorithmSource, CheckOptions, ModelDescription, ProjectType, ProjectUpdate } from '@bramas/simulant-core/types/project';
@@ -41,6 +41,10 @@ export type SimProjectOptions = {
    * `{ BH_node: 'site' }` reads `BH_node` as `site` when `site` is not given.
    */
   aliases?: Record<string, string>;
+  /** Simulator starting values, independent of the model's parameter domains. */
+  defaults?: Record<string, unknown>;
+  /** Finite settings for check-all when the model's domains cannot be enumerated. */
+  checkSettings?: (experiment: Experiment) => Iterable<Record<string, unknown>>;
 };
 
 /** Settings with older parameter names renamed (see `SimProjectOptions.aliases`). */
@@ -86,23 +90,14 @@ function fits(value: unknown, t: Type): boolean {
   }
 }
 
-/** The first parameter values of an experiment's domains (the form's defaults). */
-function firstValues(exp: Experiment): Record<string, unknown> | undefined {
-  try {
-    return parameterValues(exp).next().value as Record<string, unknown> | undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /**
  * Settings for a new definition of the experiment (plan, Section 6.7): values
  * of parameters that still exist with a compatible type are kept; the others
  * are reset to their defaults, and each reset is noted.
  */
-export function adjustSettings(exp: Experiment, settings: Record<string, unknown> | null): { settings: Record<string, unknown> | null; notes: string[] } {
+export function adjustSettings(exp: Experiment, settings: Record<string, unknown> | null, defaults: Record<string, unknown> = {}): { settings: Record<string, unknown> | null; notes: string[] } {
   if (!settings) return { settings, notes: [] };
-  const first = firstValues(exp) ?? {};
+  const first = parameterDefaults(exp, defaults);
   const notes: string[] = [];
   const out: Record<string, unknown> = {};
   for (const p of exp.params) {
@@ -153,12 +148,25 @@ export function algorithmSource(exp: Experiment, sources: Record<string, string>
 
 export function simProject(module: SimSources, experiment: string, opts: SimProjectOptions = {}): ProjectType<any, any> {
   const draw = opts.draw ?? drawRing;
+  const defaultsOf = (exp: Experiment) => Object.fromEntries(exp.params
+    .filter(p => opts.defaults && p.name in opts.defaults)
+    .map(p => [p.name, coerce(opts.defaults![p.name], p.type)]));
+  const coerceSettings = (exp: Experiment, settings: Record<string, unknown>) => Object.fromEntries(exp.params
+    .filter(p => p.name in settings).map(p => [p.name, coerce(settings[p.name], p.type)]));
+  function* settingsFor(exp: Experiment) {
+    if (!opts.checkSettings) { yield* parameterValues(exp); return; }
+    for (const given of opts.checkSettings(exp)) {
+      const params = coerceSettings(exp, renameSettings(given, opts.aliases));
+      for (const p of exp.params) if (!(p.name in params)) throw new Error(`checkSettings is missing parameter ${p.name}`);
+      if (!parameterDomainViolations(exp, params).length) yield params;
+    }
+  }
 
   // What the project runs: the last definition that compiled, replaced on hot updates.
   type Current = {
     exp: Experiment; key: string;
-    /** The defaults, computed when first needed (a domain may take time to enumerate). */
-    first: () => Record<string, unknown> | undefined; editorSchema: () => EditorSchema;
+    /** Defaults are computed lazily; explicit domains may take time to evaluate. */
+    first: () => Record<string, unknown>; editorSchema: () => EditorSchema;
     source: AlgorithmSource;
     description: () => ModelDescription;
   };
@@ -169,7 +177,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
   const load = (m: SimSources): Current | undefined => {
     const exp = m.experiments[experiment];
     if (!exp) return undefined;
-    const first = lazy(() => firstValues(exp));
+    const first = lazy(() => parameterDefaults(exp, defaultsOf(exp)));
     // Line information only affects the algorithm and model views: an edit that only moves lines redraws.
     const { line: _line, source: _source, ...algorithm } = exp.algorithm;
     const { source: _expSource, ...rest } = exp;
@@ -177,7 +185,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
       // Lines of expressions (`at`) are display only, like the line table.
       exp, key: JSON.stringify({ ...rest, algorithm }, (k, v) => k === 'at' ? undefined : v), first,
       source: algorithmSource(exp, m.sources ?? {}),
-      description: lazy(() => describeExperiment(exp, m.sources ?? {}, m.revision, m.lean?.[experiment])),
+      description: lazy(() => describeExperiment(exp, m.sources ?? {}, m.revision, m.lean?.[experiment], opts.checkSettings && (() => settingsFor(exp)))),
       editorSchema: lazy(() => ({ fields: exp.params.map(p => field(p.name, p.type, first()?.[p.name])) })),
     };
   };
@@ -206,7 +214,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
       emit({ kind: 'redraw' });
       return;
     }
-    else emit({ kind: 'replaced', revision, adjust: settings => adjustSettings(loaded.exp, renameSettings(settings, opts.aliases)) });
+    else emit({ kind: 'replaced', revision, adjust: settings => adjustSettings(loaded.exp, renameSettings(settings, opts.aliases), defaultsOf(loaded.exp)) });
   });
   if (isRenderer(draw)) draw.subscribe(() => emit({ kind: 'redraw' }));
 
@@ -287,7 +295,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
     checkAll: async (o = {}, onProgress) => {
       const rev = revision;
       const { exp } = need();
-      return report(await checkSettings(exp, parameterValues(exp), {
+      return report(await checkSettings(exp, settingsFor(exp), {
         ...limits(o), shared: !o.perSetting, maxConfigs: o.maxConfigs,
       }, o.signal && { signal: o.signal }, onProgress), rev);
     },
@@ -328,7 +336,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
       return v === 'success' && model.system.exp.task.goal !== 'eventually' ? 'inProgress' : v;
     },
     settingsGenerator: function* () {
-      if (current) yield* parameterValues(current.exp);
+      if (current) yield* settingsFor(current.exp);
     },
     get editorSchema() {
       return current?.editorSchema() ?? { fields: [] };

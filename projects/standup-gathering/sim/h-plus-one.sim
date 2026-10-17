@@ -1,0 +1,44 @@
+/-! Algorithm 2 of A Visibility vs. Memory Trade-off for Stand-Up Indulgent
+Gathering on Lines: oblivious robots, phi >= max(4, H_init + 1), and odd O_init.
+Interior block rules and false-border compensation preserve occupied parity. -/
+import "./model.sim"
+
+/-- Guard priorities in Algorithm 2, with the displayed right arrow as cw. -/
+def h1Rule (v : List Nat) : Nat :=
+  let p := v.length / 2
+  let border := empty v 0 p
+  let neighbor := empty v 0 (p - 1) ∧ occupied v (p - 1)
+  let second := empty v 0 (p - 2) ∧ occupied v (p - 2) ∧ occupied v (p - 1)
+  if border ∧ occupied v (p + 1) ∧ empty v (p + 2) 1 ∧ nonempty v (p + 3) (p - 2) then 1 -- border-idle,1
+  else if border ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ occupied v (p + 3) then 2 -- border-idle,2
+  else if border ∧ nonempty v (p + 1) p then 3 -- border
+  else if neighbor ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1) then 4 -- neig, move, 1
+  else if neighbor ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ nonempty v (p + 4) (p - 3) then 5 -- neig, move, 2
+  else if second ∧ empty v (p + 1) 2 ∧ nonempty v (p + 3) (p - 2) then 6 -- 2neig, move
+  else if second ∧ empty v (p + 1) 1 then 7 -- 2neig, merge: left
+  else if empty v (p - 2) 1 ∧ occupied v (p - 1) ∧ occupied v (p + 1) ∧ occupied v (p + 2) then 8 -- 4-merge,1: left
+  else if empty v (p - 3) 1 ∧ occupied v (p - 2) ∧ occupied v (p - 1) ∧ occupied v (p + 1) then 9 -- 4-merge,2
+  else if occupied v 0 ∧ empty v 1 (p - 2) ∧ occupied v (p - 1) ∧ occupied v (p + 1) ∧ empty v (p + 2) 1 ∧ occupied v (p + 3) then 10 -- neig, false-merge
+  else 0
+
+algorithm ObliviousHPlusOne uses lineView where
+  init i := {}
+  step mem pub view :=
+    let a := h1Rule view.lineView
+    let b := h1Rule (mirrored view.lineView)
+    let r := priority a b
+    let inward := if r = a then .cw else .ccw
+    if r = 0 ∨ r = 1 ∨ r = 2 then { move := .stay }
+    else if r = 7 ∨ r = 8 then { move := inward.opposite }
+    else { move := inward }
+
+experiment hPlusOne where
+  model := lineModel
+  algorithm := ObliviousHPlusOne
+  task := StandUpGathering
+  param N : Nat where N ≥ 3
+  param positions : List Nat where admissiblePositions positions true
+  param phi : Nat where phi ≥ requiredVisibility positions 1 ∧ fitsLine N positions phi
+  agents := positions.length
+  position i := node (phi + 1 + positions.at i)
+  limits := { depth := 100, states := 20000 }

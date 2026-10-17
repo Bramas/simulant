@@ -63,11 +63,11 @@ export type SStmt = { span: Span } & (
   | { s: 'call'; name: string; args: SExpr[] }
 );
 
-/** An item of a `where` block: `name args := value`, or `param N : T := domain` in experiments. */
+/** An item of a `where` block: `name args := value`, or a parameter domain in experiments. */
 export type SWhereItem = {
   name: string; args: string[]; value: SExpr; span: Span;
-  /** `param N : T := domain`, in experiments. */
-  param?: { type: SType };
+  /** `param N : T in domain where predicate`, in experiments (both clauses optional). */
+  param?: { type: SType; accepts?: SExpr };
   /** `def p (x : T) := statements` and `main := statements`, in algorithms. */
   proc?: { params: SBinder[]; body: SStmt[] };
 };

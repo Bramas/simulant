@@ -14,6 +14,8 @@
     "projects/black-hole-search/web",
     "projects/starter/src",
     "projects/starter/web",
+    "projects/standup-gathering/src",
+    "projects/standup-gathering/web",
     "apps/public-site",
     "scripts",
     "tests",

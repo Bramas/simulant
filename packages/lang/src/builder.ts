@@ -340,11 +340,11 @@ export function task(spec: { name: string; goal: Goal; verdict: (C: X) => Arg; e
 
 export function experiment(spec: {
   name: string; model: Model; algorithm: Algorithm; task: Task;
-  params?: { name: string; type: Type; domain?: Arg }[];
+  params?: { name: string; type: Type; domain?: Arg; accepts?: Arg }[];
   agents: { count: Arg; pos: (i: X) => Arg };
   limits?: Experiment['limits'];
 }): Experiment {
-  const params: Param[] = (spec.params ?? []).map(p => dropUndefined({ name: p.name, type: p.type, domain: p.domain === undefined ? undefined : ir(p.domain) }));
+  const params: Param[] = (spec.params ?? []).map(p => dropUndefined({ name: p.name, type: p.type, domain: p.domain === undefined ? undefined : ir(p.domain), accepts: p.accepts === undefined ? undefined : ir(p.accepts) }));
   return dropUndefined({
     irVersion: IR_VERSION, name: spec.name, model: spec.model, algorithm: spec.algorithm, task: spec.task, params,
     agents: { count: ir(spec.agents.count), pos: ir(spec.agents.pos(v('i'))) },

@@ -58,8 +58,9 @@ function inputsOf(c: Component): Field[] {
     if (!x || typeof x !== 'object') return;
     const o = x as Record<string, unknown>;
     if (o.e === 'param') {
-      if (!expected) fail(`${c.name}: the type of parameter ${o.name} is not known (use it directly as an initial value)`);
-      inputs.set(o.name as string, expected);
+      const type = expected ?? inputs.get(o.name as string);
+      if (!type) fail(`${c.name}: the type of parameter ${o.name} is not known (use it directly as an initial value)`);
+      inputs.set(o.name as string, type);
       return;
     }
     for (const v of Object.values(o)) if (v && typeof v === 'object') visit(v);
@@ -67,8 +68,9 @@ function inputsOf(c: Component): Field[] {
   for (const f of fields) {
     const init = c.init?.world?.[f.name] ?? c.init?.agent?.[f.name];
     if (init?.e === 'param') inputs.set(init.name, f.type);
-    else visit(init);
   }
+  // A transformed initializer may reuse an input whose type is fixed by another field.
+  for (const f of fields) visit(c.init?.world?.[f.name] ?? c.init?.agent?.[f.name]);
   return [...inputs].map(([name, type]) => ({ name, type })).sort((a, b) => a.name.localeCompare(b.name));
 }
 

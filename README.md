@@ -19,6 +19,7 @@ The default development page runs the starter project: two agents look for a bla
 | --- | --- |
 | `pnpm dev` | Run the starter project |
 | `pnpm --filter @bramas/simulant-project-black-hole-search dev` | Run the black-hole-search paper page |
+| `pnpm --filter @bramas/simulant-project-standup-gathering dev` | Run the stand-up gathering paper page |
 | `pnpm build` | Build the public website into `dist/` |
 | `pnpm serve` | Preview the built starter project; build it with its package's `build` command first |
 | `pnpm typecheck` | Check the public workspace's TypeScript |
@@ -48,9 +49,12 @@ projects/black-hole-search/
   sim/                   the paper's algorithms: algo0.sim through algo6.sim
   src/projects.ts        named simulations and presets
   web/                   paper's web application
+projects/standup-gathering/  three line-gathering algorithms
 projects/private/        optional local private research repository, ignored by Git
 scripts/                 public-site build, shared Vite defaults, and conversion tools
 ```
+
+The [stand-up gathering project](projects/standup-gathering/README.md) compares the paper’s three line-gathering algorithms, with limited visibility, external lights and single-location crashes.
 
 Black-hole-search exposes the stable simulation names `black-hole-search-algo0` through `black-hole-search-algo6`. Their settings name the hole's node `site`; settings of the former TypeScript simulations, which called it `BH_node` (shared links, saved settings), are still accepted.
 
@@ -160,7 +164,7 @@ import * as main from './main.sim';
 export const projects = { 'my-simulation': simProject(main, 'myExperiment') };
 ```
 
-`simProject` builds the settings form from the experiment's parameters, draws configurations with the default ring renderer (or the `draw` option), shows the algorithm's `.sim` source with each agent on its current line, and provides the explorer's checks to the CLI. Its `aliases` option accepts older parameter names in settings.
+`simProject` builds the settings form from the experiment's parameters, draws configurations with the default ring renderer (or the `draw` option), shows the algorithm's `.sim` source with each agent on its current line, and provides the explorer's checks to the CLI. Its `aliases` option accepts older parameter names in settings. Parameter domains use `in [values]` for exact finite sets and `where predicate` for general properties; both apply when combined. Simulator starting values are inferred or supplied with `defaults` in `project.ts`. Use `checkSettings` there to supply finite checks for predicate-only domains; neither option changes the model assumptions.
 
 Declare the registry in `package.json` so the CLI can discover it:
 

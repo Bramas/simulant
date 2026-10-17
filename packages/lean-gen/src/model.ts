@@ -82,7 +82,7 @@ export function generateMappedModel(exp: Experiment, namespace: string): Generat
   const allDefs = [...(model.defs ?? []), ...(algorithm.defs ?? []), ...(task.defs ?? [])];
   for (const t of [algorithm.pub, algorithm.mem, ...params.map(p => p.type), ...allDefs.flatMap(d => [d.ret, ...d.params.map(p => p.type)])]) enumsOf(t, local);
   for (const e of [algorithm.step, algorithm.init.pub, algorithm.init.mem, algorithm.line, task.verdict,
-    ...model.sensors.map(s => s.body), ...params.map(p => p.domain), exp.agents.pos, exp.agents.count,
+    ...model.sensors.map(s => s.body), ...params.flatMap(p => [p.domain, p.accepts]), exp.agents.pos, exp.agents.count,
     ...allDefs.map(d => d.body)]) enumsInExpr(e, local);
   for (const name of [...local.keys()]) {
     if (enumNames.has(name) || name === 'Move') local.delete(name);
@@ -286,10 +286,15 @@ ${cases.join('\n')}
   const kCode = initTr.root(exp.agents.count, []).code;
   const args = params.map(p => p.name === sizeParam ? 'N' : ident(p.name)).join(' ');
   for (const [i, p] of params.entries()) {
-    if (!p.domain) continue;
-    const r = initTr.root(p.domain, []);
     const before = params.slice(0, i).map(binder).join(' ');
-    emit(`def domain_${ident(p.name)} ${before} : List (${initTr.type(p.type)}) :=\n  ${r.code}\n`, { kind: 'param', name: p.name });
+    if (p.domain) {
+      const r = initTr.root(p.domain, []);
+      emit(`def domain_${ident(p.name)} ${before} : List (${initTr.type(p.type)}) :=\n  ${r.code}\n`, { kind: 'param', name: p.name });
+    }
+    if (p.accepts) {
+      const r = initTr.root(p.accepts, []);
+      emit(`def accepts_${ident(p.name)} ${before} ${binder(p)} : Bool :=\n  ${r.code}\n`, { kind: 'param', name: p.name });
+    }
   }
   const i = [['i', 'i', T.nat]] as [string, string, Type][];
   const pos = initTr.root(exp.agents.pos, i).code;
@@ -318,9 +323,13 @@ ${initLines.map(l => `  ${l}\n`).join('')}  pure {
       { pos := ${pos}, flags := FlagSet.none, fields := { ${fieldInits.join(', ')} }, pub := ${pub}, mem := ${mem} },
     world := { ${withWorld.map(x => `${ident(x.c.name)} := w_${x.c.name}`).join(', ')} } }
 `, { kind: 'experiment', name: 'position' });
-  const quant = params.map(p => p.domain
-    ? `∀ ${binder(p)}, ${ident(p.name === sizeParam ? 'N' : p.name)} ∈ domain_${ident(p.name)} ${params.slice(0, params.indexOf(p)).map(q => q.name === sizeParam ? 'N' : ident(q.name)).join(' ')} →`
-    : `∀ ${binder(p)},`).join('\n  ');
+  const quant = params.map((p, i) => {
+    const args = params.slice(0, i).map(q => q.name === sizeParam ? 'N' : ident(q.name));
+    const name = p.name === sizeParam ? 'N' : ident(p.name);
+    const domain = p.domain ? ` ${name} ∈ domain_${ident(p.name)} ${args.join(' ')} →` : '';
+    const accepts = p.accepts ? ` accepts_${ident(p.name)} ${[...args, name].join(' ')} = true →` : '';
+    return `∀ ${binder(p)},${domain}${accepts}`;
+  }).join('\n  ');
   const m = `(model N (count ${args}))`;
   emit(`/-- Every admissible execution, for every value of the parameters, satisfies the task. -/
 def Statement : Prop :=

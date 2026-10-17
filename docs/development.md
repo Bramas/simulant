@@ -25,6 +25,15 @@ node --import tsx --import ./packages/vite-plugin/src/register.ts --test project
 # Public page builds
 (cd projects/starter && ../../node_modules/.bin/vite build web --config web/vite.config.ts)
 (cd projects/black-hole-search && ../../node_modules/.bin/vite build web --config web/vite.config.ts)
+pnpm --filter @bramas/simulant-project-standup-gathering build
+
+# Stand-up gathering: paper examples, sensors and exhaustive crash branches
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
+# Domain syntax, defaults, finite project checks and source updates
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/parameter-acceptance.test.ts packages/simulator-ui/test/parameter-defaults.test.ts
+pnpm cli check-all -p standup-gathering-h-plus-three
+pnpm cli check-all -p standup-gathering-h-plus-one
+pnpm cli check-all -p standup-gathering-two-colors
 
 # Lean: build the semantic library before the examples
 (cd lean && lake build Simulant && lake build Examples)
@@ -42,6 +51,8 @@ SIMULANT_LEAN=1 pnpm test:packages
 
 # Browser acceptance
 pnpm test:browser
+# Visibility warnings and inline errors, without the known line-highlight scenario
+node --import tsx --test --test-name-pattern='stand-up visibility' tests/browser/ui.test.ts
 ```
 
 `pnpm typecheck` first generates snapshot types with `pnpm sim-types`. Ordinary tests do not require Lean or a browser. Bun is optional: run the same CLI with
@@ -57,6 +68,10 @@ Browser tests use a local Node or Python Playwright installation and its matchin
 Editor support is documented in the [extension README](../extensions/vscode-simulant/README.md). Its tests cover the actual TextMate grammar, compiler diagnostics, scope-aware navigation/rename, incremental stdio LSP traffic and browser bundling. Extension tests are included by `pnpm test`; generated bundles and VSIX files live in ignored `extensions/vscode-simulant/dist/`. VS Code host testing can use the repository's F5 launch configuration, or run `extensions/vscode-simulant/test/host.cjs` through `--extensionTestsPath` with `--extensionDevelopmentPath` and an isolated user-data/extensions directory. Under WSL, the Remote WSL CLI can ignore those isolation flags; use the native desktop CLI when testing the Windows host.
 
 The 2026-10-15 editor verification passed 148 ordinary tests with four Lean-only skips (152 total), including 16 editor tests; strict typechecking and VSIX packaging passed. An isolated Windows VS Code 1.141.2 Extension Development Host passed activation, language mode, hover, completion, definition, outline, rename and live diagnostics. The 2026-10-14 verification also passed all seven Lean-backed tests, private migration tests and both public page builds. Browser acceptance passed six of seven scenarios on repeat; the line-only highlighting failure remains below. The 2026-10-16 interface redesign (no CSS framework, themed drawings) kept that result: browser acceptance passes every scenario but the line-only one, with selectors and labels updated for the new controls. The stage's ring placement, which the canvas-selection check clicks, is `geometry` in `SimulatorApp.tsx`.
+
+The 2026-10-17 stand-up gathering visibility verification passed 203 ordinary tests (208 total, five optional skips), strict typechecking, the project page build, and all nine check-all samples. The focused Chromium regression passed minimum-radius and gap-dependent warnings on φ, stepping below the declared bounds, clearing warnings after correction, and inline structural errors without console logging. Earlier browser checks also verified the simplified settings, absence of light state in the oblivious models, and recorded crash presets. All three generated gathering models compiled with Lake in a temporary output directory; no correctness theorem was proved. The earlier full public-site build also passed. The manuscript figure discrepancy is recorded below.
+
+The subsequent parameter-domain verification passed 210 ordinary tests (215 total, five optional skips), strict typechecking, runtime and editor builds, and the gathering page build. Tests cover `in` finite domains, predicate-only domains, their intersections, bounded default selection, project default overrides, finite project check settings and source updates. All nine gathering check settings passed after moving samples out of the models. The focused Chromium visibility regression also passed. Lake compiled both the predicate-only gathering model and a separate model combining a finite domain with a predicate; these are compilation checks, not correctness proofs.
 
 ## Package distribution
 
@@ -103,6 +118,8 @@ git diff -- lean
 
 # IR conformance fixtures, when intentionally changing the contract or semantics
 npx tsx packages/engine/conformance/generate.ts
+# Regenerate just a selected fixture
+node --import tsx packages/engine/conformance/generate.ts parameter-acceptance
 ```
 
 `lean/Simulant/Library/` and `lean/Examples/*/Model.lean` are generated. Hand-written component lemmas live in `lean/Simulant/LibraryLemmas/`; example proofs and equivariance proofs live beside their generated models. Project Lean generation writes `lean/Generated/` and preserves `lean/Proofs/` and existing Lake configuration. `.simulant/types/` contains ignored generated renderer types.
@@ -126,9 +143,11 @@ successor order, witnesses and the exploration semantics.
 
 ## Known issues
 
+- **The stand-up gathering manuscript's Algorithm 2 figure disagrees with its formal rules.** In `figures/oblivious-example-Hp1.tex`, with φ = 5, the row `......>X<X.XX.<` occupies coordinates `[6,7,8,9,11,12,14]`. The next illustrated row occupies `[7,9,11,12,13]`, but `border-idle,2` keeps the border at 6 still, and `4-merge,1` moves the robot at 7 towards 6. The formal successor therefore occupies `[6,9,11,12,13]`, agreeing with the prose describing the four-block merge. Reproduce with `tests/standup-gathering.test.ts` or the `standup-gathering-h-plus-one` simulation from `[3,7,8,9,11,12,14,15,17]`, φ = 5, following empty-crash branches for four rounds. The showcase follows the formal rules. Reconcile the manuscript illustration with those rules separately; the manuscript is outside this repository.
+
 - **Array-valued presets are not formatted as JSON by the generic settings editor.** Loading a preset with a list parameter passes the array through `formValues`; assigning it to the text input displays comma-separated elements without brackets. Normalize array-valued JSON fields to text in project adapters until the editor serializes loaded values according to its field schema. Reproduce by loading an array-valued preset and inspecting/editing its JSON field.
 
-- **Lean component export supports only its top-level world/agent record types.** A component with `World := { points : List Point }`, where `Point` is a record, or a component sensor returning a custom record, fails generation with `no Lean name for ...`. A transformed parameter input such as `xs := (param points).map (·.x)` also cannot infer the input parameter type unless it is used directly as an initial value. Generate nested record declarations and pass known parameter types into component generation. Until then, use directly initialized scalar lists and scalar/list-valued component sensors.
+- **Lean component export supports only its top-level world/agent record types.** A component with `World := { points : List Point }`, where `Point` is a record, or a component sensor returning a custom record, fails generation with `no Lean name for ...`. A transformed parameter input such as `xs := (param points).map (·.x)` also cannot infer the input parameter type when no direct initializer determines that parameter’s type. Direct initializers are collected before transformed ones, so their field order does not matter. Generate nested record declarations and pass known parameter types into component generation. Until then, use directly initialized scalar lists and scalar/list-valued component sensors.
 
 - **Lean indexing a list of nodes inside a component sensor needs a nonempty node type.** A sensor using `C.nodes.at i` emits indexing of `List (Fin σ.N)` without an `Inhabited (Fin σ.N)` instance. Reproduce by exporting and compiling a component sensor containing that expression. Supply a valid node default or a suitable nonempty-size assumption in the generated component. Mapping nodes to booleans before indexing avoids this requirement.
 

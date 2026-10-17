@@ -583,19 +583,124 @@ export function* parameterValues(exp: Experiment): Generator<Record<string, V>> 
   const defs = new Map((exp.model.defs ?? []).map(d => [d.name, d]));
   const size = compiler.root(exp.model.topology.size, [], defs);
   const domains = exp.params.map(p => p.domain && compiler.root(p.domain, [], defs));
+  const accepts = exp.params.map(p => p.accepts && compiler.root(p.accepts, [], defs));
   function* go(i: number, params: Record<string, V>): Generator<Record<string, V>> {
     if (i === exp.params.length) { yield { ...params }; return; }
     const domain = domains[i];
-    if (!domain) throw new Error(`parameter ${exp.params[i].name} has no domain`);
+    if (!domain) throw new Error(`parameter ${exp.params[i].name} has no finite domain; provide checkSettings in project.ts for check-all`);
     rt.params = params;
     try {
       rt.topo = makeTopology(exp, runDet(size, []));
     } catch {
       // The size depends on a later parameter: domains cannot use the topology yet.
     }
-    for (const v of runDet(domain, []) as V[]) yield* go(i + 1, { ...params, [exp.params[i].name]: v });
+    for (const v of runDet(domain, []) as V[]) {
+      const candidate = { ...params, [exp.params[i].name]: v };
+      rt.params = candidate;
+      if (accepts[i]) {
+        try { rt.topo = makeTopology(exp, runDet(size, [])); } catch {
+          // Topology is unavailable until its size is fixed.
+        }
+        if (!runDet(accepts[i]!, [])) continue;
+      }
+      yield* go(i + 1, candidate);
+    }
   }
   yield* go(0, {});
+}
+
+/** A simple editable fallback, independent of the parameter's declared domain. */
+function defaultValue(t: Type): V {
+  switch (t.k) {
+    case 'nat': case 'int': case 'node': return 0;
+    case 'bool': case 'frame': return false;
+    case 'enum': return t.ctors[0];
+    case 'move': return 'stay';
+    case 'verdict': return 'inProgress';
+    case 'string': return '';
+    case 'list': case 'multiset': return [];
+    case 'record': return Object.fromEntries(t.fields.map(f => [f.name, defaultValue(f.type)]));
+    default: return null;
+  }
+}
+
+/** Small candidate sets for predicate-only domains; this is not an enumeration of them. */
+function* defaultCandidates(t: Type, nodeCount?: number): Generator<V> {
+  switch (t.k) {
+    case 'nat': case 'node':
+      for (let n = 0; n < Math.min(64, t.k === 'node' ? nodeCount ?? 0 : 64); n++) yield n;
+      return;
+    case 'int':
+      yield 0;
+      for (let n = 1; n < 64; n++) { yield n; yield -n; }
+      return;
+    case 'bool': case 'frame': yield false; yield true; return;
+    case 'enum': yield* t.ctors; return;
+    default: yield defaultValue(t);
+  }
+}
+
+/**
+ * Simulator starting values, separate from model semantics and check-all.
+ * Search a bounded prefix for a matching setting, honoring project overrides.
+ * If no complete setting is found, choose each parameter in order, falling back
+ * to an editable value of its type where matching is too difficult or impossible.
+ */
+export function parameterDefaults(exp: Experiment, overrides: Record<string, V> = {}): Record<string, V> {
+  const checked = check(exp);
+  if (checked.errors.length) throw new IRError(checked.errors);
+  const rt = new Runtime(checked.layout);
+  const compiler = new Compiler(rt, checked.layout, new Map(exp.params.map(p => [p.name, p.type])));
+  const defs = new Map((exp.model.defs ?? []).map(d => [d.name, d]));
+  const size = compiler.root(exp.model.topology.size, [], defs);
+  const domains = exp.params.map(p => p.domain && compiler.root(p.domain, [], defs));
+  const accepts = exp.params.map(p => p.accepts && compiler.root(p.accepts, [], defs));
+  const context = (params: Record<string, V>) => {
+    rt.params = params;
+    rt.topo = undefined as unknown as TopologyRuntime;
+    try { rt.topo = makeTopology(exp, runDet(size, [])); } catch {
+      // A positive topology size may not have been selected yet.
+    }
+  };
+  function* candidates(i: number, params: Record<string, V>): Generator<V> {
+    const p = exp.params[i];
+    if (p.name in overrides) { yield overrides[p.name]; return; }
+    context(params);
+    try {
+      yield* domains[i] ? runDet(domains[i]!, []) as V[] : defaultCandidates(p.type, rt.topo?.size);
+    } catch {
+      // An incomplete setting may not yet support a topology-dependent domain.
+    }
+  }
+  const matches = (i: number, params: Record<string, V>) => {
+    if (exp.params[i].name in overrides || !accepts[i]) return true;
+    context(params);
+    try { return !!runDet(accepts[i]!, []); } catch { return false; }
+  };
+  let remaining = 1024;
+  const search = (i: number, params: Record<string, V>): Record<string, V> | undefined => {
+    if (i === exp.params.length) return params;
+    for (const value of candidates(i, params)) {
+      if (--remaining < 0) break;
+      const next = { ...params, [exp.params[i].name]: value };
+      if (!matches(i, next)) continue;
+      const found = search(i + 1, next);
+      if (found) return found;
+    }
+  };
+  const found = search(0, {});
+  if (found) return found;
+  const fallback: Record<string, V> = {};
+  for (const [i, p] of exp.params.entries()) {
+    fallback[p.name] = p.name in overrides ? overrides[p.name] : defaultValue(p.type);
+    let tried = 0;
+    for (const value of candidates(i, fallback)) {
+      if (++tried > 128) break;
+      const next = { ...fallback, [p.name]: value };
+      if (matches(i, next)) { fallback[p.name] = value; break; }
+    }
+  }
+  return fallback;
 }
 
 /** Parameters outside their declared domains, without enumerating the settings product. */
@@ -608,6 +713,7 @@ export function parameterDomainViolations(exp: Experiment, params: Record<string
   const defs = new Map((exp.model.defs ?? []).map(d => [d.name, d]));
   rt.topo = makeTopology(exp, runDet(compiler.root(exp.model.topology.size, [], defs), []));
   return exp.params.filter(p => {
+    if (p.accepts && !runDet(compiler.root(p.accepts, [], defs), [])) return true;
     // Parameters without a domain are supplied by the user and impose no domain restriction.
     if (!p.domain) return false;
     const values = runDet(compiler.root(p.domain, [], defs), []) as V[];

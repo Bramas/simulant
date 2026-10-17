@@ -45,6 +45,23 @@ Projects can supply a custom drawing function, agent names and aliases for
 older parameter names. Settings outside declared domains produce advisory
 warnings; execution remains available.
 
+Parameter declarations describe model domains, using `in [...]` for exact finite
+sets and `where` for properties. Starting values come from a bounded search,
+with editable typed fallbacks when no match is found. Override them separately
+in the project registry:
+
+```ts
+simProject(model, 'cautiousPair', {
+  defaults: { N: 8, site: 3 },
+  checkSettings: () => [{ N: 5, site: 1 }, { N: 8, site: 3 }],
+});
+```
+
+`checkSettings` supplies finite settings for `check-all` when model domains
+cannot be enumerated. Each setting must include every parameter; settings
+outside the model domains are skipped. Without it, `check-all` enumerates the
+model's finite domains. Defaults never restrict the model or select check settings.
+
 Renderers receive the page's colors in `options.theme` (light or dark): draw
 labels and marks with `theme.foreground` and `theme.muted` so that drawings stay
 readable in both themes. `simulator.css` is the whole stylesheet; the interface

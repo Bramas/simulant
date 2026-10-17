@@ -1,0 +1,27 @@
+{
+  "name": "@bramas/simulant-project-standup-gathering",
+  "version": "0.1.0",
+  "private": true,
+  "license": "CECILL-B",
+  "type": "module",
+  "scripts": {
+    "dev": "vite web --config web/vite.config.ts",
+    "build": "vite build web --config web/vite.config.ts",
+    "serve": "vite preview web --config web/vite.config.ts"
+  },
+  "exports": {
+    "./projects": "./src/projects.ts"
+  },
+  "dependencies": {
+    "@bramas/simulant-core": "workspace:*",
+    "@bramas/simulant-ui": "workspace:*",
+    "solid-js": "^1.9.3",
+    "@bramas/simulant-engine": "workspace:*",
+    "@bramas/simulant-lang": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0",
+    "vite-plugin-solid": "^2.11.0",
+    "typescript": "^5.7.2"
+  }
+}

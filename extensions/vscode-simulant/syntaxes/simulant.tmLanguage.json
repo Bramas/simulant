@@ -5,7 +5,7 @@
   "patterns": [
     { "include": "#comments" }, { "include": "#strings" }, { "include": "#attributes" },
     { "match": "\\b(import|def|structure|inductive|sensor|task|goal|algorithm|experiment)\\s+([A-Za-z_À-ɏͰ-Ͽ][A-Za-z0-9_'À-ɏͰ-Ͽ₀-₉]*(?:\\.[A-Za-z_À-ɏͰ-Ͽ][A-Za-z0-9_'À-ɏͰ-Ͽ₀-₉]*)*)", "captures": { "1": { "name": "keyword.declaration.simulant" }, "2": { "name": "entity.name.function.simulant" } } },
-    { "name": "keyword.control.simulant", "match": "\\b(import|def|structure|inductive|sensor|task|goal|algorithm|experiment|where|let|if|then|else|match|with|fun|choose|such|that|labels|param|flag|uses|raise|action|repeat|while|do|output|eventually|always)\\b" },
+    { "name": "keyword.control.simulant", "match": "\\b(import|def|structure|inductive|sensor|task|goal|algorithm|experiment|where|in|let|if|then|else|match|with|fun|choose|such|that|labels|param|flag|uses|raise|action|repeat|while|do|output|eventually|always)\\b" },
     { "name": "keyword.control.activation.simulant", "match": "\\b(move|stay|halt|wait)\\b" },
     { "name": "constant.language.simulant", "match": "\\b(true|false|none|nothing|visible|hidden|acts|never|adversary)\\b" },
     { "name": "support.type.simulant", "match": "\\b(Nat|Int|Bool|String|Unit|Node|Agent|Move|Frame|Config|Verdict|Pub|Mem|World|Option|List|Multiset|Component|Model|Sensor|Topology|FrameModel|Round|Memory)\\b" },

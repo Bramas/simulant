@@ -115,10 +115,10 @@ const HOOKS = ['beforeLook', 'beforeMove', 'afterMove'] as const;
 const MANY_DEFS = 6;
 
 /** Counts the settings of `check-all`, up to `cap`. */
-function countSettings(exp: Experiment, cap = 10_000): string {
+function countSettings(settings: () => Iterable<unknown>, cap = 10_000): string {
   let n = 0;
   try {
-    for (const _ of parameterValues(exp)) if (++n >= cap) return `more than ${cap}`;
+    for (const _ of settings()) if (++n >= cap) return `more than ${cap}`;
   } catch {
     return 'unknown (a domain cannot be enumerated)';
   }
@@ -132,7 +132,7 @@ function lineTable(exp: Experiment): Record<string, number> {
   return Object.fromEntries(Object.entries(l.cases).flatMap(([pc, e]) => e.e === 'lit' && typeof e.value === 'number' ? [[pc, e.value]] : []));
 }
 
-export function describeExperiment(exp: Experiment, sources: Record<string, string>, revision?: string, lean?: SimLean): ModelDescription {
+export function describeExperiment(exp: Experiment, sources: Record<string, string>, revision?: string, lean?: SimLean, checkSettings?: () => Iterable<unknown>): ModelDescription {
   const { model, algorithm, task } = exp;
   const key = (kind: string, name: string) => `${kind} ${name}`;
 
@@ -235,9 +235,9 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     const i = expItem(new RegExp(`^\\s+param\\s+${p.name}\\b`));
     return {
       label: `param ${p.name}`,
-      value: p.domain ? i?.text ?? 'a domain' : 'no domain (set it in the settings)',
-      code: !!p.domain,
-      note: `of type ${showType(p.type)}`,
+      value: p.domain || p.accepts ? i?.text ?? 'a domain' : `all values of ${showType(p.type)}`,
+      code: !!p.domain || !!p.accepts,
+      note: `of type ${showType(p.type)}${p.accepts ? '; where restricts the domain' : ''}`,
       refs: expRef(i),
     };
   });
@@ -252,7 +252,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         { label: 'Agents', value: agents?.text ?? 'see the experiment', code: true, refs: expRef(agents) },
         { label: 'Positions', value: position?.text ?? 'see the experiment', code: true, note: 'Initial position of agent i.', refs: expRef(position) },
         ...params,
-        { label: 'Settings checked', value: countSettings(exp), note: 'Parameter values enumerated by check-all, from the domains above.' },
+        { label: 'Settings checked', value: countSettings(checkSettings ?? (() => parameterValues(exp))), note: checkSettings ? 'Finite settings supplied by project.ts, filtered through the model domains.' : 'Parameter values enumerated by check-all, from the domains above.' },
         {
           label: 'Limits',
           value: exp.limits ? Object.entries(exp.limits).map(([k, v]) => `${k} ${v}`).join(', ') : 'none',
@@ -386,7 +386,9 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   };
 
   const caveats = [
-    'Checks are bounded: they cover the settings enumerated from the parameter domains, not every ring size.',
+    checkSettings
+      ? 'Checks are bounded: they cover the finite settings supplied by project.ts, not every admissible parameter value.'
+      : 'Checks are bounded: they cover the settings enumerated from the parameter domains, not every ring size.',
     ...(exp.limits ? ['Exploration limits can leave a check incomplete.'] : []),
     ...(algorithm.native ? [`The algorithm's step is native TypeScript (${algorithm.native}): it is not written in .sim and is not translated to Lean.`] : []),
     ...(group.rotations ? ['Symmetry reduction relies on equivariance declarations, which are claims tested on bounded instances.'] : []),

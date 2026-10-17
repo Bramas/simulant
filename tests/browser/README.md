@@ -18,3 +18,11 @@ branch selection, panel docking, the step explanation card, configuration-graph 
 line-only updates, renderer updates, pausing navigation on invalid source,
 and diagnostics/recovery after both invalid saves and first-load errors.
 Hot updates must keep the same browser document.
+
+Run just the stand-up visibility regression with:
+
+```bash
+node --import tsx --test --test-name-pattern='stand-up visibility' tests/browser/ui.test.ts
+```
+
+It checks both minimum-radius and initial-gap warnings, attribution to φ, stepping outside the declared bounds, correction of the settings, and console-free inline validation errors.

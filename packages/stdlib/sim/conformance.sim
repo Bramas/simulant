@@ -126,3 +126,12 @@ experiment sequential where
   param N : Nat
   agents := 3
   position i := node i
+
+/-- A predicate-only domain accepts arbitrary ring sizes satisfying its bound. -/
+experiment parameterAcceptance where
+  model := sequentialRing
+  algorithm := MarkActivated
+  task := EveryoneActivated
+  param N : Nat where N ≥ 3
+  agents := 3
+  position i := node i

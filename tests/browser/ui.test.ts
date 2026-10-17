@@ -153,7 +153,7 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     assert.equal(await page.getByRole('alert').count(), 1);
     assert.equal(await page.locator('.sim-settings-warning').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Next step', exact: true }).isDisabled(), true);
-    assert.ok(errors.slice(beforeError).every(message => message.startsWith('Project setup failed:')));
+    assert.deepEqual(errors.slice(beforeError), []);
     errors.splice(beforeError);
     await page.getByLabel('N', { exact: true }).fill('6');
     await warning.waitFor({ state: 'detached' });
@@ -282,4 +282,54 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     await page.locator('.cg-stats').waitFor();
     assert.deepEqual(errors, []);
   });
+});
+
+test('stand-up visibility bounds are advisory, attributed to phi and quiet in the console', { timeout: 120_000 }, async t => {
+  const server = await createServer({
+    ...projectViteConfig('standup-gathering'), configFile: false, logLevel: 'error',
+    server: { host: '127.0.0.1', port: 0, fs: { allow: [repo] } },
+  });
+  await server.listen();
+  let browser: any;
+  t.after(async () => { await browser?.close(); await server.close(); });
+  browser = await chromium.launch({ headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(15_000);
+  const errors: string[] = [];
+  page.on('pageerror', (error: Error) => errors.push(error.message));
+  page.on('console', (message: any) => { if (message.type() === 'error') errors.push(message.text()); });
+  await page.goto(server.resolvedUrls!.local[0], { waitUntil: 'domcontentloaded', timeout: 60_000 });
+  const cases: [string, string, number, number][] = [
+    ['standup-gathering-h-plus-three', '[0,1,2]', 3, 4],
+    ['standup-gathering-h-plus-three', '[0,2,4]', 4, 5],
+    ['standup-gathering-h-plus-one', '[0,1,2]', 3, 4],
+    ['standup-gathering-h-plus-one', '[0,4,8]', 4, 5],
+    ['standup-gathering-two-colors', '[0,2,4]', 1, 2],
+  ];
+  const visibility = page.getByLabel('Visibility φ', { exact: true });
+  const positions = page.getByLabel('Initial robot coordinates (JSON)', { exact: true });
+  const warning = page.locator('.sim-settings-warning');
+  const next = page.getByRole('button', { name: 'Next step', exact: true });
+  for (const [name, coordinates, phi, required] of cases) {
+    await page.getByLabel('Simulation', { exact: true }).selectOption(name);
+    await positions.fill(coordinates);
+    await visibility.fill(String(phi));
+    await warning.waitFor();
+    assert.match(await warning.innerText(), new RegExp(`Visibility φ = ${phi}.*at least ${required}`));
+    assert.doesNotMatch(await warning.innerText(), /positions.*outside/);
+    assert.equal(await page.locator('.sim-settings-error').count(), 0);
+    assert.equal(await next.isEnabled(), true);
+    await next.click();
+    await page.waitForFunction(() => document.querySelector('.sim-round-value')?.textContent === '1');
+    await visibility.fill(String(required));
+    await warning.waitFor({ state: 'detached' });
+  }
+  // Structurally invalid input remains an inline error, without a console exception.
+  await visibility.fill('-1');
+  await page.locator('.sim-settings-error').waitFor();
+  assert.equal(await next.isEnabled(), false);
+  await visibility.fill('2');
+  await page.locator('.sim-settings-error').waitFor({ state: 'detached' });
+  assert.equal(await next.isEnabled(), true);
+  assert.deepEqual(errors, []);
 });

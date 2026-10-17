@@ -388,6 +388,7 @@ export class Checker {
     for (const p of exp.params) {
       if (!isStorable(p.type)) this.report(`parameter ${p.name}: ${showType(p.type)} cannot be stored`);
       if (p.domain) this.root(p.domain, {}, unit('domain', `domain of ${p.name}`), T.list(p.type));
+      if (p.accepts) this.root(p.accepts, {}, unit('domain', `acceptance of ${p.name}`), T.bool);
     }
     this.root(model.topology.size, {}, unit('domain', 'topology size'), T.nat);
     this.root(exp.agents.count, {}, unit('init', 'agent count'), T.nat);
