@@ -1,6 +1,6 @@
 {
   "name": "@bramas/create-simulant",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Create a standalone Simulant research project",
   "license": "CECILL-B",
   "type": "module",

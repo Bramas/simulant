@@ -1,6 +1,6 @@
 {
   "name": "@bramas/simulant-lean",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lean semantic core and generated component library for Simulant",
   "license": "CECILL-B",
   "private": false,
