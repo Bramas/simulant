@@ -1,0 +1,122 @@
+/-! Algorithm 2 of A Visibility vs. Memory Trade-off for Stand-Up Indulgent
+Gathering on Lines: oblivious robots, phi >= max(4, H_init + 1), and odd O_init.
+Interior block rules and false-border compensation preserve occupied parity.
+
+Target of projects/standup-gathering/sim/h-plus-one.sim (design file): the rules are unchanged; they
+read `lineView`/`colorView`, now built from locations (model.sim-design), and `move Ring.cw`
+goes towards the larger indices of that view (`port 0`, the k > 0 side of `Line.window`). -/
+import "./model.sim"
+
+/-- border-idle,1: the paper's guard in the displayed orientation. -/
+def h1BorderIdle1 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ occupiedAt v (p + 1) ∧ empty v (p + 2) 1 ∧ nonempty v (p + 3) (p - 2)
+
+/-- border-idle,2: the paper's guard in the displayed orientation. -/
+def h1BorderIdle2 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ occupiedAt v (p + 1) ∧ occupiedAt v (p + 2) ∧ occupiedAt v (p + 3)
+
+/-- border: the paper's guard in the displayed orientation. -/
+def h1Border (v : List Nat) : Bool :=
+  let p := v.length / 2
+  border v ∧ nonempty v (p + 1) p
+
+/-- neig, move, 1: the paper's guard in the displayed orientation. -/
+def h1NeighborMove1 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  borderNeighbor v ∧ empty v (p + 1) 1 ∧ nonempty v (p + 2) (p - 1)
+
+/-- neig, move, 2: the paper's guard in the displayed orientation. -/
+def h1NeighborMove2 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  borderNeighbor v ∧ occupiedAt v (p + 1) ∧ empty v (p + 2) 2 ∧ nonempty v (p + 4) (p - 3)
+
+/-- 2neig, move: the paper's guard in the displayed orientation. -/
+def h1SecondNeighborMove (v : List Nat) : Bool :=
+  let p := v.length / 2
+  secondBorderNeighbor v ∧ empty v (p + 1) 2 ∧ nonempty v (p + 3) (p - 2)
+
+/-- 2neig, merge: the paper's guard in the displayed orientation. -/
+def h1SecondNeighborMerge (v : List Nat) : Bool :=
+  let p := v.length / 2
+  secondBorderNeighbor v ∧ empty v (p + 1) 1
+
+/-- 4-merge,1: the paper's guard in the displayed orientation. -/
+def h1FourMerge1 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  empty v (p - 2) 1 ∧ occupiedAt v (p - 1) ∧ occupiedAt v (p + 1) ∧ occupiedAt v (p + 2)
+
+/-- 4-merge,2: the paper's guard in the displayed orientation. -/
+def h1FourMerge2 (v : List Nat) : Bool :=
+  let p := v.length / 2
+  empty v (p - 3) 1 ∧ occupiedAt v (p - 2) ∧ occupiedAt v (p - 1) ∧ occupiedAt v (p + 1)
+
+/-- neig, false-merge: the paper's guard in the displayed orientation. -/
+def h1NeighborFalseMerge (v : List Nat) : Bool :=
+  let p := v.length / 2
+  occupiedAt v 0 ∧ empty v 1 (p - 2) ∧ occupiedAt v (p - 1) ∧ occupiedAt v (p + 1) ∧ empty v (p + 2) 1 ∧ occupiedAt v (p + 3)
+
+algorithm ObliviousHPlusOne uses occupied where
+  main :=
+    let v := lineView
+    let vm := mirrored v
+    -- border-idle,1
+    if h1BorderIdle1 v ∨ h1BorderIdle1 vm then
+      stay
+    -- border-idle,2
+    else if h1BorderIdle2 v ∨ h1BorderIdle2 vm then
+      stay
+    -- border
+    else if h1Border v then
+      move Ring.cw
+    else if h1Border vm then
+      move Ring.ccw
+    -- neig, move, 1
+    else if h1NeighborMove1 v then
+      move Ring.cw
+    else if h1NeighborMove1 vm then
+      move Ring.ccw
+    -- neig, move, 2
+    else if h1NeighborMove2 v then
+      move Ring.cw
+    else if h1NeighborMove2 vm then
+      move Ring.ccw
+    -- 2neig, move
+    else if h1SecondNeighborMove v then
+      move Ring.cw
+    else if h1SecondNeighborMove vm then
+      move Ring.ccw
+    -- 2neig, merge
+    else if h1SecondNeighborMerge v then
+      move Ring.ccw
+    else if h1SecondNeighborMerge vm then
+      move Ring.cw
+    -- 4-merge,1
+    else if h1FourMerge1 v then
+      move Ring.ccw
+    else if h1FourMerge1 vm then
+      move Ring.cw
+    -- 4-merge,2
+    else if h1FourMerge2 v then
+      move Ring.cw
+    else if h1FourMerge2 vm then
+      move Ring.ccw
+    -- neig, false-merge
+    else if h1NeighborFalseMerge v then
+      move Ring.cw
+    else if h1NeighborFalseMerge vm then
+      move Ring.ccw
+    else
+      stay
+
+experiment hPlusOne where
+  model := lineModel
+  algorithm := ObliviousHPlusOne
+  task := Gathering
+  param positions : List Int where admissiblePositions positions true
+  param phi : Nat where phi ≥ requiredVisibility positions 1
+  param crashNode : Pos
+  agents := positions.length
+  position i := pos (positions.at i)
+  limits := { depth := 100, states := 20000 }

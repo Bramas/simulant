@@ -1,0 +1,43 @@
+/-! The non-ring witnesses of Phase 0 (docs/core-redesign.md, sections 5 and 8; design file).
+Both run on a star, where the center's view has k! isomorphisms and a leaf's (k − 1)!, so they
+exercise per-robot morphisms at a branching vertex. `starGathering` must succeed;
+`starDispersion` is an expected counterexample. -/
+
+import "std/models.sim"
+
+/-- Robots on leaves move to the center; robots at the center stay. -/
+algorithm ToHub uses occupied where
+  main :=
+    if (neighbors here).length = 1 then move ((neighbors here).at 0) else stay
+
+/-- Every start of three robots on a star with 2 to 4 leaves: after one round, all are at the
+center. The domain of `start` is finite (all triples of vertices), so check-all enumerates it
+without project settings. -/
+experiment starGathering where
+  model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [occupied]
+  algorithm := ToHub
+  task := Gathering
+  param k : Nat in [2, 3, 4]
+  param start : List Nat in (range ((k + 1) * (k + 1) * (k + 1))).map fun c =>
+    [c % (k + 1), c / (k + 1) % (k + 1), c / ((k + 1) * (k + 1))]
+  agents := 3
+  position i := pos (start.at i)
+
+/-- Dispersion on any graph: leave a crowded node for an empty neighbor. -/
+algorithm Disperse uses count where
+  main :=
+    let free := (neighbors here).filter fun l => count l = 0
+    if count here > 1 ∧ !free.isEmpty then move (free.at 0) else stay
+
+/-- Three robots at the center. At the center the leaves are symmetric, so `free.at 0` is
+whichever empty leaf the morphism put first; the adversary chooses each robot's morphism
+independently and may give the three robots the same one. Under FSYNC they then move to the
+same leaf, come back together and repeat forever: the check must find this lasso (a cycle of
+length 2 from the initial configuration, up to the star's automorphisms). -/
+experiment starDispersion where
+  model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [count]
+  algorithm := Disperse
+  task := Dispersion
+  param k : Nat in [2, 3, 4]
+  agents := 3
+  position i := pos 0

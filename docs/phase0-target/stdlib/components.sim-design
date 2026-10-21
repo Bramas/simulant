@@ -1,0 +1,91 @@
+/-! Library components (docs/core-redesign.md, section 7). Design file.
+
+Components own world fields, agent fields, flags and actions, as today. Fields may have type
+`Pos`, which global symmetries transform, and hooks may update the component's own agent fields
+(`agents := fun a => { … }`). `Vision.Radius` is replaced by `Observe.radius`,
+`Frames.PersistentReflection` by `Frames.portPermutations .perRobot`, and `Faults.CrashAtNode`
+by `Faults.CrashAt`. -/
+
+import "./sensors.sim"
+
+inductive HolePolicy | none | initiallyPresent | mayEmerge
+
+/-- A black hole at `param site`. In `afterMove` it chooses whether to activate (under
+`mayEmerge`), and kills the present agents on its site. Once active, it stays active. -/
+@[equivariant]
+def Hazards.BlackHole (policy : HolePolicy) : Component where
+  World := { site : Pos, active : Bool }
+  flags := [flag dead hidden, acts never]
+  init := { site := param site, active := policy = .initiallyPresent }
+  afterMove C :=
+    let active :=
+      if policy = .mayEmerge ∧ !C.world.active
+      then choose [false, true] labels ["stays inactive", "activates"]
+      else C.world.active
+    { world := { C.world with active },
+      raise dead := fun a => present a ∧ active ∧ a.pos = C.world.site }
+
+/-- Up to `f` agents crash, at the start of any round. No counter: flags are never cleared. -/
+@[equivariant]
+def Faults.CrashStop (f : Nat) : Component where
+  flags := [flag crashed visible, acts never]
+  beforeLook C :=
+    let S := choose (subsets (C.agents.filter correct))
+      such that fun S => (C.agents.count (·.crashed)) + S.length ≤ f
+      labels fun S => if S.isEmpty then "no crash" else "crash " ++ show S
+    { raise crashed := S }
+
+/-- Robots at `param crashNode` may crash after Compute, instead of moving. A crashed robot
+keeps the light it requested in that Compute (both hooks read the same snapshot). -/
+@[equivariant]
+def Faults.CrashAt : Component where
+  World := { crashNode : Pos }
+  flags := [flag crashed visible, acts never]
+  init := { crashNode := param crashNode }
+  beforeMove C :=
+    let S := choose (subsets (C.agents.filter fun a => correct a ∧ a.pos = C.world.crashNode))
+      labels fun S => if S.isEmpty then "no crash" else "crash " ++ show S
+    { raise crashed := S }
+
+/-- Lights with a palette of `colors` colors, initially 0. The action `setLight := some c`
+requests color c; `none` keeps the light; out-of-palette requests are ignored. The light is an
+agent field: no internal slots, no world list. -/
+@[equivariant]
+def Storage.Lights (colors : Nat) : Component where
+  World := { colorCount : Nat }
+  Agent := { light : Nat }
+  actions := [action setLight : Option Nat := none]
+  init := { colorCount := colors }
+  init i := { light := 0 }
+  beforeMove C :=
+    { agents := fun a =>
+        let c := (decisionOf a).setLight
+        { light := if (decisionOf a).decided ∧ c.isSome ∧ c.getD 0 < colors then c.getD 0 else a.light } }
+
+inductive PebbleAction | none | drop | pick
+
+/-- Pebbles on positions, one multiset entry per pebble. Dropping and picking are actions,
+applied in `beforeMove`. All drops succeed; picks at a position succeed up to the number of
+pebbles there (multiset difference is truncated). -/
+@[equivariant]
+def Storage.Pebbles : Component where
+  World := { pebbles : Multiset Pos }
+  actions := [action pebble : PebbleAction := .none]
+  sensors := [pebblesHere]
+  init := { pebbles := [] }
+  beforeMove C :=
+    let picks := (C.agents.filter fun a => (decisionOf a).decided ∧ (decisionOf a).pebble = .pick).map (·.pos)
+    let drops := (C.agents.filter fun a => (decisionOf a).decided ∧ (decisionOf a).pebble = .drop).map (·.pos)
+    { world := { C.world with pebbles := (C.world.pebbles.diff picks) ++ drops } }
+
+/-- The pebbles on my node. -/
+sensor Storage.Pebbles.pebblesHere (L : Look) : Nat :=
+  L.world.pebbles.count (· = L.position L.here)
+
+/-- The positions visited so far, for tasks that depend on the history. -/
+@[equivariant]
+def Monitors.Visited : Component where
+  World := { visited : Multiset Pos }
+  init := { visited := [] }
+  beforeLook C := { world := { C.world with visited := (C.world.visited ++ (C.agents.filter present).map (·.pos)).dedup } }
+  afterMove C := { world := { C.world with visited := (C.world.visited ++ (C.agents.filter present).map (·.pos)).dedup } }

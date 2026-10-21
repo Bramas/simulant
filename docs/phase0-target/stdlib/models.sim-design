@@ -1,0 +1,35 @@
+/-! Model families (docs/core-redesign.md, section 8). Design file. No capability is granted
+implicitly: the space, the observation, the frames and the sensors are always explicit. -/
+
+import "./spaces.sim"
+import "./helpers.sim"
+import "./sensors.sim"
+import "./components.sim"
+import "./tasks.sim"
+
+inductive SizeKnowledge | unknown | known
+
+/-- The base of every model family. -/
+def robots (space : Space) (observe : Observation) (frames : Frames)
+    (views : List Sensor) (components : List Component := [])
+    (memory : Memory := .oblivious) (movement : Movement := .alongEdges)
+    (round : Round := .fsync) (symmetries : Symmetries := .derived) : Model where
+  space := space
+  observation := observe
+  frames := frames
+  sensors := views
+  components := components
+  memory := memory
+  movement := movement
+  round := round
+  symmetries := symmetries
+
+/-- Black-hole search: agents with chirality (`Frames.identity`) and persistent memory that see
+the public states of co-located agents (`view`, by default `otherStates`; a lossy variant that
+implements it may replace it), and the size of the space when it is known. Radius-1 views:
+an agent sees its neighbors, so it can move to them, but its sensors report only on its node. -/
+def blackHoleRobots (space : Space) (policy : HolePolicy) (size : SizeKnowledge)
+    (extra : List Component := []) (view : Sensor := otherStates) (round : Round := .fsync) : Model :=
+  robots space (Observe.radius 1) Frames.identity
+    ([view] ++ (if size = .known then [spaceSize] else []))
+    (components := [Hazards.BlackHole policy] ++ extra) (memory := .persistent) (round := round)

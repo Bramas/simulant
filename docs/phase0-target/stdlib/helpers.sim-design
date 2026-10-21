@@ -1,0 +1,38 @@
+/-! Named neighbors, ports and structural helpers (docs/core-redesign.md, section 5). Design file.
+
+A definition that reads `here`, `visible`, `neighbors`, `distance` or a sensor is
+*algorithm-local*: it is evaluated in the Look of the calling agent, it can be called only from
+algorithms and other algorithm-local definitions, and every sensor it reads must be one the
+calling algorithm `uses` (checked transitively). It may return `Loc` values, which the caller
+cannot store. These helpers read only `neighbors here` and `distance`, so they do not depend on
+the reference ordering (section 3). -/
+
+/-- Port numbers of a cycle, as stored in memory, public states and outputs. Under
+`Frames.identity` they are the space's ports (port 0 is clockwise); under
+`Frames.portPermutations .perRobot`, the robot's own fixed numbering. -/
+def Port.cw : Nat := 0
+def Port.ccw : Nat := 1
+
+/-- The other port of a vertex of degree 2 (today's `Move.opposite`). -/
+def Port.opposite (p : Nat) : Nat := 1 - p
+
+/-- The neighbor behind my port `i`; `here` when I have no port `i`. -/
+def port (i : Nat) : Loc := (neighbors here).at i
+
+/-- Under `Frames.identity`: the clockwise neighbor. Under `Frames.isomorphisms`: whichever
+side the morphism put first. -/
+def Ring.cw : Loc := port 0
+def Ring.ccw : Loc := port 1
+
+/-- The visible locations of a line view, from one end to the other. With r the radius of the
+view, index r + k holds the location at offset k: at distance k on the side of `port 0` for
+k > 0, at distance -k on the side of `port 1` for k < 0. On `Graphs.Line` under
+`Observe.radius r`, the view is a path of 2r + 1 positions, so r is read from the view itself:
+an algorithm cannot read the parameter `phi` (parameters reach only the model and the initial
+values). -/
+def Line.window : List Loc :=
+  let r := (visible.length - 1) / 2
+  ofFn (2 * r + 1) fun i =>
+    if i = r then here
+    else if i > r then (visible.filter fun l => distance here l = i - r ∧ distance (port 0) l = i - r - 1).at 0
+    else (visible.filter fun l => distance here l = r - i ∧ distance (port 1) l = r - i - 1).at 0

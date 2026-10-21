@@ -1,0 +1,40 @@
+{
+  "project": "standup-gathering",
+  "source": "projects/standup-gathering/sim/two-colors.sim",
+  "experiment": "twoColors",
+  "generatedBy": "scripts/phase0-baselines.ts",
+  "model": {
+    "topology": "ring",
+    "round": "fsync",
+    "frame": "dynamicReflection",
+    "memory": "oblivious",
+    "goal": "eventually",
+    "task": "Gathering",
+    "symmetryGroup": {
+      "rotations": false,
+      "reflections": false
+    }
+  },
+  "limits": {
+    "states": 20000,
+    "depth": 100
+  },
+  "settings": [
+    {"settings":{"positions":[0,2,4],"phi":2,"crashNode":0,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":10,"reachableComplete":true,"reachableLineOrbits":9},
+    {"settings":{"positions":[0,2,4],"phi":2,"crashNode":1,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":5,"reachable":8,"reachableComplete":true,"reachableLineOrbits":8},
+    {"settings":{"positions":[0,2,4],"phi":2,"crashNode":2,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":5,"reachable":11,"reachableComplete":true,"reachableLineOrbits":9},
+    {"settings":{"positions":[0,2,4],"phi":2,"crashNode":3,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":5,"reachable":8,"reachableComplete":true,"reachableLineOrbits":8},
+    {"settings":{"positions":[0,2,4],"phi":2,"crashNode":4,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":10,"reachableComplete":true,"reachableLineOrbits":9},
+    {"settings":{"positions":[0,2,4],"phi":2,"crashNode":5,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":3,"reachable":3,"reachableComplete":true,"reachableLineOrbits":3},
+    {"settings":{"positions":[0,1,3,4],"phi":2,"crashNode":0,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":14,"reachableComplete":true,"reachableLineOrbits":10},
+    {"settings":{"positions":[0,1,3,4],"phi":2,"crashNode":1,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":23,"reachableComplete":true,"reachableLineOrbits":17},
+    {"settings":{"positions":[0,1,3,4],"phi":2,"crashNode":2,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":3,"reachable":18,"reachableComplete":true,"reachableLineOrbits":11},
+    {"settings":{"positions":[0,1,3,4],"phi":2,"crashNode":3,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":23,"reachableComplete":true,"reachableLineOrbits":17},
+    {"settings":{"positions":[0,1,3,4],"phi":2,"crashNode":4,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":14,"reachableComplete":true,"reachableLineOrbits":10},
+    {"settings":{"positions":[0,1,3,4],"phi":2,"crashNode":5,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":3,"reachable":3,"reachableComplete":true,"reachableLineOrbits":3},
+    {"settings":{"positions":[0,0,1,2],"phi":1,"crashNode":0,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":8,"reachable":17,"reachableComplete":true,"reachableLineOrbits":10},
+    {"settings":{"positions":[0,0,1,2],"phi":1,"crashNode":1,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":3,"reachable":17,"reachableComplete":true,"reachableLineOrbits":9},
+    {"settings":{"positions":[0,0,1,2],"phi":1,"crashNode":2,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":11,"reachableComplete":true,"reachableLineOrbits":9},
+    {"settings":{"positions":[0,0,1,2],"phi":1,"crashNode":3,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":2,"reachable":2,"reachableComplete":true,"reachableLineOrbits":2}
+  ]
+}

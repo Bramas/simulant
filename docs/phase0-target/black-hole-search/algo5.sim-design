@@ -1,0 +1,95 @@
+/-! Algorithm 5 of the black-hole-search paper (n-agent EBS Solution, knowledge of n): agent
+`id` suspects node `id` and walks back and forth without ever entering it; the agents that do
+enter the hole once it is active disappear, and the survivor's suspicion is right.
+Target of projects/black-hole-search/sim/algo5.sim (design file). Agents know the size of the
+cycle (`spaceSize`) and count nodes clockwise from their common starting node (`node`); the
+suspected node `bh` is in those coordinates, and the claim is its distance through the
+clockwise port (`claimSteps`). The walking direction `dir` is a port index.
+
+`NAgentEBSLatency` reproduces the TypeScript simulation exactly (experiment `algo5`, registered):
+it idles a pseudo-random number of rounds before each move, to imitate latency in a synchronous
+engine; its pseudo-random state never repeats, so it is explored to bounded depth. `NAgentEBS`
+is the paper's algorithm without the idling (experiment `algo5Sync`), checked exhaustively. -/
+
+import "std/models.sim"
+
+algorithm NAgentEBS uses spaceSize where
+  Pub := { id : Nat, node : Nat, dir : Nat, bh : Option Nat, steps : Nat }
+  output claimPort := if pub.bh.isSome then some Port.cw else (none : Option Nat)
+  output claimSteps := pub.steps
+  init i := { pub := { id := i, node := 0, dir := Port.cw, bh := none, steps := 0 } }
+
+  main :=
+    pub := { pub with bh := some pub.id, steps := pub.id }
+    if pub.id = 0 then
+      pub := { pub with node := 1, steps := (pub.id + spaceSize - 1) % spaceSize }
+      move Ring.cw
+    repeat
+      let next := if pub.dir = Port.cw then (pub.node + 1) % spaceSize else (pub.node + spaceSize - 1) % spaceSize
+      if next = pub.id then
+        pub := { pub with dir := Port.opposite pub.dir }
+      let to := if pub.dir = Port.cw then (pub.node + 1) % spaceSize else (pub.node + spaceSize - 1) % spaceSize
+      pub := { pub with node := to, steps := (pub.id + spaceSize - to) % spaceSize }
+      move (port pub.dir)
+
+algorithm NAgentEBSLatency uses spaceSize where
+  Pub := { id : Nat, node : Nat, dir : Nat, bh : Option Nat, steps : Nat }
+  output claimPort := if pub.bh.isSome then some Port.cw else (none : Option Nat)
+  output claimSteps := pub.steps
+  init i := { pub := { id := i, node := 0, dir := Port.cw, bh := none, steps := 0 } }
+
+  main :=
+    let seed : Nat := pub.id
+    pub := { pub with bh := some pub.id, steps := pub.id }
+    if pub.id = 0 then
+      pub := { pub with node := 1, steps := (pub.id + spaceSize - 1) % spaceSize }
+      move Ring.cw
+    -- The first iteration, unrolled: its idle rounds still show the previous line.
+    let next := if pub.dir = Port.cw then (pub.node + 1) % spaceSize else (pub.node + spaceSize - 1) % spaceSize
+    if next = pub.id then
+      pub := { pub with dir := Port.opposite pub.dir }
+    seed := seed * 48271 % 2147483647
+    while seed % 2 = 1
+      seed := seed * 48271 % 2147483647
+      if pub.id = 0 then
+        stay
+      else
+        stay
+    let to := if pub.dir = Port.cw then (pub.node + 1) % spaceSize else (pub.node + spaceSize - 1) % spaceSize
+    pub := { pub with node := to, steps := (pub.id + spaceSize - to) % spaceSize }
+    move (port pub.dir)
+    repeat
+      let next2 := if pub.dir = Port.cw then (pub.node + 1) % spaceSize else (pub.node + spaceSize - 1) % spaceSize
+      if next2 = pub.id then
+        pub := { pub with dir := Port.opposite pub.dir }
+      seed := seed * 48271 % 2147483647
+      while seed % 2 = 1
+        seed := seed * 48271 % 2147483647
+        stay
+      let to2 := if pub.dir = Port.cw then (pub.node + 1) % spaceSize else (pub.node + spaceSize - 1) % spaceSize
+      pub := { pub with node := to2, steps := (pub.id + spaceSize - to2) % spaceSize }
+      move (port pub.dir)
+
+/-- The paper's algorithm, without the idling, on cycles of 2 to 12 nodes (2 nodes: the
+multigraph cycle), one agent per node, the hole anywhere: checked exhaustively. It fails on
+2 nodes, as before. -/
+experiment algo5Sync where
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
+  algorithm := NAgentEBS
+  task := IdentifyEmergingBlackHoleAt
+  param N : Nat in (range 13).filter (· ≥ 2)
+  param site : Pos in positions
+  agents := N
+  position i := pos 0
+
+/-- The TypeScript simulation's version, with its pseudo-random idling. Its state space is
+infinite: checks stop at the state limit. -/
+experiment algo5 where
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
+  algorithm := NAgentEBSLatency
+  task := IdentifyEmergingBlackHoleAt
+  param N : Nat in (range 13).filter (· ≥ 2)
+  param site : Pos in positions
+  agents := N
+  position i := pos 0
+  limits := { states := 100000 }

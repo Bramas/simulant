@@ -1,0 +1,105 @@
+/-! The core surface of Phase 0 that the library and the projects use (design file, not
+compiled). Everything here is built into the language and the engine; it is listed as
+signatures so that the target sources can be read against it. See docs/core-redesign.md,
+sections 1–8. The library proper starts in `spaces.sim-design`. -/
+
+-- ---------------------------------------------------------------------------
+-- Model-level types (section 8)
+
+-- A space: a graph (vertices, ordered neighbor lists) or a Euclidean space.
+-- Library spaces are `def … : Space where` declarations (spaces.sim-design).
+structure Space where
+  Vertex : Type                        -- Nat, Int or a structure of them
+  vertices : List Vertex := infinite   -- omitted: an infinite vertex set (finite neighborhoods)
+  neighbors : Vertex → List Vertex     -- the order is the port numbering
+  automorphisms : Automorphisms := .computed   -- required when `vertices` is infinite
+
+-- Positions wrap vertices: `pos v`. A `Pos` is opaque outside experiments and spaces
+-- (see the answers to the open questions in core-redesign.md): sensors, components and tasks
+-- compare positions, store them and pass them to `C.resolve`/`C.follow`, but never unwrap them.
+def pos (v : space.Vertex) : Pos
+
+def Graphs.Dynamic (base : Space) (missing : Nat) : Space   -- section 2
+def Euclidean.Plane : Space                                 -- interface only in Phase 0
+
+-- Observations (section 3).
+def Observe.full : Observation                 -- finite spaces: every position and edge
+def Observe.radius (r : Nat) : Observation     -- the r-hop view (not the induced subgraph)
+
+-- Frames (section 3).
+inductive Persistence | perLook | perRobot
+def Frames.isomorphisms : Frames                                    -- per Look only
+def Frames.portPermutations (when : Persistence) (among : PortPermutations := .all) : Frames
+def Frames.identity : Frames
+-- `among`: `.all`, `.symmetries` (permutations induced by automorphisms; needs consistent
+-- ports), or a library set such as `Grid.rotations`.
+
+-- Movement (section 6), rounds, memory and symmetry reduction.
+def Movement.alongEdges : Movement      -- written `.alongEdges` where a Movement is expected
+inductive Round | fsync | ssync | sequential
+inductive Memory | oblivious | persistent
+inductive Symmetries | derived | none
+
+-- ---------------------------------------------------------------------------
+-- The Look (sections 3 and 4), inside sensors only
+
+-- structure Look where
+--   me : Agent
+--   here : Loc
+--   visible : List Loc                       -- reference ordering, then the morphism
+--   occupants : Loc → Multiset Agent         -- every agent at that position (filter `present`)
+--   visibleAgents : Multiset Agent           -- every agent in the visible domain
+--   position : Loc → Pos                     -- sensors only; results cannot contain Pos
+--   world : World                            -- the world fields of the components
+--   edgePresent : Loc → Loc → Bool           -- dynamic spaces only
+--   spaceSize : Nat                          -- finite spaces only
+
+-- A sensor is `sensor name (params…) (L : Look) : T := …` (one answer per Look) or
+-- `sensor name (params…) (L : Look) (l : Loc) : T := …` (one answer per location). A sensor
+-- with adversary choices puts them in a Look-level part:
+--
+--   sensor name (params…) (L : Look) where
+--     x := choose …                 -- Look-level: evaluated once per Look
+--     at (l : Loc) : T := …         -- per location, deterministic, may read x
+--
+-- T cannot contain Pos, Agent or Loc.
+
+-- ---------------------------------------------------------------------------
+-- What an algorithm reads (section 5)
+
+-- here : Loc
+-- visible : List Loc
+-- neighbors (l : Loc) : List Loc            -- in port order at `here` when the frames keep ports
+-- distance (a b : Loc) : Nat                -- within the visible domain
+-- s l, for each per-location sensor s the algorithm uses; s, for a Look-level sensor
+--
+-- Statements: move l (l a visible location; `.alongEdges` allows here and its neighbors),
+-- stay, halt, wait n, with { … }, repeat, while, if, let, procedures (unchanged).
+--
+-- `Loc` values are round-local: the typechecker rejects them in Pub, Mem, outputs, component
+-- fields and kept locals, as it rejects `Agent`. `xs.at i` on a `List Loc` returns `here` when
+-- `i` is out of range (so `move (port 3)` at a node of degree 2 stays, as a missing dynamic edge
+-- does); see the answers to the open questions.
+
+-- ---------------------------------------------------------------------------
+-- Configurations, inside components and tasks (section 7)
+
+-- C.agents : Multiset Agent; a.pos : Pos; a.pub; outputs as a.<name>; a.<flag>; a.<field>
+-- C.positions : List Pos                    -- finite spaces only
+-- C.world : World
+-- C.resolve (a : Agent) (i : Nat) : Pos     -- the neighbor of a.pos at a's port i
+-- C.follow (a : Agent) (i : Nat) (k : Nat) : Pos
+--                                           -- from a.pos, k times through a's port i
+--                                           -- (both: Frames.identity and .perRobot only;
+--                                           -- a missing port leaves the last position reached)
+-- present a, correct a, decisionOf a, choose …, subsets, subsetsUpTo (unchanged)
+--
+-- A component hook may return `agents := fun a => { field := … }` for its own agent fields.
+
+-- ---------------------------------------------------------------------------
+-- Experiments
+
+-- param p : T in domain where predicate     (unchanged)
+-- Parameters may now appear in model arguments (Graphs.Cycle N, Observe.radius phi).
+-- `positions`: the positions of the experiment's space (finite spaces only).
+-- agents := n; position i := pos v; limits := { depth, states }

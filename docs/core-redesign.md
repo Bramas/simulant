@@ -484,7 +484,52 @@ Lean export is unavailable between steps 1 and 6. Record this under "Known issue
 
 ### Open questions for step 0
 
-- The exact syntax of space declarations (`def … : Space where`, or a `space` declaration), and of helpers such as `Ring.cw` that read `here` outside an algorithm.
-- The statement of the reference-ordering law in Lean (isomorphic views receive identical presentations; port order at `here` when ports are kept), and how the generator instantiates it with the identity ordering for differential tests.
-- Whether `C.resolve` and `C.follow` cover every output that the black-hole tasks need.
-- The normalization used to compare baselines: node numbering, the chiral orientation, and multiset order in recorded states.
+Proposed answers, written with the target sources in [`docs/phase0-target/`](phase0-target/README.md) and the baselines in [`tests/fixtures/phase0-baselines/`](../tests/fixtures/phase0-baselines/README.md). The inventory of the private projects remains to be done in their own repository.
+
+**Syntax of spaces and of helpers that read `here`.** Spaces are `def … : Space where` declarations, like components and models. Their fields are `Vertex`, `vertices` (omitted for an infinite vertex set), `neighbors` and an optional `automorphisms` fast path, required when `vertices` is omitted ([`spaces.sim-design`](phase0-target/stdlib/spaces.sim-design)). A separate `space` keyword would add a declaration form without adding anything a typed `def` cannot say. Helpers stay plain `def`s. A definition that reads `here`, `visible`, `neighbors`, `distance` or a sensor is *algorithm-local*:
+
+- it is evaluated in the calling agent's Look;
+- it can be called only from algorithms and other algorithm-local definitions;
+- every sensor it reads must be one that the calling algorithm `uses`, checked transitively at the call;
+- it may return `Loc` values, which the caller cannot store.
+
+The typechecker infers this from the body, so `def Ring.cw : Loc := port 0` and `def lineView : List Nat := Line.window.map fun l => if occupied l then 1 else 0` need no keyword ([`helpers.sim-design`](phase0-target/stdlib/helpers.sim-design)). Sensors can be passed where a function is expected (`Line.window.map colors`), as `visible.map localPosition` does in section 6. A per-location sensor with choices is written
+
+```sim-design
+sensor lossyOccupied (k : Nat) (L : Look) where
+  hidden := choose …              -- Look-level part, once per Look
+  at (l : Loc) : Bool := …        -- per location, deterministic
+```
+
+A sensor without a location is already evaluated once per Look, so `otherStatesLossy` keeps the ordinary `:=` form ([`sensors.sim-design`](phase0-target/stdlib/sensors.sim-design)). Model-level definitions read experiment parameters as `param phi`, as components already do (`Observe.radius (param phi)` in `lineModel`); experiment bodies name them directly (`Graphs.Cycle N`).
+
+**The reference-ordering law in Lean.** "Identical presentations" must mean identical *presented structure*, not identical lists of positions: a view with a nontrivial automorphism g would otherwise force the list to equal its image under g. A presentation of the view of `o` is a list `ord o` enumerating its visible domain `V(o)` without repetition; its index structure `present ord o` transports the view onto indices: the observer's index, the edges of the r-hop view, and the port list at `here` when the frames keep ports. The law is:
+
+```lean
+structure Lawful (ord : (o : S.Pos) → List S.Pos) : Prop where
+  enumerates : ∀ o, (ord o).Perm (S.visible r o)
+  canonical  : ∀ o o', S.ViewIso keepPorts o o' → present ord o = present ord o'
+```
+
+Here `ViewIso keepPorts` is an isomorphism of the r-hop views that maps observer to observer and, when the frames keep ports, preserves the port numbering at the observer. A lawful ordering is a canonical labelling of views, and the morphism then permutes indices by an automorphism of the presented structure. The generator makes `ord` a parameter of the round. `Statement` quantifies over every `ord` with `Lawful ord`. Differential tests instantiate it with the simulator's physical-id ordering, `(S.visible r o).mergeSort` on a `LinearOrder` that the space supplies for its vertices, and only evaluate it: the round never uses `Lawful`, so the comparison needs no proof that the instance is lawful, which it is not in general. Lemmas that this ordering is lawful on lines, on radius-1 views of cycles and under port-based frames let proofs about those models reuse it.
+
+**Do `C.resolve` and `C.follow` cover the black-hole tasks?** Yes. `IdentifyBlackHole` and `IdentifyEmergingBlackHole` interpret `claim : Option Nat` with `C.resolve`; `IdentifyEmergingBlackHoleAt` interprets `claimPort` and `claimSteps` with `C.follow`. That covers `algo0`, `algo4` (port and distance), `algo5` (always the clockwise port, at a distance computed from its own node count) and the 2-node cycle ([`tasks.sim-design`](phase0-target/stdlib/tasks.sim-design)). `C.resolve a i` is `C.follow a i 1`, kept as the readable form. `C.follow` takes the agent's port i at every vertex it passes, which means "keep going" only on spaces with consistent ports; the documentation should say so. Out of range, both return the last position reached, as a missing port leaves an agent in place. `IdentifyEmergingBlackHole` (claims next to the node), absent from section 7, is ported too. The private projects must be checked against this in their inventory.
+
+**Normalization of the baselines.** The baselines store no configurations, only verdicts, counterexample lengths, counts and decisions, so multiset order never enters them. Counts are over canonical keys: sorted anonymous agents under FSYNC, agent identities kept under SSYNC (`algo6Async`), as the target must also do. Settings keep today's coordinates: node i of `Ring N` is vertex i of `Graphs.Cycle N`, and `.cw` is port 0 under `Frames.identity`. The derived groups agree (rotations for common chirality and for `Frames.identity`), so cycle counts must match exactly. The stand-up models also record their reachable configurations up to translations and the reflection of the line, with lights read per agent rather than per internal slot (`reachableLineOrbits`). That is what the target stores on `Graphs.Line`, and step 4 compares against it. A `failure` counterexample is a shortest path and must match in length. A lasso's reported length depends on how the explorer numbers states, so the baselines add a canonical `minStem`: the smallest depth of a state on a bad strongly connected component. Step 4 compares the verdict, the kind and `minStem`. Stand-up decisions are recorded relative to the view (towards larger or smaller indices of the window), which does not depend on the morphism. The details are in the baselines' README.
+
+**Changes to sections 2–8 found while writing the target sources.**
+
+1. *Two-node cycles are needed.* `algo0` is the paper's small-ring algorithm and checks N = 2, and `algo5Sync` checks that the n-agent algorithm fails on N = 2. Section 2's n ≥ 3 would drop these settings. Proposal: neighbor lists may repeat a vertex (multigraph ports), and `Graphs.Cycle n` accepts n ≥ 2, its two ports leading to the same vertex when n = 2. Consequences:
+   - `neighbors l` may list a location twice;
+   - r-hop views keep parallel edges;
+   - an automorphism acts on ports as well as vertices (the reflection of C₂ fixes both vertices and swaps the ports), so ρ is part of the automorphism rather than derived from the vertex map.
+
+   The alternative, a separate multigraph space for this one size, would duplicate the cycle's helpers and fast paths.
+2. *Algorithms cannot read parameters,* since parameters reach only the model and the initial values, and graph sharing relies on that. `Line.window phi` (section 5) therefore becomes `Line.window`, whose radius is read from the view itself: (|visible| − 1) / 2 on `Graphs.Line`.
+3. *Indexing a list of locations needs a default.* `(neighbors here).at i` beyond the degree, as in `port 1` at a star's leaf, returns `here`. A move to a missing port then stays, as a move through a missing dynamic edge does. Lean uses the same default (`getD here`), so the interpreter and the generated model agree.
+4. *`@[equivariant]` is relative to the frames.* A task that reads a claimed port through `C.resolve` is not equivariant under a reflection of the cycle when the claim is not transformed with it. It is equivariant under every automorphism the frames keep, since the automorphism also acts on the robots' kept permutations. `@[equivariant]` should therefore mean "under the automorphisms that the model's frames keep" (section 7 says "under the space's automorphisms"). Today's `@[equivariant rotations]` on the black-hole tasks becomes `@[equivariant]`.
+5. *`Pos` is opaque outside experiments and spaces.* Sensors, components and tasks compare, store and pass positions, but cannot unwrap them, or a sensor could leak a vertex number in a `Nat`. Everything they compute is then equivariant by construction, and claims remain only for code that a later phase lets unwrap positions. Phase 0 keeps the claims on components and tasks, as section 7 says. In settings, saved links and `checkSettings`, a `Pos` parameter is written as its vertex (`site: 3`).
+6. *`blackHoleRobots` keeps a `view` argument* (default `otherStates`), as `blackHoleRing` has today, so that a lossy view that implements `otherStates` can replace it.
+7. *Names.* The library sensor `occupied` takes the name of a stand-up helper, renamed `occupiedAt`. The light action is `setLight`, because `light` is the agent field. Outputs giving a port are `claim` and `claimPort`, and `ringSize` becomes `spaceSize`. `Port.cw`, `Port.ccw` and `Port.opposite` name stored port numbers, and `Ring.cw`/`Ring.ccw` name locations. On the line, `Ring.cw` reads oddly; a `Line.forward` alias would read better.
+8. *Stand-up experiments lose `N`, `fitsLine` and `LineDomain`.* Graph sharing then groups settings with equal `phi` only, because `Observe.radius phi` is part of the instantiated model. The renderer centers the line on the robots instead of reading the initial positions from the world.
+9. *The star witness's domain is finite.* `starGathering` lists every triple of vertices as its domain of `start`, so `check-all` enumerates it without project settings.

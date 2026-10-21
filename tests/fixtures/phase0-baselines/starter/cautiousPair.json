@@ -1,0 +1,51 @@
+{
+  "project": "starter",
+  "source": "projects/starter/src/main.sim",
+  "experiment": "cautiousPair",
+  "generatedBy": "scripts/phase0-baselines.ts",
+  "model": {
+    "topology": "ring",
+    "round": "fsync",
+    "frame": "common",
+    "memory": "persistent",
+    "goal": "eventuallyAlways",
+    "task": "IdentifyBlackHole",
+    "symmetryGroup": {
+      "rotations": true,
+      "reflections": false
+    }
+  },
+  "limits": {
+    "states": null,
+    "depth": null
+  },
+  "settings": [
+    {"settings":{"N":3,"site":1},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":4,"reachableComplete":true},
+    {"settings":{"N":3,"site":2},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":7,"reachableComplete":true},
+    {"settings":{"N":4,"site":1},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":4,"reachableComplete":true},
+    {"settings":{"N":4,"site":2},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":7,"reachableComplete":true},
+    {"settings":{"N":4,"site":3},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":10,"reachableComplete":true},
+    {"settings":{"N":5,"site":1},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":4,"reachableComplete":true},
+    {"settings":{"N":5,"site":2},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":7,"reachableComplete":true},
+    {"settings":{"N":5,"site":3},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":10,"reachableComplete":true},
+    {"settings":{"N":5,"site":4},"verdict":"success","reason":"every admissible execution satisfies the task","explored":13,"reachable":13,"reachableComplete":true},
+    {"settings":{"N":6,"site":1},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":4,"reachableComplete":true},
+    {"settings":{"N":6,"site":2},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":7,"reachableComplete":true},
+    {"settings":{"N":6,"site":3},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":10,"reachableComplete":true},
+    {"settings":{"N":6,"site":4},"verdict":"success","reason":"every admissible execution satisfies the task","explored":13,"reachable":13,"reachableComplete":true},
+    {"settings":{"N":6,"site":5},"verdict":"success","reason":"every admissible execution satisfies the task","explored":16,"reachable":16,"reachableComplete":true},
+    {"settings":{"N":7,"site":1},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":4,"reachableComplete":true},
+    {"settings":{"N":7,"site":2},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":7,"reachableComplete":true},
+    {"settings":{"N":7,"site":3},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":10,"reachableComplete":true},
+    {"settings":{"N":7,"site":4},"verdict":"success","reason":"every admissible execution satisfies the task","explored":13,"reachable":13,"reachableComplete":true},
+    {"settings":{"N":7,"site":5},"verdict":"success","reason":"every admissible execution satisfies the task","explored":16,"reachable":16,"reachableComplete":true},
+    {"settings":{"N":7,"site":6},"verdict":"success","reason":"every admissible execution satisfies the task","explored":19,"reachable":19,"reachableComplete":true},
+    {"settings":{"N":8,"site":1},"verdict":"success","reason":"every admissible execution satisfies the task","explored":4,"reachable":4,"reachableComplete":true},
+    {"settings":{"N":8,"site":2},"verdict":"success","reason":"every admissible execution satisfies the task","explored":7,"reachable":7,"reachableComplete":true},
+    {"settings":{"N":8,"site":3},"verdict":"success","reason":"every admissible execution satisfies the task","explored":10,"reachable":10,"reachableComplete":true},
+    {"settings":{"N":8,"site":4},"verdict":"success","reason":"every admissible execution satisfies the task","explored":13,"reachable":13,"reachableComplete":true},
+    {"settings":{"N":8,"site":5},"verdict":"success","reason":"every admissible execution satisfies the task","explored":16,"reachable":16,"reachableComplete":true},
+    {"settings":{"N":8,"site":6},"verdict":"success","reason":"every admissible execution satisfies the task","explored":19,"reachable":19,"reachableComplete":true},
+    {"settings":{"N":8,"site":7},"verdict":"success","reason":"every admissible execution satisfies the task","explored":22,"reachable":22,"reachableComplete":true}
+  ]
+}

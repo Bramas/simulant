@@ -1,0 +1,36 @@
+/-! Library spaces (docs/core-redesign.md, section 2). Design file: today's compiler does not
+accept it. Rings, lines and stars are ordinary definitions over the core graph space; the
+automorphism groups given here are fast paths, checked against the computed group on small
+sizes (section 7). -/
+
+/-- The cycle C_n. Port 0 points clockwise (to v + 1), port 1 counterclockwise (to v - 1).
+
+For n = 2, both ports of a vertex lead to the other vertex: two parallel edges. Black-hole
+search needs this size (`algo0` is the paper's small-ring case, and `algo5Sync` checks that the
+n-agent algorithm fails there), so the target allows repeated vertices in a neighbor list (a
+multigraph port numbering) instead of the separate multigraph space that section 2 suggests.
+See the answers to the open questions. -/
+def Graphs.Cycle (n : Nat) : Space where
+  Vertex := Nat
+  vertices := range n
+  neighbors v := [(v + 1) % n, (v + n - 1) % n]
+  automorphisms := Cycle.dihedral n     -- rotations v ↦ v + j, reflections v ↦ j - v (mod n);
+                                        -- a reflection swaps ports 0 and 1 at every vertex
+
+/-- The infinite discrete line. Port 0 points towards larger coordinates. -/
+def Graphs.Line : Space where
+  Vertex := Int
+  neighbors v := [v + 1, v - 1]
+  automorphisms := .translationsAndReflection   -- required: infinite spaces cannot be enumerated
+
+/-- A star with a center (vertex 0) and `k` leaves (vertices 1..k), k ≥ 1: the non-ring witness
+of Phase 0. The center's port i leads to leaf i + 1; a leaf's only port leads to the center.
+The automorphisms (the permutations of the leaves) are computed. -/
+def Graphs.Star (k : Nat) : Space where
+  Vertex := Nat
+  vertices := range (k + 1)
+  neighbors v := if v = 0 then (range k).map (· + 1) else [0]
+
+-- `Graphs.Dynamic (base : Space) (missing : Nat) : Space` is built in (core.sim-design): at the
+-- start of each round the adversary removes up to `missing` edges of `base`, and forgets them
+-- afterwards. `Graphs.Dynamic (Graphs.Cycle N) 1` is today's `DynamicRing 1`.
