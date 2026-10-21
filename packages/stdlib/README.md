@@ -66,6 +66,8 @@ The TypeScript definitions also supply small models and algorithms for the engin
 
 ## Editing the library
 
+The website's [library reference and model builder](../../docs/architecture.md#public-website) are read from these sources: give every model, component, sensor and task a `/-- … -/` doc comment (its first sentence is the builder's summary), and give a new algorithm output read by a task a type in `outputTypes` (`apps/public-site/src/builder.ts`). `apps/public-site/test/site.test.ts` checks both, and compiles every model family with every task, component and view sensor.
+
 Change the `.sim` sources for library behavior used by projects. When a definition has a builder counterpart covered by conformance tests, update both versions and verify their agreement. Follow the [IR contract](../../docs/ir.md) and [regeneration instructions](../../docs/development.md#generated-files-and-regression-fixtures) for semantic changes.
 
 Register new reusable components in `packages/lean-gen/src/library.ts` and

@@ -22,6 +22,10 @@ node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/s
 # Optional private translations, when the private repository is present
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test projects/private/*/tests/*.test.ts
 
+# Public website: library catalog, builder combinations, custom pieces and guide examples, then the build
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test apps/public-site/test/site.test.ts
+(cd apps/public-site && ../../node_modules/.bin/vite build)
+
 # Public page builds
 (cd projects/starter && ../../node_modules/.bin/vite build web --config web/vite.config.ts)
 (cd projects/black-hole-search && ../../node_modules/.bin/vite build web --config web/vite.config.ts)
@@ -80,6 +84,8 @@ The stand-up rule readability refactor passed all 12 project tests, strict typec
 The shared-robot-library extraction passed 214 ordinary tests (219 total, five optional skips), strict typechecking, runtime and editor builds, the gathering page build and both focused Chromium regressions. All nine gathering check settings passed, and their complete state graphs matched the previous project after normalizing the sparse light representation. New conformance fixtures agree with their hand-written builder counterparts; standalone lights and bounded rotation/reflection checks passed. Lake built `Simulant`, `Examples` and all three gathering models. Bounded TypeScript/Lean comparisons for both new fixtures reported no mismatches across 46 configurations and 571 successors; no new correctness theorem was proved.
 
 The generic-light revision passed 216 ordinary tests (221 total, five optional skips). It uses `Storage.Lights k`, the existing `Faults.CrashAtNode` and the existing `Gathering` task/goal. Palette tests cover one, two, three and five colors, distinct color-set observations, unchanged colors and invalid writes. Strict typechecking, runtime/editor builds, the gathering page build, both focused Chromium regressions and all 57 gathering check settings passed. Lake built `Simulant`, `Examples` and all three gathering models; the generic three-color fixture matched TypeScript and Lean across 27 configurations and 258 successors. The affected private migration, paper-rule and settings tests passed (11 tests), including the bounded checker after replacing its removed model alias. These checks do not prove the unbounded paper theorem.
+
+The 2026-10-19 public-website pages (guide, library reference, model builder) passed 227 ordinary tests with five optional skips (the two Vite plugin tests with `TMPDIR` under `/private/tmp`), strict typechecking and the site build. The six site tests compile every model family with every library task, component and view sensor, and every complete guide example. A Chromium check covered the builder's sensor selection, missing-component fix and in-browser compilation, and the absence of horizontal scrolling at 375 px on every page. The builder's custom pieces (2026-10-19) passed eight site tests, including a draft with a custom component and sensor restored from its `#draft=` JSON, and strict typechecking. A Chromium check at 1280 px and 375 px covered custom pieces in the pickers, a compiling custom draft, diagnostics with their text-area lines, the custom parse-error line, Enter keeping indentation, restoring the state from the link, and no horizontal page scrolling. Type errors in a structured algorithm's statements now point at the statement rather than at the experiment: the lowering's rewriting passes (`stripMem`, `fillActionDefaults`) keep unchanged subtrees, so the elaborator still finds their spans; `packages/lang/test/lower.test.ts` covers the cases with and without memory and actions.
 
 ## Package distribution
 

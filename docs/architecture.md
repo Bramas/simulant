@@ -42,6 +42,7 @@ The IR is versioned JSON. A semantic change updates its types and documentation,
 | `packages/create-simulant/` | Dependency-free initializer and a standalone project template |
 | `lean/Simulant/` | Lean semantic core, generated component library and hand-written lemmas |
 | `apps/preview/` | Minimal development viewer for a `.sim` entry |
+| `apps/public-site/` | Public website: landing page, `.sim` guide, standard-library reference and model builder |
 
 Engine behavior belongs in `packages/engine/`; `packages/core/` is shared infrastructure for projects, the UI and the CLI.
 
@@ -74,6 +75,12 @@ limit stops parameter enumeration at the requested prefix. Batch grouping append
 place; initial-state and successor deduplication use maps while preserving enumeration order.
 
 Symmetries are derived from equivariance declarations on components, sensors and tasks, and the frame model's support for reflection. Automorphisms transform node-valued state and frames. Custom declarations remain claims: bounded equivariance tests and reduced-versus-unreduced comparisons provide evidence, and a general proof requires appropriate Lean lemmas. `symmetries := none` disables reduction.
+
+## Public website
+
+`apps/public-site/` is a multi-page Vite build into `dist/`, next to the public projects' pages: the landing page, a guide to writing models and algorithms (`guide/`), the standard-library reference (`library/`) and a model builder (`builder/`). The reference and the builder are derived from `packages/stdlib/sim/*.sim`, bundled as text and parsed in the browser by the language's own parser, so they cannot drift from the library: signatures, doc comments, attributes, owned fields, flags, actions, hooks and goals come from the sources. Dependencies are inferred from the syntax (`src/stdlib.ts`): the parameters a component's initializers read with `param`, the components owning the world and agent fields a sensor or task reads, and the agent attributes a task reads (`pub.bh`, outputs such as `claim`). The builder writes a `.sim` file from a model family's own signature and compiles it in the browser with the real frontend; a first compilation, with an algorithm that uses no sensor, tells which sensors the model provides. Only the model-level built-ins (topologies, rounds, frames, symmetries) and the types of task outputs are listed by hand.
+
+The builder also takes the user's own code. A text area holds custom sensors, components, tasks and definitions; the builder inserts it after the imports and reads it with the same `readLibrary` as the standard library (`withCustom` in `src/builder.ts`), so custom components join the component picker, custom sensors the view selector and custom tasks the task list, with the same inferred parameters and requirements. While that text does not parse, the page keeps the last catalog that did, so a half-typed declaration does not empty the pickers. A second text area holds the algorithm's procedures and `main`, initially a skeleton that lists the model's sensors and actions; the builder still writes `Pub`, `output` and `init` from the task's outputs unless that text defines them. The page compiles the whole file after every edit (two compilations take a few milliseconds, so there is no debounce). The generated file records where each text area's lines went (`Region`), so a diagnostic shows its line in the file and its line in the text area, and the file view marks the user's lines and the failing ones. An unclosed bracket in the custom text is only noticed at the generated code after it; the custom text is then parsed alone to point at its own line. The whole draft, custom text included, is the JSON of the `#draft=` hash, so a link restores it; custom code makes such links long, which is accepted for a page whose state must stay shareable without a server.
 
 ## Projects and source updates
 

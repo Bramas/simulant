@@ -34,7 +34,7 @@ The [Simulant extension](extensions/vscode-simulant/README.md) provides syntax h
 See the [architecture](docs/architecture.md) for the design and [development guide](docs/development.md) for verification, generated files and known issues.
 
 ```text
-apps/public-site/        public landing page
+apps/public-site/        public website: landing page, guide, library reference, model builder
 packages/lang/           the .sim language: parser, elaborator, IR (docs/ir.md)
 packages/engine/         interpreter of the IR, explorer, symmetry reduction
 packages/stdlib/         standard library: sensors, components, model families, tasks
@@ -55,6 +55,8 @@ scripts/                 public-site build, shared Vite defaults, and conversion
 ```
 
 The [stand-up gathering project](projects/standup-gathering/README.md) compares the paper’s three line-gathering algorithms, with limited visibility, external lights and single-location crashes.
+
+The [public-projects roadmap](docs/public-projects-roadmap.md) plans a broader collection of paper formalizations, starting with graph and ring models. It includes an initial paper catalog, model audits, artifact requirements and a delivery sequence.
 
 Black-hole-search exposes the stable simulation names `black-hole-search-algo0` through `black-hole-search-algo6`. Their settings name the hole's node `site`; settings of the former TypeScript simulations, which called it `BH_node` (shared links, saved settings), are still accepted.
 

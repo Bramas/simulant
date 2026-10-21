@@ -1,37 +1,9 @@
-import { createSignal, For, type JSX } from 'solid-js';
+import { createSignal, For } from 'solid-js';
 import { render } from 'solid-js/web';
 
+import { Code, Footer, highlight, icon, Nav } from './layout';
 import { publicProjects } from './public-projects.mjs';
 import './site.css';
-
-const keywords = [
-  'algorithm', 'uses', 'where', 'init', 'main', 'then', 'else', 'if', 'repeat', 'move', 'stay', 'halt',
-  'experiment', 'model', 'task', 'param', 'agents', 'position', 'output', 'def', 'theorem',
-];
-const keywordPattern = new RegExp(`^(${keywords.join('|')})$`);
-const tokenPattern = new RegExp(
-  `(/-[\\s\\S]*?-/|--.*|".*?"|:=|[{}()[\\].,:]|\\b(?:${keywords.join('|')})\\b|\\b[A-Z][A-Za-z0-9_]*\\b|\\b\\d+\\b)`,
-  'g',
-);
-
-const highlight = (code: string) =>
-  code.split(tokenPattern).filter(Boolean).map((part) => {
-    if (keywordPattern.test(part)) return <span class="tok-keyword">{part}</span>;
-    if (/^(\/-[\s\S]*-\/|--.*)$/.test(part)) return <span class="tok-comment">{part}</span>;
-    if (/^".*"$/.test(part)) return <span class="tok-string">{part}</span>;
-    if (/^[A-Z][A-Za-z0-9_]*$/.test(part)) return <span class="tok-type">{part}</span>;
-    if (/^\d+$/.test(part)) return <span class="tok-number">{part}</span>;
-    if (/^(:=|[{}()[\].,:])$/.test(part)) return <span class="tok-punctuation">{part}</span>;
-    return part;
-  });
-
-const Code = (props: { code: string }) => <pre class="code"><code>{highlight(props.code)}</code></pre>;
-
-const icon = (path: JSX.Element) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    {path}
-  </svg>
-);
 
 const features = [
   {
@@ -63,6 +35,27 @@ const features = [
     title: 'Lean models',
     text: 'Generated from the compiled experiment. Your proofs live beside them.',
     icon: icon(<><path d="M12 3 4 6v6c0 4.5 3.4 8.2 8 9 4.6-.8 8-4.5 8-9V6z" /><path d="m8.5 12 2.5 2.5 4.5-5" /></>),
+  },
+];
+
+const learn = [
+  {
+    title: 'Guide',
+    href: './guide/',
+    text: 'Write an experiment: the model, the algorithm as pseudocode, the task and its parameters.',
+    icon: icon(<><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z" /><path d="M4 19V5M8 7h7M8 11h5" /></>),
+  },
+  {
+    title: 'Standard library',
+    href: './library/',
+    text: 'Model families, components, sensors and tasks, with what each one needs.',
+    icon: icon(<><path d="M4 4h4v16H4zM10 4h4v16h-4z" /><path d="m16 5 3.5-1 3 15.5-3.5 1z" /></>),
+  },
+  {
+    title: 'Model builder',
+    href: './builder/',
+    text: 'Pick library pieces, get a .sim file that compiles, and write the algorithm.',
+    icon: icon(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="14" width="7" height="7" rx="1.5" /><path d="M10 6.5h4.5a3 3 0 0 1 3 3V14" /></>),
   },
 ];
 
@@ -152,16 +145,7 @@ function PolicyDemo() {
 function App() {
   return (
     <>
-      <nav class="nav" aria-label="Main navigation">
-        <a class="brand" href="#top">Simulant</a>
-        <div class="nav-links">
-          <a href="#features">Features</a>
-          <a href="#example">Example</a>
-          <a href="#projects">Projects</a>
-          <a href="#start">Start</a>
-          <a href="https://github.com/bramas/simulant">GitHub</a>
-        </div>
-      </nav>
+      <Nav page="home" root="./" />
 
       <header class="hero" id="top">
         <p class="eyebrow">Mobile-entity algorithms</p>
@@ -171,7 +155,8 @@ function App() {
           explores every execution, and generates its Lean model.
         </p>
         <div class="actions">
-          <a class="button primary" href="#projects">Open a existing project</a>
+          <a class="button primary" href="#projects">Open an existing project</a>
+          <a class="button" href="./guide/">Read the guide</a>
           <a class="button" href="https://github.com/bramas/simulant">View on GitHub</a>
         </div>
         <figure class="screenshot">
@@ -241,6 +226,21 @@ function App() {
           </div>
         </section>
 
+        <section class="section" id="learn">
+          <h2>Learn</h2>
+          <div class="features learn">
+            <For each={learn}>
+              {(item) => (
+                <a class="feature" href={item.href}>
+                  <span class="feature-icon">{item.icon}</span>
+                  <h3>{item.title} <span aria-hidden="true">→</span></h3>
+                  <p>{item.text}</p>
+                </a>
+              )}
+            </For>
+          </div>
+        </section>
+
         <section class="section" id="start">
           <h2>Start a project</h2>
           <p class="section-lead">
@@ -253,12 +253,7 @@ function App() {
         </section>
       </main>
 
-      <footer class="footer">
-        <span>Simulant · CeCILL-B · Quentin Bramas</span>
-        <span>
-          Please cite: F. Bonnet, Q. Bramas, A. Lamani. <em>Searching for an Eventually-Emerging Black Hole in Rings</em>, SAND 2026.
-        </span>
-      </footer>
+      <Footer />
     </>
   );
 }

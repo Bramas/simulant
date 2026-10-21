@@ -380,11 +380,21 @@ function stripMem(e: Expr): Expr {
     ? { ...x, fields: { ...x.fields, mem: { e: 'var', name: 'mem' } } } : x);
 }
 
+/**
+ * Applies `f` bottom-up. Unchanged subtrees are kept, not copied: the elaborator finds the
+ * source span of an expression by its identity, and diagnostics need the spans of the
+ * translated statements.
+ */
 function mapExprs(e: Expr, f: (x: Expr) => Expr): Expr {
   const walk = (x: unknown): unknown => {
     if (!x || typeof x !== 'object') return x;
-    if (Array.isArray(x)) return x.map(walk);
-    const o = Object.fromEntries(Object.entries(x as object).map(([k, v]) => [k, walk(v)]));
+    if (Array.isArray(x)) {
+      const items = x.map(walk);
+      return items.some((v, i) => v !== x[i]) ? items : x;
+    }
+    const entries = Object.entries(x as object);
+    const walked = entries.map(([k, v]) => [k, walk(v)] as const);
+    const o = walked.some(([, v], i) => v !== entries[i][1]) ? Object.fromEntries(walked) : x;
     return typeof (o as { e?: unknown }).e === 'string' ? f(o as Expr) : o;
   };
   return walk(e) as Expr;

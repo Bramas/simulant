@@ -349,3 +349,41 @@ algorithm A uses ringPresence where
   // Explaining evaluates nothing in the step's normal evaluation: the lines are display only.
   assert.deepEqual(sys.successors(C).map(s => s.key), next.map(s => s.key));
 });
+
+test('type errors in statements point at the statement, with or without memory and actions', () => {
+  const at = (source: string) => Object.values(compileSource(source)).flatMap(r => r.diagnostics.map(d => [d.span?.start.line, d.span?.start.col, d.message]));
+  const position = (source: string, text: string) => {
+    const lines = source.split('\n');
+    const line = lines.findIndex(l => l.includes(text));
+    return [line + 1, lines[line].indexOf(text) + 1];
+  };
+
+  // No memory: the step loses its program counter after lowering.
+  const oblivious = ROBOTS(`
+algorithm A uses ringPresence where
+  main :=
+    if ringPresence.at 1 then stay
+    else move .up
+`);
+  assert.deepEqual(at(oblivious), [[...position(oblivious, '.up'), 'A.step: .up is not a value of type Move']]);
+
+  // Memory and actions: decisions that omit an action get its default after lowering.
+  const pebbles = `import "std/models.sim"
+import "std/tasks.sim"
+algorithm A uses pebblesHere where
+  main :=
+    stay with { pebble := .drop }
+    move .cw with { pebble := .grab }
+    halt
+experiment e where
+  model := blackHoleRing .none .unknown (extra := [Storage.Pebbles])
+  algorithm := A
+  task := Gathering
+  param N : Nat in [3]
+  param site : Node in [node 0]
+  agents := 1
+  position i := node 0
+`;
+  const [diagnostic] = at(pebbles);
+  assert.deepEqual(diagnostic.slice(0, 2), position(pebbles, '.grab'));
+});
