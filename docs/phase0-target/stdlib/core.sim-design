@@ -77,9 +77,9 @@ inductive Symmetries | derived | none
 -- stay, halt, wait n, with { … }, repeat, while, if, let, procedures (unchanged).
 --
 -- `Loc` values are round-local: the typechecker rejects them in Pub, Mem, outputs, component
--- fields and kept locals, as it rejects `Agent`. `xs.at i` on a `List Loc` returns `here` when
--- `i` is out of range (so `move (port 3)` at a node of degree 2 stays, as a missing dynamic edge
--- does); see the answers to the open questions.
+-- fields and kept locals, as it rejects `Agent`. `xs.at i` on a `List Loc` beyond its end is an
+-- error, as for any list (so `move (port 3)` at a node of degree 2 is reported, not ignored);
+-- see decision 3 at the end of docs/core-redesign.md.
 
 -- ---------------------------------------------------------------------------
 -- Configurations, inside components and tasks (section 7)

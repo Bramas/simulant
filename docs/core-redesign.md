@@ -22,7 +22,7 @@ Blocks tagged `sim-design` show the target language. Their syntax is a proposal,
 Three rules carry the design:
 
 1. **An algorithm sees locations, their order and sensor values, nothing else.** Locations cannot be stored: the typechecker forbids `Loc` in memory, public state, outputs and component fields, as it already forbids `Agent`. To remember a neighbor, an agent stores its index in `neighbors here`, which is a port number when the frames keep ports.
-2. **Sensors are the only access to the physical snapshot.** A sensor receives the Look and, for per-location sensors, a location. Its result type cannot contain `Pos` or `Agent`, so physical positions and agent references cannot reach an algorithm.
+2. **Sensors are the only access to the physical snapshot.** A sensor receives the Look and, for per-location sensors, a location. Its result type cannot contain `Pos` or `Agent`, so physical positions and agent references cannot reach an algorithm. `Pos` is opaque outside experiments and space definitions: sensors, components and tasks compare, store and pass positions, but cannot unwrap them into vertex numbers. In settings, saved links and `checkSettings`, a `Pos` parameter is written as its vertex (`site: 3`).
 3. **The model author declares only the morphisms.** The ordering that hides physical identities is part of the semantics (section 3), never written in a `.sim` file.
 
 The visible domain decides which locations exist: which ones can be queried and moved to. Sensors decide what is known about them. A black-hole agent, for example, sees its two neighbors (so it can move to them), but its sensors report only about its own node. The size of the visible domain is itself information: a full view of a cycle reveals its size, and the model view says so.
@@ -36,7 +36,8 @@ The core provides two kinds of spaces. Everything else is a `.sim` definition.
 A graph space gives its vertex type and an ordered neighbor list for each vertex. The vertex type is `Nat`, `Int` or a structure of them. Positions wrap vertices (`pos v`), so a `Pos` is never confused with a number. Vertex sets may be infinite as long as every neighborhood is finite.
 
 ```sim-design
-/-- The cycle C_n, n ≥ 3. Port 0 points clockwise, port 1 counterclockwise. -/
+/-- The cycle C_n, n ≥ 2. Port 0 points clockwise, port 1 counterclockwise. For n = 2, both
+ports lead to the other vertex. -/
 def Graphs.Cycle (n : Nat) : Space where
   Vertex := Nat
   vertices := range n
@@ -56,7 +57,9 @@ def Graphs.Star (k : Nat) : Space where
   neighbors v := if v = 0 then (range k).map (· + 1) else [0]
 ```
 
-Grids, tori and paths are defined the same way. A grid with a compass uses the port order N, E, S, W. Requiring n ≥ 3 for `Graphs.Cycle` replaces the old two-node ring; a two-node cycle with two parallel edges would be a separate multigraph space.
+Grids, tori and paths are defined the same way. A grid with a compass uses the port order N, E, S, W.
+
+A neighbor list may repeat a vertex: the graph is then a multigraph, with one edge per port. `Graphs.Cycle 2` is the two-node cycle with two parallel edges, which `algo0` and `algo5Sync` check today. Consequences: `neighbors l` may list a location twice, r-hop views keep parallel edges, and an automorphism acts on ports as well as on vertices. The reflection of C₂ fixes both vertices and swaps the two ports, so the port permutation of an automorphism is part of it, not derived from its vertex map.
 
 **Dynamic graphs** wrap a space with an edge policy. At the start of each round the adversary chooses the missing edges, as today's `DynamicRing k` does, and forgets them afterwards:
 
@@ -202,7 +205,7 @@ An algorithm reads:
 - `distance a b : Nat`;
 - its sensors, applied to locations (`occupied l`).
 
-All lists come in the order of section 3. On a graph, `move l` goes to a visible location `l`. The movement model decides which destinations are allowed: `here` or one of its neighbors for `.alongEdges`. A missing dynamic edge leaves the agent in place. `stay`, `halt`, `wait`, `with { ... }`, structured procedures and the lowering to a state machine are unchanged.
+All lists come in the order of section 3. Indexing a list of locations beyond its end is an error, as indexing any list is today: `port 1` at a star's leaf stops the execution with a diagnostic rather than leaving the agent in place. Algorithms cannot read experiment parameters, which reach only the model and the initial values. On a graph, `move l` goes to a visible location `l`. The movement model decides which destinations are allowed: `here` or one of its neighbors for `.alongEdges`. A missing dynamic edge leaves the agent in place. `stay`, `halt`, `wait`, `with { ... }`, structured procedures and the lowering to a state machine are unchanged.
 
 A generic algorithm that runs on the star, a cycle or a grid:
 
@@ -224,7 +227,9 @@ def Ring.ccw : Loc := (neighbors here).at 1
 def port (i : Nat) : Loc := (neighbors here).at i   -- under Frames.identity: the space's port i
 ```
 
-Structural helpers use `distance` and `neighbors`, never a numbering convention. For example, `Line.window phi : List Loc` returns the visible locations ordered from one end to the other: the location at offset `k` is the one at distance `|k|` on the side of `(neighbors here).at 0` (for `k > 0`) or of `(neighbors here).at 1` (for `k < 0`).
+Structural helpers use `distance` and `neighbors`, never a numbering convention. For example, `Line.window : List Loc` returns the visible locations ordered from one end to the other: the location at offset `k` is the one at distance `|k|` on the side of `(neighbors here).at 0` (for `k > 0`) or of `(neighbors here).at 1` (for `k < 0`). Its radius is read from the view, (|visible| − 1) / 2, since an algorithm cannot read `phi`.
+
+A definition that reads `here`, `visible`, `neighbors`, `distance` or a sensor is *algorithm-local*. The typechecker infers this from its body. Such a definition is evaluated in the calling agent's Look, can be called only from algorithms and other algorithm-local definitions, and may return `Loc` values, which the caller cannot store. Every sensor it reads must be one the calling algorithm `uses`, checked transitively at the call. Sensors can be passed where a function is expected (`Line.window.map colors`).
 
 The starter's cautious pair, on a cycle with chirality. The stored claim is a port index:
 
@@ -255,7 +260,7 @@ Stand-up gathering keeps its rules, applied to the same lists as today, now buil
 ```sim-design
 algorithm TwoColors uses colors where
   main :=
-    let v := paperView ((Line.window phi).map colors)
+    let v := paperView (Line.window.map colors)
     let vm := mirrored v
     if colorXIn v then
       move Ring.cw
@@ -335,7 +340,7 @@ def Faults.CrashAt : Component where
 - `C.resolve a i`: the neighbor of `a.pos` at the agent's port `i`;
 - `C.follow a i k`: the position reached from `a.pos` by taking the agent's port `i` `k` times. On a cycle, this is `k` steps in one direction.
 
-Both are errors under per-Look frames, where a local port has no lasting meaning.
+Both are errors under per-Look frames, where a local port has no lasting meaning, and when the port does not exist. `C.follow` takes the agent's port `i` at every vertex it passes, which means "keep going" only on spaces with consistent ports.
 
 ```sim-design
 task IdentifyBlackHole (C : Config) : Verdict :=
@@ -357,7 +362,7 @@ task IdentifyEmergingBlackHoleAt (C : Config) : Verdict :=
 - its action maps the admissible frame choices, and their evolution, onto themselves;
 - components and the task are equivariant under it, as their `@[equivariant]` claims state.
 
-An automorphism `g` induces a permutation `ρ` of port numbers on spaces with consistent ports. A robot's kept permutation `p` becomes `p` composed with `ρ`, which must still be allowed:
+An automorphism `g` carries a permutation `ρ` of port numbers on spaces with consistent ports (on multigraphs, `ρ` is part of `g`). A robot's kept permutation `p` becomes `p` composed with `ρ`, which must still be allowed:
 
 | Frames | Kept automorphisms |
 | --- | --- |
@@ -367,7 +372,7 @@ An automorphism `g` induces a permutation `ρ` of port numbers on spaces with co
 
 In the simulator, the physical-id reference ordering is not invariant under automorphisms. Reduction is therefore exact only for algorithms that do not rely on the order of non-symmetric locations, which is the condition of the warning in section 3. The conformance suite's comparison of reduced and unreduced explorations detects violations on its fixtures.
 
-The automorphism acts on every `Pos` value in the state and on the robots' kept permutations. The core computes the group of a finite graph. A space can give a fast path (`Cycle.dihedral`); tests check it against the computed group on small sizes. Infinite spaces must give their group: translations and reflection on the line. On the infinite line, quotienting by translations is what keeps the reachable state space finite when agents stay within a bounded spread. Components and tasks still declare equivariance (`@[equivariant]`, now meaning "under the space's automorphisms"). Bounded tests check those claims, and the conformance suite compares reduced and unreduced explorations. `symmetries := .none` remains available.
+The automorphism acts on every `Pos` value in the state and on the robots' kept permutations. The core computes the group of a finite graph. A space can give a fast path (`Cycle.dihedral`); tests check it against the computed group on small sizes. Infinite spaces must give their group: translations and reflection on the line. On the infinite line, quotienting by translations is what keeps the reachable state space finite when agents stay within a bounded spread. Components and tasks still declare equivariance. `@[equivariant]` now means "under the automorphisms that the model's frames keep": a task that reads a claimed port through `C.resolve` is not equivariant under a reflection of a chiral cycle, but it is under every automorphism `Frames.identity` keeps. Today's `@[equivariant rotations]` on the black-hole tasks becomes `@[equivariant]`. Because `Pos` is opaque, sensors cannot leak positions, and every claim concerns components and tasks only. Bounded tests check those claims, and the conformance suite compares reduced and unreduced explorations. `symmetries := .none` remains available.
 
 ## 8. Model families and experiments
 
@@ -389,9 +394,9 @@ def robots (space : Space) (observe : Observation) (frames : Frames)
 
 /-- Black-hole search: agents with chirality that see co-located agents' states. -/
 def blackHoleRobots (space : Space) (policy : HolePolicy) (size : SizeKnowledge)
-    (extra : List Component := []) (round : Round := .fsync) : Model :=
+    (extra : List Component := []) (view : Sensor := otherStates) (round : Round := .fsync) : Model :=
   robots space (Observe.radius 1) Frames.identity
-    ([otherStates] ++ (if size = .known then [spaceSize] else []))
+    ([view] ++ (if size = .known then [spaceSize] else []))
     (components := [Hazards.BlackHole policy] ++ extra) (memory := .persistent) (round := round)
 ```
 
@@ -441,7 +446,8 @@ experiment starGathering where
   algorithm := ToHub
   task := Gathering
   param k : Nat in [2, 3, 4]
-  param start : List Nat where start.length = 3 ∧ start.all (· ≤ k)
+  param start : List Nat in (range ((k + 1) * (k + 1) * (k + 1))).map fun c =>
+    [c % (k + 1), c / (k + 1) % (k + 1), c / ((k + 1) * (k + 1))]
   agents := 3
   position i := pos (start.at i)
 ```
@@ -482,7 +488,7 @@ Each step ends with its package's tests passing. The legacy code is deleted as e
 
 Lean export is unavailable between steps 1 and 6. Record this under "Known issues" in `docs/development.md` for that period.
 
-### Open questions for step 0
+### Step 0 answers and decisions
 
 Proposed answers, written with the target sources in [`docs/phase0-target/`](phase0-target/README.md) and the baselines in [`tests/fixtures/phase0-baselines/`](../tests/fixtures/phase0-baselines/README.md). The inventory of the private projects remains to be done in their own repository.
 
@@ -513,11 +519,11 @@ structure Lawful (ord : (o : S.Pos) → List S.Pos) : Prop where
 
 Here `ViewIso keepPorts` is an isomorphism of the r-hop views that maps observer to observer and, when the frames keep ports, preserves the port numbering at the observer. A lawful ordering is a canonical labelling of views, and the morphism then permutes indices by an automorphism of the presented structure. The generator makes `ord` a parameter of the round. `Statement` quantifies over every `ord` with `Lawful ord`. Differential tests instantiate it with the simulator's physical-id ordering, `(S.visible r o).mergeSort` on a `LinearOrder` that the space supplies for its vertices, and only evaluate it: the round never uses `Lawful`, so the comparison needs no proof that the instance is lawful, which it is not in general. Lemmas that this ordering is lawful on lines, on radius-1 views of cycles and under port-based frames let proofs about those models reuse it.
 
-**Do `C.resolve` and `C.follow` cover the black-hole tasks?** Yes. `IdentifyBlackHole` and `IdentifyEmergingBlackHole` interpret `claim : Option Nat` with `C.resolve`; `IdentifyEmergingBlackHoleAt` interprets `claimPort` and `claimSteps` with `C.follow`. That covers `algo0`, `algo4` (port and distance), `algo5` (always the clockwise port, at a distance computed from its own node count) and the 2-node cycle ([`tasks.sim-design`](phase0-target/stdlib/tasks.sim-design)). `C.resolve a i` is `C.follow a i 1`, kept as the readable form. `C.follow` takes the agent's port i at every vertex it passes, which means "keep going" only on spaces with consistent ports; the documentation should say so. Out of range, both return the last position reached, as a missing port leaves an agent in place. `IdentifyEmergingBlackHole` (claims next to the node), absent from section 7, is ported too. The private projects must be checked against this in their inventory.
+**Do `C.resolve` and `C.follow` cover the black-hole tasks?** Yes. `IdentifyBlackHole` and `IdentifyEmergingBlackHole` interpret `claim : Option Nat` with `C.resolve`; `IdentifyEmergingBlackHoleAt` interprets `claimPort` and `claimSteps` with `C.follow`. That covers `algo0`, `algo4` (port and distance), `algo5` (always the clockwise port, at a distance computed from its own node count) and the 2-node cycle ([`tasks.sim-design`](phase0-target/stdlib/tasks.sim-design)). `C.resolve a i` is `C.follow a i 1`, kept as the readable form. `C.follow` takes the agent's port i at every vertex it passes, which means "keep going" only on spaces with consistent ports; the documentation should say so. Out of range, both are errors (decision 3 below). `IdentifyEmergingBlackHole` (claims next to the node), absent from section 7, is ported too. The private projects must be checked against this in their inventory.
 
 **Normalization of the baselines.** The baselines store no configurations, only verdicts, counterexample lengths, counts and decisions, so multiset order never enters them. Counts are over canonical keys: sorted anonymous agents under FSYNC, agent identities kept under SSYNC (`algo6Async`), as the target must also do. Settings keep today's coordinates: node i of `Ring N` is vertex i of `Graphs.Cycle N`, and `.cw` is port 0 under `Frames.identity`. The derived groups agree (rotations for common chirality and for `Frames.identity`), so cycle counts must match exactly. The stand-up models also record their reachable configurations up to translations and the reflection of the line, with lights read per agent rather than per internal slot (`reachableLineOrbits`). That is what the target stores on `Graphs.Line`, and step 4 compares against it. A `failure` counterexample is a shortest path and must match in length. A lasso's reported length depends on how the explorer numbers states, so the baselines add a canonical `minStem`: the smallest depth of a state on a bad strongly connected component. Step 4 compares the verdict, the kind and `minStem`. Stand-up decisions are recorded relative to the view (towards larger or smaller indices of the window), which does not depend on the morphism. The details are in the baselines' README.
 
-**Changes to sections 2–8 found while writing the target sources.**
+**Changes to sections 2–8 found while writing the target sources.** All are adopted and written into sections 1–8, with the decision noted in item 3.
 
 1. *Two-node cycles are needed.* `algo0` is the paper's small-ring algorithm and checks N = 2, and `algo5Sync` checks that the n-agent algorithm fails on N = 2. Section 2's n ≥ 3 would drop these settings. Proposal: neighbor lists may repeat a vertex (multigraph ports), and `Graphs.Cycle n` accepts n ≥ 2, its two ports leading to the same vertex when n = 2. Consequences:
    - `neighbors l` may list a location twice;
@@ -526,7 +532,7 @@ Here `ViewIso keepPorts` is an isomorphism of the r-hop views that maps observer
 
    The alternative, a separate multigraph space for this one size, would duplicate the cycle's helpers and fast paths.
 2. *Algorithms cannot read parameters,* since parameters reach only the model and the initial values, and graph sharing relies on that. `Line.window phi` (section 5) therefore becomes `Line.window`, whose radius is read from the view itself: (|visible| − 1) / 2 on `Graphs.Line`.
-3. *Indexing a list of locations needs a default.* `(neighbors here).at i` beyond the degree, as in `port 1` at a star's leaf, returns `here`. A move to a missing port then stays, as a move through a missing dynamic edge does. Lean uses the same default (`getD here`), so the interpreter and the generated model agree.
+3. *Indexing a list of locations beyond its end.* Proposed: return `here`, so a move to a missing port stays. Decided instead: an error, as for any list today (the interpreter throws on an out-of-range `.at`), so that a wrong port is reported rather than hidden. Lean keeps its usual default; a model that runs in the simulator never reaches it.
 4. *`@[equivariant]` is relative to the frames.* A task that reads a claimed port through `C.resolve` is not equivariant under a reflection of the cycle when the claim is not transformed with it. It is equivariant under every automorphism the frames keep, since the automorphism also acts on the robots' kept permutations. `@[equivariant]` should therefore mean "under the automorphisms that the model's frames keep" (section 7 says "under the space's automorphisms"). Today's `@[equivariant rotations]` on the black-hole tasks becomes `@[equivariant]`.
 5. *`Pos` is opaque outside experiments and spaces.* Sensors, components and tasks compare, store and pass positions, but cannot unwrap them, or a sensor could leak a vertex number in a `Nat`. Everything they compute is then equivariant by construction, and claims remain only for code that a later phase lets unwrap positions. Phase 0 keeps the claims on components and tasks, as section 7 says. In settings, saved links and `checkSettings`, a `Pos` parameter is written as its vertex (`site: 3`).
 6. *`blackHoleRobots` keeps a `view` argument* (default `otherStates`), as `blackHoleRing` has today, so that a lossy view that implements `otherStates` can replace it.

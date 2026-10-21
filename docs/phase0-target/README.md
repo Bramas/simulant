@@ -23,7 +23,7 @@ The algorithms keep their logic. A mechanical comparison (translate the target b
 - Black-hole search runs under `Frames.identity`: port 0 is clockwise for every agent, as `.cw` is today. `move .cw` becomes `move Ring.cw` (`port 0`); a stored direction `dir : Move` becomes a port index `dir : Nat`, moved through with `move (port dir)`; `dir.opposite` becomes `Port.opposite dir`; the constants `.cw`/`.ccw` stored in public states become `Port.cw`/`Port.ccw`. Claims are port indices, which the tasks interpret with `C.resolve` and `C.follow`. The outputs `claimDir`/`bhDir` are renamed `claimPort`/`bhPort`. `ringSize` becomes `spaceSize`.
 - Stand-up gathering keeps every guard unchanged. `lineView` and `colorView` become algorithm-local definitions of the project that map the per-location sensors `occupied` and `colors` over `Line.window`. The project's own `occupied` helper is renamed `occupiedAt`, because the library sensor now has that name. The `light` action becomes `setLight`, because `light` is now the agent field. The experiments lose `N`, `fitsLine` and the `LineDomain` component; positions are `List Int` and `crashNode` is a `Pos`.
 
-Where writing these files showed that the design needs a change, the change is listed with the answers to the open questions at the end of [core-redesign.md](../core-redesign.md#open-questions-for-step-0).
+Where writing these files showed that the design needs a change, the change is listed in the step 0 answers and decisions at the end of [core-redesign.md](../core-redesign.md#step-0-answers-and-decisions), and written into its sections 1–8.
 
 ## Baselines
 

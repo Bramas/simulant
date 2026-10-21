@@ -16,7 +16,7 @@ def Port.ccw : Nat := 1
 /-- The other port of a vertex of degree 2 (today's `Move.opposite`). -/
 def Port.opposite (p : Nat) : Nat := 1 - p
 
-/-- The neighbor behind my port `i`; `here` when I have no port `i`. -/
+/-- The neighbor behind my port `i`. Indexing beyond my degree is an error, as for any list. -/
 def port (i : Nat) : Loc := (neighbors here).at i
 
 /-- Under `Frames.identity`: the clockwise neighbor. Under `Frames.isomorphisms`: whichever
