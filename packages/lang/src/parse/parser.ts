@@ -257,12 +257,11 @@ export class Parser {
       if (output) this.next();
       if (this.is('param')) {
         // `param N : Nat in domain where predicate` (both clauses optional).
-        // Keep `:=` as an alias for the original finite-domain syntax.
         this.next();
         const name = this.ident();
         this.expect(':');
         const type = this.type();
-        const value: SExpr = this.is('in') || this.is(':=') ? (this.next(), this.expr()) : { t: 'nothing', span: this.span(start) };
+        const value: SExpr = this.is('in') ? (this.next(), this.expr()) : { t: 'nothing', span: this.span(start) };
         const accepts = this.is('where') ? (this.next(), this.expr()) : undefined;
         items.push({ name, args: [], value, span: this.span(start), param: { type, ...(accepts ? { accepts } : {}) } });
         return;

@@ -6,8 +6,10 @@ import type { Snapshot } from './snapshot';
 export type ModelInfo = {
   experiment: string;
   algorithm: string;
-  /** Ring size. */
+  /** The number of vertices of a finite space (0 for an infinite one). */
   size: number;
+  /** The space's name (`Graphs.Cycle`, `Graphs.Line`, ...). */
+  space: string;
   params: Record<string, unknown>;
   components: string[];
 };

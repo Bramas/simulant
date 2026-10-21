@@ -22,7 +22,7 @@ export type AlgorithmSource = {
 
 /** A declaration as written, with the doc comment and attributes before it, numbered as in its file. */
 export type SourceExcerpt = {
-  kind: 'experiment' | 'model' | 'component' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition';
+  kind: 'experiment' | 'model' | 'space' | 'component' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition';
   name: string;
   file?: string;
   lines: { number: number; text: string }[];

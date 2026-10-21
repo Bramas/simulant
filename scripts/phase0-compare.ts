@@ -1,21 +1,23 @@
 /**
  * Compares the generic core with the Phase 0 baselines (tests/fixtures/phase0-baselines/):
  *
- *   node --import tsx scripts/phase0-compare.ts [--only cautiousPair,algo1,decisions] [--sources docs/phase0-target]
+ *   node --import tsx scripts/phase0-compare.ts [--only cautiousPair,algo1,decisions]
  *
- * For each setting of each baseline experiment: the verdict, and the number of states the check
- * explored up to symmetry (on the line: the reachable configurations up to translations and
- * the mirror image, `reachableLineOrbits`). For the stand-up rules: the decision on every
- * recorded view, from a Look on the line under the identity morphism. `--sources` points at the
- * target sources (`.sim-design` files) until the projects are ported (step 4).
+ * For each setting of each baseline experiment: the verdict, the counterexample (a failure's
+ * length; a lasso's kind and, under FSYNC, its canonical `minStem`), and the number of states
+ * the check explored up to symmetry (on the line: the reachable configurations up to
+ * translations and the mirror image, `reachableLineOrbits`). For the stand-up rules: the decision on every
+ * recorded view, from a Look on the line under the identity morphism. The sources are the
+ * public projects' `.sim` files.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { compile } from '@bramas/simulant-lang/elab/elaborate';
 import { nodeHost } from '@bramas/simulant-lang/elab/node';
 import { Program } from '@bramas/simulant-lang/elab/program';
 import type { Experiment } from '@bramas/simulant-lang/ir';
-import { checkSetting } from '@bramas/simulant-engine/check';
+import { withExperimentLimits } from '@bramas/simulant-engine/check';
+import { Explorer } from '@bramas/simulant-engine/explorer';
 import { Symmetry } from '@bramas/simulant-engine/symmetry';
 import { System, type Config } from '@bramas/simulant-engine/system';
 
@@ -23,19 +25,67 @@ const root = new URL('..', import.meta.url).pathname;
 const args = process.argv.slice(2);
 const option = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
 const only = option('--only')?.split(',');
-const sources = join(root, option('--sources') ?? 'docs/phase0-target');
 const baselines = join(root, 'tests/fixtures/phase0-baselines');
 
 const host = nodeHost();
-const read = (p: string) => host.read(p) ?? (p.endsWith('.sim') && existsSync(`${p}-design`) ? host.read(`${p}-design`) : undefined);
 function load(file: string, name: string): Experiment {
-  const r = compile(new Program({ ...host, read }, join(sources, file))).experiments[name];
+  const r = compile(new Program(host, join(root, 'projects', file))).experiments[name];
   if (!r?.experiment) throw new Error(`${file} ${name}: ${r?.diagnostics.map(d => d.message).join('\n') ?? 'missing'}`);
   return r.experiment;
 }
 
-type Setting = { settings: Record<string, unknown>; verdict: string; explored: number; reachableLineOrbits?: number };
+type Counterexample = { kind: string; length: number; minStem?: number };
+type Setting = { settings: Record<string, unknown>; verdict: string; counterexample?: Counterexample; explored: number; reachableLineOrbits?: number };
 type Baseline = { limits?: { states: number | null; depth: number | null }; settings: Setting[] };
+
+/**
+ * The smallest breadth-first depth of a state on a nontrivial strongly connected component of the
+ * explored graph containing a non-successful state (as in scripts/phase0-baselines.ts).
+ */
+function lassoStem(explorer: Explorer): number | undefined {
+  const { states } = explorer;
+  const goal = explorer.system.exp.task.goal;
+  const inGraph = (i: number) => !!states[i].succ && (goal === 'eventually' ? states[i].verdict !== 'success' : true);
+  const index = new Int32Array(states.length).fill(-1), low = new Int32Array(states.length);
+  const onStack = new Uint8Array(states.length);
+  const stack: number[] = [];
+  let counter = 0, best: number | undefined;
+  for (let r = 0; r < states.length; r++) {
+    if (!inGraph(r) || index[r] >= 0) continue;
+    const work: [number, number][] = [[r, 0]];
+    index[r] = low[r] = counter++; stack.push(r); onStack[r] = 1;
+    while (work.length) {
+      const top = work[work.length - 1];
+      const [u, i] = top;
+      const succ = states[u].succ!;
+      if (i < succ.length) {
+        top[1]++;
+        const v = succ[i];
+        if (!inGraph(v)) continue;
+        if (index[v] < 0) { index[v] = low[v] = counter++; stack.push(v); onStack[v] = 1; work.push([v, 0]); }
+        else if (onStack[v]) low[u] = Math.min(low[u], index[v]);
+        continue;
+      }
+      work.pop();
+      if (work.length) { const p = work[work.length - 1][0]; low[p] = Math.min(low[p], low[u]); }
+      if (low[u] !== index[u]) continue;
+      const scc: number[] = [];
+      let w: number;
+      do { w = stack.pop()!; onStack[w] = 0; scc.push(w); } while (w !== u);
+      const nontrivial = scc.length > 1 || states[u].succ!.includes(u);
+      if (!nontrivial || !scc.some(s => states[s].verdict !== 'success')) continue;
+      const depth = Math.min(...scc.map(s => states[s].depth));
+      best = best === undefined ? depth : Math.min(best, depth);
+    }
+  }
+  return best;
+}
+
+/** What a counterexample is compared on: a failure's length, a lasso's kind and minStem. */
+function shape(c: Counterexample | undefined): string {
+  if (!c) return 'none';
+  return c.kind === 'failure' ? `failure of length ${c.length}` : `lasso${c.minStem === undefined ? '' : ` with minStem ${c.minStem}`}`;
+}
 
 /** Reachable configurations up to the derived group (no pruning by the goal). */
 function reachable(system: System, max = 300000): number {
@@ -61,11 +111,16 @@ async function experiment(file: string, name: string, baseline: string, line = f
     const settings = { ...s.settings };
     if (!exp.params.some(p => p.name === 'N')) delete settings.N;
     try {
-      const got = await checkSetting(exp, settings, { maxStates: base.limits?.states ?? undefined, maxDepth: base.limits?.depth ?? undefined });
-      const count = line ? reachable(new System(exp, settings)) : got.stats.states;
+      const system = new System(exp, settings);
+      const explorer = new Explorer(system, withExperimentLimits(exp, { maxStates: base.limits?.states ?? undefined, maxDepth: base.limits?.depth ?? undefined }));
+      const got = explorer.run();
+      const cx = got.counterexample;
+      const stem = cx?.kind === 'lasso' && exp.model.round === 'fsync' ? lassoStem(explorer) : undefined;
+      const counterexample = shape(cx && { kind: cx.kind, length: cx.steps.length - 1, ...(stem === undefined ? {} : { minStem: stem }) });
+      const count = line ? reachable(system) : got.stats.states;
       const expected = line ? s.reachableLineOrbits : s.explored;
-      if (got.status === s.verdict && count === expected) same++;
-      else diffs.push(`${JSON.stringify(settings)}: ${got.status}, ${count}; baseline ${s.verdict}, ${expected}`);
+      if (got.status === s.verdict && counterexample === shape(s.counterexample) && count === expected) same++;
+      else diffs.push(`${JSON.stringify(settings)}: ${got.status}, ${counterexample}, ${count}; baseline ${s.verdict}, ${shape(s.counterexample)}, ${expected}`);
     } catch (e) {
       diffs.push(`${JSON.stringify(settings)}: ${(e as Error).message}`);
     }
@@ -99,7 +154,7 @@ function decisions(): number {
     total++;
     if (expected !== got && ++bad <= 10) console.log(`  ${what}: expected ${expected}, got ${got}`);
   };
-  for (const [file, name] of [['standup-gathering/h-plus-three.sim', 'hPlusThree'], ['standup-gathering/h-plus-one.sim', 'hPlusOne']] as const) {
+  for (const [file, name] of [['standup-gathering/sim/h-plus-three.sim', 'hPlusThree'], ['standup-gathering/sim/h-plus-one.sim', 'hPlusOne']] as const) {
     const exp = load(file, name);
     for (const [rs, codes] of Object.entries(table[name].byRadius as Record<string, string>)) {
       const r = Number(rs);
@@ -110,7 +165,7 @@ function decisions(): number {
       }
     }
   }
-  const exp = load('standup-gathering/two-colors.sim', 'twoColors');
+  const exp = load('standup-gathering/sim/two-colors.sim', 'twoColors');
   const SETS = [[], [0], [1], [0, 1]];
   for (const [rs, codes] of Object.entries(table.twoColors.byRadius as Record<string, string>)) {
     const r = Number(rs);
@@ -129,16 +184,16 @@ function decisions(): number {
 }
 
 const table: [string, string, string, boolean?][] = [
-  ['starter/main.sim', 'cautiousPair', 'starter/cautiousPair.json'],
-  ...['algo0', 'algo1', 'algo2', 'algo3', 'algo4'].map(a => [`black-hole-search/${a}.sim`, a, `black-hole-search/${a}.json`] as [string, string, string]),
-  ['black-hole-search/algo5.sim', 'algo5Sync', 'black-hole-search/algo5Sync.json'],
-  ['black-hole-search/algo6.sim', 'algo6Sync', 'black-hole-search/algo6Sync.json'],
-  ['black-hole-search/algo5.sim', 'algo5', 'black-hole-search/algo5.json'],
-  ['black-hole-search/algo6.sim', 'algo6', 'black-hole-search/algo6.json'],
-  ['black-hole-search/algo6.sim', 'algo6Async', 'black-hole-search/algo6Async.json'],
-  ['standup-gathering/h-plus-one.sim', 'hPlusOne', 'standup-gathering/hPlusOne.json', true],
-  ['standup-gathering/h-plus-three.sim', 'hPlusThree', 'standup-gathering/hPlusThree.json', true],
-  ['standup-gathering/two-colors.sim', 'twoColors', 'standup-gathering/twoColors.json', true],
+  ['starter/src/main.sim', 'cautiousPair', 'starter/cautiousPair.json'],
+  ...['algo0', 'algo1', 'algo2', 'algo3', 'algo4'].map(a => [`black-hole-search/sim/${a}.sim`, a, `black-hole-search/${a}.json`] as [string, string, string]),
+  ['black-hole-search/sim/algo5.sim', 'algo5Sync', 'black-hole-search/algo5Sync.json'],
+  ['black-hole-search/sim/algo6.sim', 'algo6Sync', 'black-hole-search/algo6Sync.json'],
+  ['black-hole-search/sim/algo5.sim', 'algo5', 'black-hole-search/algo5.json'],
+  ['black-hole-search/sim/algo6.sim', 'algo6', 'black-hole-search/algo6.json'],
+  ['black-hole-search/sim/algo6.sim', 'algo6Async', 'black-hole-search/algo6Async.json'],
+  ['standup-gathering/sim/h-plus-one.sim', 'hPlusOne', 'standup-gathering/hPlusOne.json', true],
+  ['standup-gathering/sim/h-plus-three.sim', 'hPlusThree', 'standup-gathering/hPlusThree.json', true],
+  ['standup-gathering/sim/two-colors.sim', 'twoColors', 'standup-gathering/twoColors.json', true],
 ];
 
 async function main() {

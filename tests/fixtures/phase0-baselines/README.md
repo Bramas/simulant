@@ -1,14 +1,14 @@
 # Phase 0 baselines
 
-What the current ring-based core computes for the starter, black-hole search and stand-up gathering, recorded before the rewrite of [docs/core-redesign.md](../../../docs/core-redesign.md) deletes it (step 0 of section 9). Step 4 compares the ported projects with these files. The target sources are in [docs/phase0-target/](../../../docs/phase0-target/README.md).
+What the ring-based core computed for the starter, black-hole search and stand-up gathering, recorded before the rewrite of [docs/core-redesign.md](../../../docs/core-redesign.md) deleted it (step 0 of section 9). They were written by `scripts/phase0-baselines.ts`, which ran on the old core and was removed with it (`git show 365ca7d:scripts/phase0-baselines.ts`). These files can no longer be regenerated: they are the record.
 
-Regenerate with:
+The ported projects are compared with them by
 
 ```bash
-node --import tsx --import ./packages/vite-plugin/src/register.ts scripts/phase0-baselines.ts
+node --import tsx scripts/phase0-compare.ts
 ```
 
-The whole run takes about eight minutes: about two minutes each for the two pseudo-random latency variants and for `algo6Async` (297,097 states), seconds for the rest. Use `--only algo3,twoColors,decisions` to rerun some files, and `--skip-decisions` to skip the decision tables. Once the old core is deleted, these files can no longer be regenerated: they are the record.
+which checks every setting's verdict, counterexample (a failure's length; a lasso's kind and `minStem`) and state count, and the stand-up decisions (`--only algo3,twoColors,decisions` runs some of them). The whole run takes several minutes, mostly for the pseudo-random latency variants and `algo6Async`.
 
 ## Files
 
@@ -21,7 +21,7 @@ The whole run takes about eight minutes: about two minutes each for the two pseu
 | `black-hole-search/algo6Async.json` | SSYNC variant | N = 5, site = 3 only |
 | `standup-gathering/hPlusThree.json`, `hPlusOne.json`, `twoColors.json` | `projects/standup-gathering/sim/*.sim` | the 57 settings of `src/projects.ts` |
 | `standup-gathering/decisions.json` | the three rule sets | decisions on exhaustive small views, plus samples |
-| `star-witnesses.expected.json` | `docs/phase0-target/star/witnesses.sim-design` | expected results, not measured (no current code) |
+| `star-witnesses.expected.json` | `starGathering`, `starDispersion` in `packages/stdlib/sim/conformance.sim` | expected results, not measured (no old code); the conformance fixtures check them |
 
 Each experiment file records the model's round, frame, memory, goal and derived symmetry group, the limits used, and one line per setting:
 

@@ -12,8 +12,8 @@ experiment e where
   model := blackHoleRobots (Graphs.Cycle N) ${policy} .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := (range 7).filter (· ≥ 3)
-  param site : Pos := ((range N).filter (· ≥ 1)).map pos
+  param N : Nat in (range 7).filter (· ≥ 3)
+  param site : Pos in ((range N).filter (· ≥ 1)).map pos
   agents := 2
   position i := pos 0
 `, 'e');
@@ -51,8 +51,8 @@ experiment e where
   model := robots Graphs.Line (Observe.radius phi) Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
-  param phi : Nat := [1, 2]
-  param positions : List Int := [[0, 0], [3, 3]]
+  param phi : Nat in [1, 2]
+  param positions : List Int in [[0, 0], [3, 3]]
   agents := positions.length
   position i := pos (positions.at i)
 `, 'e');

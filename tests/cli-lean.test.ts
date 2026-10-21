@@ -36,7 +36,7 @@ experiment sample where
   model := obliviousRing
   algorithm := Idle
   task := Gathering
-  param N : Nat := [3]
+  param N : Nat in [3]
   agents := 1
   position i := node 0
 `);

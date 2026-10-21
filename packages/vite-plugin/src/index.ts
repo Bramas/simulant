@@ -64,7 +64,7 @@ function leanOf(exp: Experiment): SimLean {
 }
 
 /** Changes when the compiler changes: compiled modules of another version are out of date. */
-const COMPILER_VERSION = 'simulant-lang/ir-1';
+const COMPILER_VERSION = 'simulant-lang/ir-2';
 
 export function compileSim(file: string, stdlib = stdlibDir, overrides?: Map<string, string>): { module: SimModule; files: Set<string> } {
   const base = nodeHost(stdlib);

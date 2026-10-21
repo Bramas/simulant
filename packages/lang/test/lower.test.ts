@@ -217,7 +217,7 @@ algorithm A uses occupied where
 `;
 
 test('definitions on values: elaborated once, callees first, with what calls them', () => {
-  const src = ROBOTS(WITH_DEFS).replace('param positions : List Nat', 'param positions : List Nat := [[0, 2]].filter fun p => smaller [false] [true]');
+  const src = ROBOTS(WITH_DEFS).replace('param positions : List Nat', 'param positions : List Nat in [[0, 2]].filter fun p => smaller [false] [true]');
   const e = experiment(src);
   // In order of first use, each after the definitions it calls.
   assert.deepEqual(e.algorithm.defs?.map(d => d.name), ['port', 'Line.window', 'view', 'occupiedAt', 'ends', 'Ring.ccw']);

@@ -1,74 +1,73 @@
 /-! Algorithm 3 of the black-hole-search paper (Three-Agent EBS Solution with the knowledge
 of n): the roles traveler, next-traveler and waiter rotate; the traveler goes around the
-ring, the waiter checks that it comes back. Migrated from `src/simulations/algo3.ts`
-(plan, Phase 7), whose behaviour it follows (the traveler leads the cautious walk
-counterclockwise, and the waiter follows it). -/
+cycle, the waiter checks that it comes back. The traveler leads the cautious walk
+counterclockwise, and the waiter follows it. The agents know the size of the cycle
+(`spaceSize`). -/
 
 import "std/models.sim"
-import "std/tasks.sim"
 
 inductive Role | traveler | nextTraveler | waiter
 
-algorithm ThreeAgentKnownN uses otherStates, ringSize where
-  Pub := { id : Nat, role : Role, bh : Option Move }
+algorithm ThreeAgentKnownN uses otherStates, spaceSize where
+  Pub := { id : Nat, role : Role, bh : Option Nat }
   output claim := pub.bh
   init i := { pub := { id := i, role := if i = 0 then .traveler else if i = 1 then .nextTraveler else .waiter, bh := none } }
 
   /-- The traveler's side of the cautious walk: probe, come back, advance. -/
-  def lead (dir : Move) :=
+  def lead (dir : Nat) :=
     repeat
-      move dir
-      move dir.opposite
-      move dir
+      move (port dir)
+      move (port (Port.opposite dir))
+      move (port dir)
 
   /-- The waiter's side: wait for the traveler to come back, or declare the hole. -/
-  def follow (dir : Move) :=
+  def follow (dir : Nat) :=
     repeat
       stay
       stay
       if !(otherStates.any (·.role = .traveler)) then
         pub := { pub with bh := some dir }
         halt
-      move dir
+      move (port dir)
 
   main :=
     let k : Nat := 0
     if pub.role = .traveler then
-      move .cw
+      move Ring.cw
     else
       stay
     repeat
       if pub.role = .traveler then
         if !otherStates.isEmpty then
-          lead .ccw
+          lead Port.ccw
         k := 0
-        while k < ringSize - 2
+        while k < spaceSize - 2
           k := k + 1
-          move .cw
+          move Ring.cw
         if otherStates.isEmpty then
-          pub := { pub with bh := some .cw }
+          pub := { pub with bh := some Port.cw }
           halt
         pub := { pub with role := .waiter }
         stay
       else if pub.role = .nextTraveler then
-        wait ringSize - 2
+        wait spaceSize - 2
         pub := { pub with role := .traveler }
         stay
       else
-        move .ccw
-        wait ringSize - 3
+        move Ring.ccw
+        wait spaceSize - 3
         if otherStates.isEmpty then
-          move .cw
-          follow .ccw
+          move Ring.cw
+          follow Port.ccw
         pub := { pub with role := .nextTraveler }
         stay
 
-/-- The settings of the paper's checks: rings of 5 to 12 nodes, the hole anywhere. -/
+/-- The settings of the paper's checks: cycles of 5 to 12 nodes, the hole anywhere. -/
 experiment algo3 where
-  model := blackHoleRing .mayEmerge .known
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
   algorithm := ThreeAgentKnownN
   task := IdentifyEmergingBlackHole
-  param N : Nat := (range 13).filter (· ≥ 5)
-  param site : Node := (range N).map node
+  param N : Nat in (range 13).filter (· ≥ 5)
+  param site : Pos in positions
   agents := 3
-  position i := node 0
+  position i := pos 0

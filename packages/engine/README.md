@@ -30,7 +30,8 @@ console.log(result.status, result.reason);
 ```
 
 `System` from `@bramas/simulant-engine/system` provides `initial()`,
-`successors(config)`, `verdict(config)`, `decisionsOf(config, agent)` and step
+`successors(config)`, `verdict(config)`, `decisionsOf(config, agent)`,
+`observations(config, agent)` (an agent's sensor values, as text) and step
 explanations; `space.ts` builds graph spaces, views and their presentations under
 the declared frames. `parameterValues` enumerates declared settings;
 `parameterDomainViolations` checks domain membership for a concrete setting

@@ -6,7 +6,9 @@ type Snapshot = LuminousSnapshot | ObliviousSnapshot;
 
 export const draw = defineRenderer<Snapshot>('standup-gathering/line', (ctx, snapshot, model, options) => {
   const { centerX = 150, centerY = 150, radius = 100, agentRadius = 7, theme } = options;
-  const initial = snapshot.world.initialPositions;
+  // The initial coordinates bound the drawing: the robots gather inside their initial hull.
+  const given = model.params.positions;
+  const initial: number[] = [...(typeof given === 'string' ? JSON.parse(given) : given as number[]), ...snapshot.agents.map(a => a.pos)];
   const origin = 0;
   const low = Math.min(...initial) - 1;
   const high = Math.max(...initial) + 1;
@@ -47,7 +49,7 @@ export const draw = defineRenderer<Snapshot>('standup-gathering/line', (ctx, sna
     stacks.set(a.pos, k + 1);
     const node = at(a.pos);
     const position = { x: node.x, y: node.y - 20 - k * (2 * agentRadius + 5) };
-    const light = 'lights' in snapshot.world && 'slot' in a.fields && (snapshot.world.lights[a.fields.slot] ?? 0) === 1 ? 'Y' : 'X';
+    const light = 'light' in a.fields && a.fields.light === 1 ? 'Y' : 'X';
     ctx.fillStyle = luminous ? lightColors[light] : foreground;
     ctx.strokeStyle = a.correct ? background : (theme?.danger ?? '#c33');
     ctx.lineWidth = a.correct ? 1.5 : 3;
@@ -64,6 +66,6 @@ export const draw = defineRenderer<Snapshot>('standup-gathering/line', (ctx, sna
   ctx.fillStyle = muted;
   ctx.font = '12px system-ui, sans-serif';
   const lights = luminous ? 'X / Y lights · Z = both colors' : 'One color · oblivious';
-  ctx.fillText(`${lights} · φ = ${snapshot.world.phi} · × crashed`, centerX, centerY + 45);
+  ctx.fillText(`${lights} · φ = ${model.params.phi} · × crashed`, centerX, centerY + 45);
   return { center: { x: centerX, y: centerY }, radius, nodePosition: at, agents } satisfies Layout;
 });

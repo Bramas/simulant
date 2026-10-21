@@ -75,7 +75,8 @@ function draw(C: Config | undefined) {
   const ctx = canvas.getContext('2d')!;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   if (!C || !system) return;
-  const N = system.topo.size;
+  // A ring drawing of a finite space's vertices (the preview is a minimal viewer).
+  const N = system.space.vertices?.length ?? 0;
   const cx = canvas.width / 2, cy = canvas.height / 2, r = canvas.width * 0.36;
   const at = (n: number, rr = r) => {
     const a = -Math.PI / 2 + 2 * Math.PI * n / N;

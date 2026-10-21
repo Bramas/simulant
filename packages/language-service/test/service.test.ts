@@ -13,8 +13,8 @@ experiment e where
   model := blackHoleRing .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := [5]
-  param site : Node := [node 2]
+  param N : Nat in [5]
+  param site : Node in [node 2]
   agents := 2
   position i := node 0
 `;
@@ -175,7 +175,7 @@ test('rename includes named arguments and preserves qualified enum namespaces', 
 });
 
 test('fixed schema names, entry points and implicitly read experiment parameters are protected', () => {
-  const text = 'algorithm A where\n  Pub := { id : Nat }\n  main :=\n    stay\nexperiment e where\n  param N : Nat := [5]\n';
+  const text = 'algorithm A where\n  Pub := { id : Nat }\n  main :=\n    stay\nexperiment e where\n  param N : Nat in [5]\n';
   const { service } = project({ 'main.sim': text });
   for (const name of ['Pub', 'main', 'N']) assert.equal(service.prepareRename(main, position(text, name)), undefined);
 });

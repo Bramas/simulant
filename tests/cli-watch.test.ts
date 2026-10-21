@@ -73,7 +73,7 @@ export const projects = { pair: simProject(main, 'cautiousPair') };
   let at = await w.waitFor(/exit code 0; watching/, 0);
   await writeFile(file, main.replace('.initiallyPresent', '.mayEmerge'));
   at = await w.waitFor(/Sources changed\.[^]*\(activates\)[^]*exit code 1; watching/, at);
-  await writeFile(file, main.replace('move .cw', 'move .clockwise'));
+  await writeFile(file, main.replace('move Ring.cw', 'move Ring.clockwise'));
   at = await w.waitFor(/the sources do not compile[^]*main\.sim:\d+:\d+: /, at);
   await writeFile(file, main);
   at = await w.waitFor(/Sources changed\.[^]*exit code 0; watching/, at);

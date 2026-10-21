@@ -62,7 +62,7 @@ export function renameSettings(settings: any, aliases: Record<string, string> = 
 /** Settings from the editor (or a URL) to parameter values of the right types. */
 function coerce(value: unknown, t: Type): unknown {
   switch (t.k) {
-    case 'nat': case 'int': case 'node': return typeof value === 'string' ? Number(value) : value;
+    case 'nat': case 'int': case 'pos': return typeof value === 'string' ? Number(value) : value;
     case 'bool': return value === true || value === 'true';
     case 'list': case 'multiset': case 'record': case 'option': return typeof value === 'string' ? JSON.parse(value) : value;
     default: return value;
@@ -78,8 +78,9 @@ function fits(value: unknown, t: Type): boolean {
     return false;
   }
   switch (t.k) {
-    case 'nat': case 'node': return Number.isInteger(v) && (v as number) >= 0;
-    case 'int': return Number.isInteger(v);
+    case 'nat': return Number.isInteger(v) && (v as number) >= 0;
+    // A position is its vertex: a number on cycles, lines and stars.
+    case 'int': case 'pos': return Number.isInteger(v);
     case 'bool': return typeof value === 'boolean' || value === 'true' || value === 'false';
     case 'enum': return t.ctors.includes(v as string);
     case 'string': return typeof v === 'string';
@@ -119,7 +120,7 @@ export function adjustSettings(exp: Experiment, settings: Record<string, unknown
 
 function field(name: string, t: Type, value: unknown): EditorField {
   switch (t.k) {
-    case 'nat': case 'int': case 'node': return { type: 'number', key: name, label: name, defaultValue: Number(value ?? 0), ...(t.k === 'int' ? {} : { min: 0 }) };
+    case 'nat': case 'int': case 'pos': return { type: 'number', key: name, label: name, defaultValue: Number(value ?? 0), ...(t.k === 'nat' ? { min: 0 } : {}) };
     case 'bool': return { type: 'boolean', key: name, label: name, defaultValue: !!value };
     case 'enum': return { type: 'select', key: name, label: name, defaultValue: String(value ?? t.ctors[0]), options: t.ctors.map(c => ({ value: c, label: c })) };
     default: return { type: 'text', key: name, label: `${name} (JSON)`, defaultValue: JSON.stringify(value ?? null) };
@@ -267,7 +268,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
     return {
       system, params,
       info: {
-        experiment, algorithm: exp.algorithm.name, size: system.topo.size, params,
+        experiment, algorithm: exp.algorithm.name, size: system.space.vertices?.length ?? 0, space: system.space.name, params,
         components: exp.model.components.map(c => c.name),
       },
     };

@@ -8,8 +8,8 @@ experiment e where
   model := ${model}
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := [5]
-  param site : Pos := [pos 2]
+  param N : Nat in [5]
+  param site : Pos in [pos 2]
   agents := 2
   position i := pos 0
 `;
@@ -80,8 +80,8 @@ experiment idle where
   model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
   algorithm := Stay
   task := Gathering
-  param N : Nat := [3]
-  param crashNode : Pos := [pos 0]
+  param N : Nat in [3]
+  param crashNode : Pos in [pos 0]
   agents := 2
   position i := pos i
 `;

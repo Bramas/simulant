@@ -1,7 +1,10 @@
 /-! Algorithm 3 of A Visibility vs. Memory Trade-off for Stand-Up Indulgent
 Gathering on Lines: two persistent colors X/Y, phi >= H_init, odd O_init or
 odd M_init. All lights start X; Z denotes a node containing both X and Y.
-Crashes may occur at crashNode after a light update and before movement. -/
+Crashes may occur at crashNode after a light update and before movement.
+
+The rules read `lineView` or `colorView`, the radius-phi window from one end to the other
+(model.sim); `move Ring.cw` goes towards the larger indices of that window. -/
 import "./model.sim"
 
 /-- The paper uses colors X and Y from the library's numeric palette. -/
@@ -46,38 +49,38 @@ def colorBorderMove (v : List Nat) : Bool :=
   let p := v.length / 2
   border v ∧ nonempty v (p + 1) p
 
-algorithm TwoColors uses colorView where
+algorithm TwoColors uses colors where
   main :=
     let v := paperView colorView
     let vm := mirrored v
     -- X-in
     if colorXIn v then
-      move .cw
+      move Ring.cw
     else if colorXIn vm then
-      move .ccw
+      move Ring.ccw
     -- Z-in
     else if colorZIn v then
-      move .cw
+      move Ring.cw
     else if colorZIn vm then
-      move .ccw
+      move Ring.ccw
     -- X-merge
     else if colorXMerge v then
-      move .cw with { light := some Y }
+      move Ring.cw with { setLight := some Y }
     else if colorXMerge vm then
-      move .ccw with { light := some Y }
+      move Ring.ccw with { setLight := some Y }
     -- Z-merge
     else if colorZMerge v then
-      move .cw with { light := some X }
+      move Ring.cw with { setLight := some X }
     else if colorZMerge vm then
-      move .ccw with { light := some X }
+      move Ring.ccw with { setLight := some X }
     -- final
     else if colorFinal v ∨ colorFinal vm then
-      stay with { light := some Y }
+      stay with { setLight := some Y }
     -- border-move
     else if colorBorderMove v then
-      move .cw
+      move Ring.cw
     else if colorBorderMove vm then
-      move .ccw
+      move Ring.ccw
     else
       stay
 
@@ -85,10 +88,9 @@ experiment twoColors where
   model := lineModel true
   algorithm := TwoColors
   task := Gathering
-  param N : Nat where N ≥ 3
-  param positions : List Nat where admissiblePositions positions false
-  param phi : Nat where phi ≥ requiredVisibility positions 0 ∧ fitsLine N positions phi
-  param crashNode : Node
+  param positions : List Int where admissiblePositions positions false
+  param phi : Nat where phi ≥ requiredVisibility positions 0
+  param crashNode : Pos
   agents := positions.length
-  position i := node (positions.at i)
+  position i := pos (positions.at i)
   limits := { depth := 100, states := 20000 }

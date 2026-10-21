@@ -8,7 +8,10 @@
  */
 import { BUILTINS } from '@bramas/simulant-lang/builtins';
 import type { Def, Expr, Json, Type } from '@bramas/simulant-lang/ir';
-import { fieldType, isCollection, MOVES, resolvePub, showType, T, typeEq, VERDICTS } from '@bramas/simulant-lang/types';
+import { fieldType, isCollection, resolvePub, showType, T, typeEq, VERDICTS } from '@bramas/simulant-lang/types';
+
+/** The moves of IR version 1, which this generator still translates (Phase 0 step 6 ports it to version 2). */
+const MOVES = ['stay', 'cw', 'ccw'] as const;
 
 export class GenError extends Error {}
 

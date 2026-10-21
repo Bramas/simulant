@@ -302,12 +302,7 @@ export class System {
 
   private explainStep(a: AgentV, input: StepInput): Explanation {
     const { rt, exp, lay } = this;
-    const view = Object.fromEntries(this.sensors.map(s => {
-      const e = input.env.get(s.name)!;
-      return [s.name, s.perLocation
-        ? show(T.list(s.t), true)(Array.from({ length: input.look.size }, (_, l) => e.at!(l)))
-        : show(s.t, true)(e.value)];
-    }));
+    const view = this.showEnv(input.look, input.env);
     if (!this.traced) {
       const { model, algorithm } = exp;
       const compiler = new Compiler(rt, lay, new Map(exp.params.map(p => [p.name, p.type])), true);
@@ -324,6 +319,32 @@ export class System {
     } finally {
       rt.trace = undefined; rt.look = undefined; rt.env = undefined;
     }
+  }
+
+  /** Each sensor's value, as text: per-location sensors over the visible locations, in order. */
+  private showEnv(look: Look, env: SensorEnv): Record<string, string> {
+    return Object.fromEntries(this.sensors.map(s => {
+      const e = env.get(s.name)!;
+      return [s.name, s.perLocation
+        ? show(T.list(s.t), true)(Array.from({ length: look.size }, (_, l) => e.at!(l)))
+        : show(s.t, true)(e.value)];
+    }));
+  }
+
+  /**
+   * What agent `i` can observe in `C`: its sensors' values (as in `Explanation.view`), one entry
+   * per morphism of its Look and per outcome of its sensors' choices, in the order the round
+   * enumerates them.
+   */
+  observations(C: Config, i: number): Record<string, string>[] {
+    if (!this.degree) this.degree = this.space.maxDegree(C.agents.map(a => a.pos));
+    const { view, presentations } = this.presentations(C.agents[i]);
+    const out: Record<string, string>[] = [];
+    for (const pres of presentations) {
+      const look = new Look(i, C, view, pres);
+      this.environments(look, env => { out.push(this.showEnv(look, env)); });
+    }
+    return out;
   }
 
   /**

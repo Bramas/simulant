@@ -214,7 +214,7 @@ param positions : List Nat where positions.length ≥ 2
 param k : Nat in (range 10) where k % 2 = 1        -- finite domain refined by a property
 ```
 
-`in` always restricts membership to the given list. `where` always adds a Boolean property; with both clauses, both restrictions apply. The original `:= list` spelling remains an alias for `in list`, with exactly the same meaning. Neither spelling declares default values or check samples. Without either clause, the parameter ranges over its entire type.
+`in` always restricts membership to the given list. `where` always adds a Boolean property; with both clauses, both restrictions apply. Neither clause declares default values or check samples. Without either clause, the parameter ranges over its entire type.
 
 A finite-domain expression sees earlier parameters. A predicate sees the parameter itself and earlier parameters. Predicates must be deterministic and Boolean, with the same capabilities as domain expressions. The interpreter's initial-settings warnings and generated Lean assumptions use these same domains. Warnings remain advisory, allowing execution outside them.
 

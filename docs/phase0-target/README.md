@@ -1,20 +1,20 @@
 # Phase 0 target sources
 
-Step 0 of the [core redesign](../core-redesign.md#9-steps) wrote the `.sim` sources that the rewritten toolchain must accept. Step 1 ported the language and moved the standard library's target files into [`packages/stdlib/sim/`](../../packages/stdlib/sim/); the project targets stay here, named `*.sim-design` so that the CLI, the language server and `pnpm sim-types` do not compile them, until step 4 ports the projects. Inside the files, imports use the names the files will have once ported (`std/models.sim`, `./model.sim`). `packages/lang/test/targets.test.ts` compiles every one of them.
+Step 0 of the [core redesign](../core-redesign.md#9-steps) wrote the `.sim` sources that the rewritten toolchain must accept, as `*.sim-design` files in this directory. Step 1 moved the standard library's targets into [`packages/stdlib/sim/`](../../packages/stdlib/sim/), and step 4 moved the project targets to the projects, replacing their sources. What remains here is [`stdlib/core.sim-design`](stdlib/core.sim-design), the signatures of the built-in core (spaces, observations, frames, the Look, what algorithms and tasks read), which no file compiles. `packages/lang/test/targets.test.ts` compiles the ported sources.
 
-| Target | Current source | Notes |
+| Target | Now | Notes |
 | --- | --- | --- |
-| [`stdlib/core.sim-design`](stdlib/core.sim-design) | (built in) | Signatures of the core: spaces, observations, frames, the Look, what algorithms and tasks read |
-| [`packages/stdlib/sim/spaces.sim`](../../packages/stdlib/sim/spaces.sim) | `Ring`, `DynamicRing` | `Graphs.Cycle` (including the 2-node multigraph), `Graphs.Line`, `Graphs.Star`; `Graphs.Dynamic` is built in |
-| [`packages/stdlib/sim/helpers.sim`](../../packages/stdlib/sim/helpers.sim) | `Move`, `offset` | `port`, `Ring.cw`/`Ring.ccw`, `Port.cw`/`Port.ccw`/`Port.opposite`, `Line.window` |
-| [`packages/stdlib/sim/sensors.sim`](../../packages/stdlib/sim/sensors.sim) | (previous `sensors.sim`) | Look sensors; per-location sensors; `lossyOccupied` with a Look-level choice |
-| [`packages/stdlib/sim/components.sim`](../../packages/stdlib/sim/components.sim) | (previous `components.sim`) | `Pos` fields; lights as an agent field updated by a hook |
-| [`packages/stdlib/sim/tasks.sim`](../../packages/stdlib/sim/tasks.sim) | (previous `tasks.sim`) | `C.resolve`, `C.follow`; new `Dispersion` |
-| [`packages/stdlib/sim/models.sim`](../../packages/stdlib/sim/models.sim) | (previous `models.sim`) | `robots`, `blackHoleRobots` |
-| [`starter/main.sim-design`](starter/main.sim-design) | `projects/starter/src/main.sim` | |
-| [`black-hole-search/algo0.sim-design`](black-hole-search/algo0.sim-design) … [`algo6`](black-hole-search/algo6.sim-design) | `projects/black-hole-search/sim/algo*.sim` | Every experiment, including `algo5Sync`, `algo6Sync`, `algo6Async` |
-| [`standup-gathering/`](standup-gathering/) | `projects/standup-gathering/sim/*.sim` | `Graphs.Line`, `Frames.isomorphisms`, no padding |
-| [`star/witnesses.sim-design`](star/witnesses.sim-design) | (new) | `starGathering` (must succeed), `starDispersion` (expected counterexample) |
+| [`stdlib/core.sim-design`](stdlib/core.sim-design) | (built in) | Signatures of the core |
+| [`spaces.sim`](../../packages/stdlib/sim/spaces.sim) | replaces `Ring`, `DynamicRing` | `Graphs.Cycle` (including the 2-node multigraph), `Graphs.Line`, `Graphs.Star`; `Graphs.Dynamic` is built in |
+| [`helpers.sim`](../../packages/stdlib/sim/helpers.sim) | replaces `Move`, `offset` | `port`, `Ring.cw`/`Ring.ccw`, `Port.cw`/`Port.ccw`/`Port.opposite`, `Line.window` |
+| [`sensors.sim`](../../packages/stdlib/sim/sensors.sim) | | Look sensors; per-location sensors; `lossyOccupied` with a Look-level choice |
+| [`components.sim`](../../packages/stdlib/sim/components.sim) | | `Pos` fields; lights as an agent field updated by a hook |
+| [`tasks.sim`](../../packages/stdlib/sim/tasks.sim) | | `C.resolve`, `C.follow`; new `Dispersion` |
+| [`models.sim`](../../packages/stdlib/sim/models.sim) | | `robots`, `blackHoleRobots` |
+| starter | [`projects/starter/src/main.sim`](../../projects/starter/src/main.sim) | |
+| black-hole search | [`projects/black-hole-search/sim/algo*.sim`](../../projects/black-hole-search/sim/) | Every experiment, including `algo5Sync`, `algo6Sync`, `algo6Async` |
+| stand-up gathering | [`projects/standup-gathering/sim/*.sim`](../../projects/standup-gathering/sim/) | `Graphs.Line`, `Frames.isomorphisms`, no padding |
+| star witnesses | `starGathering`, `starDispersion` in [`conformance.sim`](../../packages/stdlib/sim/conformance.sim) | `starGathering` succeeds, `starDispersion` has the expected counterexample |
 
 ## How the algorithms were translated
 
@@ -27,4 +27,4 @@ Where writing these files showed that the design needs a change, the change is l
 
 ## Baselines
 
-The results these sources must reproduce are in [`tests/fixtures/phase0-baselines/`](../../tests/fixtures/phase0-baselines/README.md), written by `scripts/phase0-baselines.ts` from the current code.
+The results these sources must reproduce are in [`tests/fixtures/phase0-baselines/`](../../tests/fixtures/phase0-baselines/README.md), recorded from the old core; `scripts/phase0-compare.ts` compares the ported projects with them.

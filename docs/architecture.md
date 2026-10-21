@@ -70,7 +70,7 @@ FSYNC considers every permitted execution, with no fairness assumption forcing a
 
 `IdentifyEmergingBlackHole` counts an inactive hole as `success`. With `eventually always .success`, an execution where the hole never activates succeeds; once it activates, identification must eventually persist. The UI displays a configuration's raw task verdict, while an exhaustive check decides the goal over executions.
 
-`check-all` shares graphs among settings of the same ring size. This is sound because parameters only affect initialization and topology size, as enforced by the checker. Initial configurations equal up to symmetry merge. `--per-setting` trades additional exploration time for lower peak memory. A `--max-configs`
+`check-all` shares graphs among settings with the same instantiated model: the values of the space's parameters and of the observation radius. This is sound because the other parameters only affect initialization (and the components' initial world), and algorithms cannot read parameters, as enforced by the checker. Initial configurations equal up to symmetry merge. `--per-setting` trades additional exploration time for lower peak memory. A `--max-configs`
 limit stops parameter enumeration at the requested prefix. Batch grouping appends settings in
 place; initial-state and successor deduplication use maps while preserving enumeration order.
 

@@ -17,7 +17,7 @@ test('snapshot types describe the experiment, and type a custom renderer', () =>
     const renderer = (field: string) => `
 import type { Snapshot } from './.simulant/types/algo1';
 export function siteOf(s: Snapshot): number { return s.world.${field}; }
-export function claims(s: Snapshot) { return s.agents.map(a => a.pub.bh === 'cw' && a.flags.dead === false); }
+export function claims(s: Snapshot) { return s.agents.map(a => a.pub.bh === 0 && a.flags.dead === false); }
 `;
     const diagnostics = (field: string) => {
       writeFileSync(join(dir, 'draw.ts'), renderer(field));

@@ -34,8 +34,8 @@ experiment cautiousPair where
   model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := (range 7).filter (· ≥ 3)
-  param site : Pos := ((range N).filter (· ≥ 1)).map pos
+  param N : Nat in (range 7).filter (· ≥ 3)
+  param site : Pos in ((range N).filter (· ≥ 1)).map pos
   agents := 2
   position i := pos 0
 
@@ -44,7 +44,7 @@ experiment cautiousPairCrash where
   model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1, Storage.Pebbles])
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := (range 7).filter (· ≥ 3)
-  param site : Pos := ((range N).filter (· ≥ 1)).map pos
+  param N : Nat in (range 7).filter (· ≥ 3)
+  param site : Pos in ((range N).filter (· ≥ 1)).map pos
   agents := 2
   position i := pos 0

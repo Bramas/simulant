@@ -14,8 +14,8 @@ experiment ${name} where
   model := blackHoleRing .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := [${sizes.join(', ')}]
-  param site : Node := [node 1, node 2]
+  param N : Nat in [${sizes.join(', ')}]
+  param site : Node in [node 1, node 2]
   agents := 2
   position i := node 0
 `;

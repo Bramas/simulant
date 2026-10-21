@@ -11,8 +11,8 @@ experiment batch where
   model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
-  param N : Nat := [3, 4]
-  param positions : List Pos := [[pos 0], [pos 1], [pos 0, pos 1]]
+  param N : Nat in [3, 4]
+  param positions : List Pos in [[pos 0], [pos 1], [pos 0, pos 1]]
   agents := positions.length
   position i := positions.at i
 `, 'batch');

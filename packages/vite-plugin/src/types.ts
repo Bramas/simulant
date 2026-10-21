@@ -10,10 +10,10 @@ import { resolvePub } from '@bramas/simulant-lang/types';
 function ts(t: Type, pub: Type): string {
   switch (t.k) {
     case 'unit': return 'null';
-    case 'bool': case 'frame': return 'boolean';
-    case 'nat': case 'int': case 'node': case 'agent': return 'number';
+    case 'bool': return 'boolean';
+    // A position is its vertex: a number on cycles, lines and stars.
+    case 'nat': case 'int': case 'agent': case 'pos': return 'number';
     case 'string': return 'string';
-    case 'move': return 'Move';
     case 'verdict': return `'success' | 'failure' | 'inProgress'`;
     case 'enum': return t.ctors.map(c => `'${c}'`).join(' | ') || 'never';
     case 'pub': return ts(pub, pub);
@@ -32,7 +32,6 @@ export function snapshotTypes(exp: Experiment): string {
 import type { Snapshot as BaseSnapshot, SnapshotAgent as BaseAgent } from '@bramas/simulant-ui/sim/snapshot';
 export type { Layout, ModelInfo, RenderOptions } from '@bramas/simulant-ui/sim/types';
 
-export type Move = 'stay' | 'cw' | 'ccw';
 /** Public state of the algorithm \`${exp.algorithm.name}\`. */
 export type Pub = ${ts(pub, pub)};
 /** Memory of the algorithm (private: no agent sees it). */

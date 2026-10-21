@@ -1,17 +1,20 @@
 /-! Algorithm 2 of A Visibility vs. Memory Trade-off for Stand-Up Indulgent
 Gathering on Lines: oblivious robots, phi >= max(4, H_init + 1), and odd O_init.
-Interior block rules and false-border compensation preserve occupied parity. -/
+Interior block rules and false-border compensation preserve occupied parity.
+
+The rules read `lineView` or `colorView`, the radius-phi window from one end to the other
+(model.sim); `move Ring.cw` goes towards the larger indices of that window. -/
 import "./model.sim"
 
 /-- border-idle,1: the paper's guard in the displayed orientation. -/
 def h1BorderIdle1 (v : List Nat) : Bool :=
   let p := v.length / 2
-  border v ∧ occupied v (p + 1) ∧ empty v (p + 2) 1 ∧ nonempty v (p + 3) (p - 2)
+  border v ∧ occupiedAt v (p + 1) ∧ empty v (p + 2) 1 ∧ nonempty v (p + 3) (p - 2)
 
 /-- border-idle,2: the paper's guard in the displayed orientation. -/
 def h1BorderIdle2 (v : List Nat) : Bool :=
   let p := v.length / 2
-  border v ∧ occupied v (p + 1) ∧ occupied v (p + 2) ∧ occupied v (p + 3)
+  border v ∧ occupiedAt v (p + 1) ∧ occupiedAt v (p + 2) ∧ occupiedAt v (p + 3)
 
 /-- border: the paper's guard in the displayed orientation. -/
 def h1Border (v : List Nat) : Bool :=
@@ -26,7 +29,7 @@ def h1NeighborMove1 (v : List Nat) : Bool :=
 /-- neig, move, 2: the paper's guard in the displayed orientation. -/
 def h1NeighborMove2 (v : List Nat) : Bool :=
   let p := v.length / 2
-  borderNeighbor v ∧ occupied v (p + 1) ∧ empty v (p + 2) 2 ∧ nonempty v (p + 4) (p - 3)
+  borderNeighbor v ∧ occupiedAt v (p + 1) ∧ empty v (p + 2) 2 ∧ nonempty v (p + 4) (p - 3)
 
 /-- 2neig, move: the paper's guard in the displayed orientation. -/
 def h1SecondNeighborMove (v : List Nat) : Bool :=
@@ -41,19 +44,19 @@ def h1SecondNeighborMerge (v : List Nat) : Bool :=
 /-- 4-merge,1: the paper's guard in the displayed orientation. -/
 def h1FourMerge1 (v : List Nat) : Bool :=
   let p := v.length / 2
-  empty v (p - 2) 1 ∧ occupied v (p - 1) ∧ occupied v (p + 1) ∧ occupied v (p + 2)
+  empty v (p - 2) 1 ∧ occupiedAt v (p - 1) ∧ occupiedAt v (p + 1) ∧ occupiedAt v (p + 2)
 
 /-- 4-merge,2: the paper's guard in the displayed orientation. -/
 def h1FourMerge2 (v : List Nat) : Bool :=
   let p := v.length / 2
-  empty v (p - 3) 1 ∧ occupied v (p - 2) ∧ occupied v (p - 1) ∧ occupied v (p + 1)
+  empty v (p - 3) 1 ∧ occupiedAt v (p - 2) ∧ occupiedAt v (p - 1) ∧ occupiedAt v (p + 1)
 
 /-- neig, false-merge: the paper's guard in the displayed orientation. -/
 def h1NeighborFalseMerge (v : List Nat) : Bool :=
   let p := v.length / 2
-  occupied v 0 ∧ empty v 1 (p - 2) ∧ occupied v (p - 1) ∧ occupied v (p + 1) ∧ empty v (p + 2) 1 ∧ occupied v (p + 3)
+  occupiedAt v 0 ∧ empty v 1 (p - 2) ∧ occupiedAt v (p - 1) ∧ occupiedAt v (p + 1) ∧ empty v (p + 2) 1 ∧ occupiedAt v (p + 3)
 
-algorithm ObliviousHPlusOne uses lineView where
+algorithm ObliviousHPlusOne uses occupied where
   main :=
     let v := lineView
     let vm := mirrored v
@@ -65,44 +68,44 @@ algorithm ObliviousHPlusOne uses lineView where
       stay
     -- border
     else if h1Border v then
-      move .cw
+      move Ring.cw
     else if h1Border vm then
-      move .ccw
+      move Ring.ccw
     -- neig, move, 1
     else if h1NeighborMove1 v then
-      move .cw
+      move Ring.cw
     else if h1NeighborMove1 vm then
-      move .ccw
+      move Ring.ccw
     -- neig, move, 2
     else if h1NeighborMove2 v then
-      move .cw
+      move Ring.cw
     else if h1NeighborMove2 vm then
-      move .ccw
+      move Ring.ccw
     -- 2neig, move
     else if h1SecondNeighborMove v then
-      move .cw
+      move Ring.cw
     else if h1SecondNeighborMove vm then
-      move .ccw
+      move Ring.ccw
     -- 2neig, merge
     else if h1SecondNeighborMerge v then
-      move .ccw
+      move Ring.ccw
     else if h1SecondNeighborMerge vm then
-      move .cw
+      move Ring.cw
     -- 4-merge,1
     else if h1FourMerge1 v then
-      move .ccw
+      move Ring.ccw
     else if h1FourMerge1 vm then
-      move .cw
+      move Ring.cw
     -- 4-merge,2
     else if h1FourMerge2 v then
-      move .cw
+      move Ring.cw
     else if h1FourMerge2 vm then
-      move .ccw
+      move Ring.ccw
     -- neig, false-merge
     else if h1NeighborFalseMerge v then
-      move .cw
+      move Ring.cw
     else if h1NeighborFalseMerge vm then
-      move .ccw
+      move Ring.ccw
     else
       stay
 
@@ -110,10 +113,9 @@ experiment hPlusOne where
   model := lineModel
   algorithm := ObliviousHPlusOne
   task := Gathering
-  param N : Nat where N ≥ 3
-  param positions : List Nat where admissiblePositions positions true
-  param phi : Nat where phi ≥ requiredVisibility positions 1 ∧ fitsLine N positions phi
-  param crashNode : Node
+  param positions : List Int where admissiblePositions positions true
+  param phi : Nat where phi ≥ requiredVisibility positions 1
+  param crashNode : Pos
   agents := positions.length
-  position i := node (positions.at i)
+  position i := pos (positions.at i)
   limits := { depth := 100, states := 20000 }

@@ -138,7 +138,7 @@ program
   .option('-d, --max-depth <number>', 'Maximum depth to explore per configuration (default: unlimited)', depthArgument)
   .option('--max-states <number>', 'Maximum number of states per state graph', countArgument)
   .option('--max-configs <number>', 'Maximum number of configurations to test (default: all)', countArgument)
-  .option('--per-setting', 'One state graph per setting, instead of one per ring size')
+  .option('--per-setting', 'One state graph per setting, instead of one per instantiated model (space and observation parameters)')
   .option(watchOption, watchHelp)
   .action(async (options) => {
     const projectName = options.project as string;

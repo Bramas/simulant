@@ -17,10 +17,11 @@ import { projects } from '../projects/black-hole-search/src/projects';
 export type View = string;
 const view = (active: boolean, agents: [number, number, unknown][], world?: unknown): View =>
   JSON.stringify([active, agents.sort((x, y) => x[0] - y[0]), ...(world === undefined ? [] : [world])]);
-const direction = (m: string | null) => m === 'cw' ? 1 : m === 'ccw' ? -1 : null;
+/** A claimed port as a direction: `Port.cw` (0) is +1, `Port.ccw` (1) is -1. */
+const direction = (port: number | null) => port === 0 ? 1 : port === 1 ? -1 : null;
 
 /**
- * How an agent's claim is shown (by default `bh`, a direction: +1 clockwise, -1
+ * How an agent's claim is shown (by default `bh`, a port, as a direction: +1 clockwise, -1
  * counterclockwise), and, with `pebbles`, the nodes that hold a pebble. The recorded views show
  * claims the same way.
  */
@@ -33,11 +34,11 @@ export const newView = (C: Config, claims: Claims = {}, N = 0): View =>
 
 /** How each migrated algorithm encodes claims, when it differs from the default. */
 export function claimsOf(simulation: string): Claims {
-  const signed: Claims['claim'] = ({ pub }) => pub.bhDir === 'cw' ? pub.bhSteps : pub.bhDir === 'ccw' ? -pub.bhSteps : null;
+  const signed: Claims['claim'] = ({ pub }) => pub.bhPort === null ? null : direction(pub.bhPort)! * pub.bhSteps;
   switch (simulation) {
     // The claimed node.
     case 'black-hole-search-algo0':
-      return { claim: ({ pos, pub }, N) => pub.bhDir === null ? null : pub.bhDir === 'cw' ? (pos + pub.bhSteps) % N : (pos + N - pub.bhSteps) % N };
+      return { claim: ({ pos, pub }, N) => pub.bhPort === null ? null : (pos + N + direction(pub.bhPort)! * pub.bhSteps) % N };
     case 'black-hole-search-algo2': case 'black-hole-search-algo6': return { pebbles: true };
     case 'black-hole-search-algo4': return { claim: signed };
     // The suspected node, in the agents' common coordinates.

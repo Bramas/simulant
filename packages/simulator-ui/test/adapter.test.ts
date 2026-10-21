@@ -168,7 +168,7 @@ test('the model view describes the experiment and shows the declarations it uses
   assert.ok(d.sections.every(s => s.facts.every(f => (f.refs ?? []).every(r => keys.has(r.source)))));
   // A parameter points at its line in the experiment.
   const at = fact('Experiment', 'param N').refs![0];
-  assert.equal(d.sources.find(s => s.kind === 'experiment')!.lines.find(l => l.number === at.line)!.text.trim(), 'param N : Nat := (range 13).filter (· ≥ 5)');
+  assert.equal(d.sources.find(s => s.kind === 'experiment')!.lines.find(l => l.number === at.line)!.text.trim(), 'param N : Nat in (range 13).filter (· ≥ 5)');
   // The adversary chooses whether the hole activates, after the moves.
   assert.deepEqual(d.round.find(p => p.phase === 'afterMove')!.choices, ['BlackHole.active']);
 });

@@ -93,7 +93,7 @@ test('.sim projects are checked by the explorer, with the same exit codes', asyn
   assert.match(limited.stdout, /depth limit 2/);
 });
 
-test('check-all shares state graphs by ring size, and reports the failing setting', async t => {
+test('check-all shares state graphs by instantiated model, and reports the failing setting', async t => {
   const directory = await simFixture(t);
   const all = await run(directory, ['check-all', '-p', 'present']);
   assert.equal(all.code, 0, all.stdout + all.stderr);
