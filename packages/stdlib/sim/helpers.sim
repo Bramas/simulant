@@ -1,4 +1,4 @@
-/-! Named neighbors, ports and structural helpers (docs/core-redesign.md, section 5). Design file.
+/-! Named neighbors, ports and structural helpers (docs/core-redesign.md, section 5).
 
 A definition that reads `here`, `visible`, `neighbors`, `distance` or a sensor is
 *algorithm-local*: it is evaluated in the Look of the calling agent, it can be called only from

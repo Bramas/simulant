@@ -3,10 +3,10 @@
  * same names (packages/engine/src/builtins.ts).
  */
 import type { Type } from './ir';
-import { isCollection, isData, showType, T, typeEq } from './types';
+import { isCollection, isData, mentions, showType, T, typeEq } from './types';
 
-/** Where an expression is evaluated. */
-export type Context = 'init' | 'domain' | 'sensor' | 'hook' | 'beforeMove' | 'task' | 'algorithm' | 'def';
+/** Where an expression is evaluated. `space`: vertex lists and neighbor functions of a space. */
+export type Context = 'init' | 'domain' | 'sensor' | 'hook' | 'beforeMove' | 'task' | 'algorithm' | 'def' | 'space';
 
 export type Signature = {
   /** Number of arguments; `undefined` means at least one. */
@@ -18,20 +18,11 @@ export type Signature = {
   only?: Context[];
   /** Reads the configuration in scope. */
   config?: boolean;
-  /** Breaks equivariance under rotations (absolute node numbers). */
-  absolute?: boolean;
+  /** Reads the agent's Look: allowed in algorithms and algorithm-local definitions. */
+  look?: boolean;
 };
 
 const err = (msg: string) => msg;
-
-function mentionsAgent(t: Type): boolean {
-  switch (t.k) {
-    case 'agent': return true;
-    case 'option': case 'list': case 'multiset': return mentionsAgent(t.of);
-    case 'record': return t.fields.some(f => mentionsAgent(f.type));
-    default: return false;
-  }
-}
 
 function same(name: string) {
   return ([a, b]: Type[]) => typeEq(a, b) ? (isData(a) ? T.bool : err(`${name}: cannot compare ${showType(a)}`))
@@ -77,7 +68,7 @@ function predicate(name: string, ret: (l: Type) => Type) {
   } satisfies Signature;
 }
 
-const CONFIG_CONTEXTS: Context[] = ['init', 'sensor', 'hook', 'beforeMove', 'task', 'def'];
+const CONFIG_CONTEXTS: Context[] = ['init', 'hook', 'beforeMove', 'task', 'def'];
 
 export const BUILTINS: Record<string, Signature> = {
   // Logic and comparison
@@ -127,8 +118,14 @@ export const BUILTINS: Record<string, Signature> = {
   mem: { arity: 2, ret: ([x, l]) => collection('mem', l) ?? (typeEq(x, (l as { of: Type }).of) ? T.bool : err('mem: element type differs')) },
   range: { arity: 1, ret: ([n]) => n.k === 'nat' ? T.list(T.nat) : err('range: expected Nat') },
   toMultiset: { arity: 1, ret: ([l]) => l.k === 'list' ? T.multiset(l.of) : err('toMultiset: expected a List') },
-  /** The elements in canonical order; not for agents, which have no order. */
-  toList: { arity: 1, ret: ([l]) => l.k !== 'multiset' ? err('toList: expected a Multiset') : mentionsAgent(l.of) ? err('toList: anonymous agents have no order') : T.list(l.of) },
+  /** The elements in canonical order; not for agents, which have no order, nor locations, ordered only by the Look. */
+  toList: {
+    arity: 1,
+    ret: ([l]) => l.k !== 'multiset' ? err('toList: expected a Multiset')
+      : mentions(l.of, 'agent') ? err('toList: anonymous agents have no order')
+      : mentions(l.of, 'loc') ? err('toList: locations are ordered only by the Look (visible, neighbors)')
+      : T.list(l.of),
+  },
   /** All sub-collections, smallest first. */
   subsets: { arity: 1, ret: ([l]) => collection('subsets', l) ?? T.list(l) },
   /** Sub-collections with at most `k` elements. */
@@ -154,38 +151,52 @@ export const BUILTINS: Record<string, Signature> = {
   show: { arity: 1, ret: () => T.string },
   concat: { ret: args => args.every(a => a.k === 'string') ? T.string : err('concat: expected strings') },
 
+  toNat: { arity: 1, ret: ([a]) => a.k === 'int' ? T.nat : err('toNat: expected Int') },
+
   // Configurations and agents
   /** A multiset: anonymous agents have no order. */
   agents: { arity: 1, config: true, only: CONFIG_CONTEXTS, ret: ([c]) => c.k === 'config' ? T.multiset(T.agent) : err('agents: expected a Config') },
-  nodes: { arity: 1, config: true, only: CONFIG_CONTEXTS, ret: ([c]) => c.k === 'config' ? T.list(T.node) : err('nodes: expected a Config') },
-  size: { arity: 1, config: true, only: CONFIG_CONTEXTS, ret: ([c]) => c.k === 'config' ? T.nat : err('size: expected a Config') },
   /** No flag is raised. */
   correct: { arity: 1, config: true, ret: ([a]) => a.k === 'agent' ? T.bool : err('correct: expected an Agent') },
   /** No hidden flag is raised. */
   present: { arity: 1, config: true, ret: ([a]) => a.k === 'agent' ? T.bool : err('present: expected an Agent') },
-  /** The decision of an agent this round; `decided` is false for agents that did not decide (then `move` is `stay`). */
-  decisionOf: { arity: 1, config: true, only: ['beforeMove'], ret: ([a]) => a.k === 'agent' ? T.decision : err('decisionOf: expected an Agent') },
+  /** The decision of an agent this round; `decided` is false for agents that did not decide (then `target` is its position). */
+  decisionOf: { arity: 1, config: true, only: ['beforeMove', 'def'], ret: ([a]) => a.k === 'agent' ? T.decision : err('decisionOf: expected an Agent') },
+  /** The neighbor of `a.pos` behind the agent's port `i`, in its kept frame (Frames.identity, .perRobot). */
+  resolve: {
+    arity: 3, config: true, only: CONFIG_CONTEXTS,
+    ret: ([c, a, i]) => c.k === 'config' && a.k === 'agent' && i.k === 'nat' ? T.pos : err('resolve: expected an Agent and a port'),
+  },
+  /** The position reached from `a.pos` by taking the agent's port `i` `k` times, in its kept frame. */
+  follow: {
+    arity: 4, config: true, only: CONFIG_CONTEXTS,
+    ret: ([c, a, i, k]) => c.k === 'config' && a.k === 'agent' && i.k === 'nat' && k.k === 'nat' ? T.pos : err('follow: expected an Agent, a port and a number of steps'),
+  },
 
-  // Topology
-  /** The neighbour in a global direction (whether or not the edge is present). */
-  target: { arity: 2, config: true, ret: ([n, m]) => n.k === 'node' && m.k === 'move' ? T.node : err('target: expected a Node and a Move') },
-  /** The node reached from a node after `i` steps in a global direction (edges present or not). */
-  advance: {
-    arity: 3, config: true,
-    ret: ([n, m, i]) => n.k === 'node' && m.k === 'move' && i.k === 'nat' ? T.node : err('advance: expected a Node, a Move and a Nat'),
+  // Positions (experiments and spaces only build them; others compare and pass them)
+  /** The position of a vertex of the space. Only in initial values and domains. */
+  pos: { arity: 1, only: ['init', 'domain'], ret: () => T.pos },
+  /** Every position of a finite space, in vertex order. */
+  positions: { arity: 0, only: [...CONFIG_CONTEXTS, 'domain'], ret: () => T.list(T.pos) },
+
+  // The Look, inside sensors
+  /** The agents at the position behind a location. */
+  occupants: { arity: 2, only: ['sensor', 'def'], ret: ([L, l]) => L.k === 'look' && l.k === 'loc' ? T.multiset(T.agent) : err('occupants: expected a location') },
+  /** The position behind a location: only inside sensors, whose results contain no position. */
+  position: { arity: 2, only: ['sensor', 'def'], ret: ([L, l]) => L.k === 'look' && l.k === 'loc' ? T.pos : err('position: expected a location') },
+  /** Whether the edge between two locations is present this round (dynamic spaces). */
+  edgePresent: {
+    arity: 3, only: ['sensor', 'def'],
+    ret: ([L, a, b]) => L.k === 'look' && a.k === 'loc' && b.k === 'loc' ? T.bool : err('edgePresent: expected two locations'),
   },
-  /** Whether the edge from a node in a global direction is present in this round. */
-  edgePresent: { arity: 2, config: true, ret: ([n, m]) => n.k === 'node' && m.k === 'move' ? T.bool : err('edgePresent: expected a Node and a Move') },
-  /** The node seen at local offset `i` from a node, in a frame. */
-  offset: {
-    arity: 3, config: true,
-    ret: ([n, f, i]) => n.k === 'node' && f.k === 'frame' && i.k === 'nat' ? T.node : err('offset: expected a Node, a Frame and a Nat'),
-  },
-  /** A local move, mapped to a global one through a frame. */
-  toGlobal: { arity: 2, ret: ([f, m]) => f.k === 'frame' && m.k === 'move' ? T.move : err('toGlobal: expected a Frame and a Move') },
-  opposite: { arity: 1, ret: ([m]) => m.k === 'move' ? T.move : err('opposite: expected a Move') },
-  /** Every frame of the topology. */
-  frames: { arity: 0, ret: () => T.list(T.frame) },
-  /** Node number `n` (modulo the size). Only in initialisation. */
-  node: { arity: 1, config: true, absolute: true, only: ['init', 'domain'], ret: ([n]) => n.k === 'nat' ? T.node : err('node: expected a Nat') },
+
+  // The Look, inside algorithms
+  /** The observing agent's location. */
+  here: { arity: 0, look: true, only: ['algorithm', 'def'], ret: () => T.loc },
+  /** The visible locations, in the order of the reference ordering and the morphism. */
+  visible: { arity: 0, look: true, only: ['algorithm', 'def'], ret: () => T.list(T.loc) },
+  /** The neighbors of a location in the visible domain (in port order at `here` when the frames keep ports). */
+  neighbors: { arity: 1, look: true, only: ['algorithm', 'def'], ret: ([l]) => l.k === 'loc' ? T.list(T.loc) : err('neighbors: expected a location') },
+  /** The distance between two locations within the visible domain. */
+  distance: { arity: 2, look: true, only: ['algorithm', 'def'], ret: ([a, b]) => a.k === 'loc' && b.k === 'loc' ? T.nat : err('distance: expected two locations') },
 };

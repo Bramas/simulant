@@ -1,16 +1,16 @@
 # Phase 0 target sources
 
-Step 0 of the [core redesign](../core-redesign.md#9-steps) writes the `.sim` sources that the rewritten toolchain must accept. They are design files. Today's compiler does not accept them, and they are named `*.sim-design` so that the CLI, the language server and `pnpm sim-types` do not try to compile them. Inside the files, imports use the names the files will have once ported (`std/models.sim`, `./model.sim`). Step 1 is done when these sources typecheck.
+Step 0 of the [core redesign](../core-redesign.md#9-steps) wrote the `.sim` sources that the rewritten toolchain must accept. Step 1 ported the language and moved the standard library's target files into [`packages/stdlib/sim/`](../../packages/stdlib/sim/); the project targets stay here, named `*.sim-design` so that the CLI, the language server and `pnpm sim-types` do not compile them, until step 4 ports the projects. Inside the files, imports use the names the files will have once ported (`std/models.sim`, `./model.sim`). `packages/lang/test/targets.test.ts` compiles every one of them.
 
 | Target | Current source | Notes |
 | --- | --- | --- |
 | [`stdlib/core.sim-design`](stdlib/core.sim-design) | (built in) | Signatures of the core: spaces, observations, frames, the Look, what algorithms and tasks read |
-| [`stdlib/spaces.sim-design`](stdlib/spaces.sim-design) | `Ring`, `DynamicRing` | `Graphs.Cycle` (including the 2-node multigraph), `Graphs.Line`, `Graphs.Star`; `Graphs.Dynamic` is built in |
-| [`stdlib/helpers.sim-design`](stdlib/helpers.sim-design) | `Move`, `offset` | `port`, `Ring.cw`/`Ring.ccw`, `Port.cw`/`Port.ccw`/`Port.opposite`, `Line.window` |
-| [`stdlib/sensors.sim-design`](stdlib/sensors.sim-design) | `packages/stdlib/sim/sensors.sim` | Look sensors; per-location sensors; `lossyOccupied` with a Look-level choice |
-| [`stdlib/components.sim-design`](stdlib/components.sim-design) | `packages/stdlib/sim/components.sim` | `Pos` fields; lights as an agent field updated by a hook |
-| [`stdlib/tasks.sim-design`](stdlib/tasks.sim-design) | `packages/stdlib/sim/tasks.sim` | `C.resolve`, `C.follow`; new `Dispersion` |
-| [`stdlib/models.sim-design`](stdlib/models.sim-design) | `packages/stdlib/sim/models.sim` | `robots`, `blackHoleRobots` |
+| [`packages/stdlib/sim/spaces.sim`](../../packages/stdlib/sim/spaces.sim) | `Ring`, `DynamicRing` | `Graphs.Cycle` (including the 2-node multigraph), `Graphs.Line`, `Graphs.Star`; `Graphs.Dynamic` is built in |
+| [`packages/stdlib/sim/helpers.sim`](../../packages/stdlib/sim/helpers.sim) | `Move`, `offset` | `port`, `Ring.cw`/`Ring.ccw`, `Port.cw`/`Port.ccw`/`Port.opposite`, `Line.window` |
+| [`packages/stdlib/sim/sensors.sim`](../../packages/stdlib/sim/sensors.sim) | (previous `sensors.sim`) | Look sensors; per-location sensors; `lossyOccupied` with a Look-level choice |
+| [`packages/stdlib/sim/components.sim`](../../packages/stdlib/sim/components.sim) | (previous `components.sim`) | `Pos` fields; lights as an agent field updated by a hook |
+| [`packages/stdlib/sim/tasks.sim`](../../packages/stdlib/sim/tasks.sim) | (previous `tasks.sim`) | `C.resolve`, `C.follow`; new `Dispersion` |
+| [`packages/stdlib/sim/models.sim`](../../packages/stdlib/sim/models.sim) | (previous `models.sim`) | `robots`, `blackHoleRobots` |
 | [`starter/main.sim-design`](starter/main.sim-design) | `projects/starter/src/main.sim` | |
 | [`black-hole-search/algo0.sim-design`](black-hole-search/algo0.sim-design) … [`algo6`](black-hole-search/algo6.sim-design) | `projects/black-hole-search/sim/algo*.sim` | Every experiment, including `algo5Sync`, `algo6Sync`, `algo6Async` |
 | [`standup-gathering/`](standup-gathering/) | `projects/standup-gathering/sim/*.sim` | `Graphs.Line`, `Frames.isomorphisms`, no padding |

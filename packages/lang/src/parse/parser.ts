@@ -170,6 +170,10 @@ export class Parser {
         case 'sensor': case 'task': {
           const name = this.ident();
           const params = this.binders();
+          if (t.text === 'sensor' && this.is('where')) {
+            this.next();
+            return { ...base, d: 'sensor', name, params, ...this.sensorParts(), span: this.span(start) };
+          }
           this.expect(':');
           const type = this.type();
           this.expect(':=');
@@ -280,6 +284,31 @@ export class Parser {
       items.push({ name, args, value, span: this.span(start) });
     });
     return items;
+  }
+
+  /** The items of `sensor s (L : Look) where`: Look-level bindings, then `at (l : Loc) : T := e`. */
+  private sensorParts(): { type: SType; body: SExpr; look: { name: string; value: SExpr; span: Span }[]; at: SBinder } {
+    const look: { name: string; value: SExpr; span: Span }[] = [];
+    let at: { binder: SBinder; type: SType; body: SExpr } | undefined;
+    this.block(() => {
+      const start = this.peek().start;
+      if (at) this.fail('`at (l : Loc) : T := ...` is the last item of a sensor');
+      if (this.peek().text === 'at' && this.peek(1).text === '(') {
+        this.next();
+        const binders = this.binders();
+        if (binders.length !== 1) this.fail('at takes one location: at (l : Loc)');
+        this.expect(':');
+        const type = this.type();
+        this.expect(':=');
+        at = { binder: binders[0], type, body: this.expr() };
+        return;
+      }
+      const name = this.ident();
+      this.expect(':=');
+      look.push({ name, value: this.expr(), span: this.span(start) });
+    });
+    if (!at) this.fail('a sensor with a Look-level part ends with `at (l : Loc) : T := ...`');
+    return { type: at.type, body: at.body, look, at: at.binder };
   }
 
   private binders(): SBinder[] {

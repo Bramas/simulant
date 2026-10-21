@@ -1,5 +1,5 @@
-/-! Library spaces (docs/core-redesign.md, section 2). Design file: today's compiler does not
-accept it. Rings, lines and stars are ordinary definitions over the core graph space; the
+/-! Library spaces (docs/core-redesign.md, section 2). Rings, lines and stars are ordinary
+definitions over the core graph space; the
 automorphism groups given here are fast paths, checked against the computed group on small
 sizes (section 7). -/
 
@@ -31,6 +31,6 @@ def Graphs.Star (k : Nat) : Space where
   vertices := range (k + 1)
   neighbors v := if v = 0 then (range k).map (· + 1) else [0]
 
--- `Graphs.Dynamic (base : Space) (missing : Nat) : Space` is built in (core.sim-design): at the
+-- `Graphs.Dynamic (base : Space) (missing : Nat) : Space` is built in (docs/phase0-target/stdlib/core.sim-design lists the built-in signatures): at the
 -- start of each round the adversary removes up to `missing` edges of `base`, and forgets them
 -- afterwards. `Graphs.Dynamic (Graphs.Cycle N) 1` is today's `DynamicRing 1`.

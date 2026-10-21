@@ -5,11 +5,11 @@
  *
  * Expressions are wrapped in proxies: reading a property builds a field
  * access (`a.pos`), and the methods below build builtin calls
- * (`C.agents.filter(b => b.pos.eq(me.pos))`).
+ * (`agents(C).filter(b => b.pos.eq(C.world.site))`).
  */
 import type {
-  Action, Algorithm, Component, Equivariance, Experiment, Expr, Field, Flag, FrameModel, Goal, Json, Model, Param,
-  Sensor, Task, Topology, Type,
+  Action, Algorithm, Automorphisms, Component, Experiment, Expr, Field, Flag, Frames, Goal, Json, Model, Observation, Param,
+  Sensor, Space, Task, Type,
 } from './ir';
 import { IR_VERSION } from './ir';
 import { T } from './types';
@@ -132,7 +132,6 @@ export const lit = (type: Type, value: Json): X => wrap({ e: 'lit', type, value 
 export const nat = (n: number) => lit(T.nat, n);
 export const int = (n: number) => lit(T.int, n);
 export const str = (s: string) => lit(T.string, s);
-export const move = (m: 'stay' | 'cw' | 'ccw') => lit(T.move, m);
 export const verdict = (s: 'success' | 'failure' | 'inProgress') => lit(T.verdict, s);
 export const ctor = (type: Type, name: string) => lit(type, name);
 export const none = (of: Type) => lit(T.option(of), null);
@@ -173,12 +172,13 @@ export function choose(site: string, from: Arg, opts: { such?: (x: X) => Arg; la
   });
 }
 
-/** A hook's result: raise a flag on a collection of agents, or on those satisfying a predicate. */
-export function effect(e: { world?: Record<string, Arg>; raise?: Record<string, X | ((a: X) => Arg)> } = {}): X {
+/** A hook's result: world fields, flags raised on agents (a collection or a predicate), and its own agent fields. */
+export function effect(e: { world?: Record<string, Arg>; raise?: Record<string, X | ((a: X) => Arg)>; agents?: (a: X) => Arg } = {}): X {
   return wrap({
     e: 'effect',
     ...(e.world ? { world: mapValues(e.world, ir) } : {}),
     ...(e.raise ? { raise: mapValues(e.raise, r => typeof r === 'function' ? lambda(1, r as (a: X) => Arg) : ir(r as X)) } : {}),
+    ...(e.agents ? { agents: lambda(1, e.agents) } : {}),
   });
 }
 
@@ -189,18 +189,27 @@ export const callDef = (name: string, ...args: Arg[]) => call(name, ...args);
 
 // Builtins that are not methods
 export const agents = (C: X) => call('agents', C);
-export const nodes = (C: X) => call('nodes', C);
-export const size = (C: X) => call('size', C);
 export const correct = (a: X) => call('correct', a);
 export const present = (a: X) => call('present', a);
 export const decisionOf = (a: X) => call('decisionOf', a);
-export const target = (n: Arg, m: Arg) => call('target', n, m);
-export const edgePresent = (n: Arg, m: Arg) => call('edgePresent', n, m);
-export const offset = (n: Arg, frame: Arg, i: Arg) => call('offset', n, frame, i);
-export const toGlobal = (frame: Arg, m: Arg) => call('toGlobal', frame, m);
-export const opposite = (m: Arg) => call('opposite', m);
-export const frames = () => call('frames');
-export const node = (n: Arg) => call('node', n);
+/** The position of a vertex (initial values and domains). */
+export const pos = (v: Arg) => call('pos', v);
+/** Every position of a finite space. */
+export const positions = () => call('positions');
+/** The neighbor of `a.pos` behind the agent's port `i`, and the position after `k` steps through it. */
+export const resolve = (C: X, a: Arg, i: Arg) => call('resolve', C, a, i);
+export const follow = (C: X, a: Arg, i: Arg, k: Arg) => call('follow', C, a, i, k);
+// In sensors: the Look `L`.
+export const occupants = (L: X, l: Arg) => call('occupants', L, l);
+export const position = (L: X, l: Arg) => call('position', L, l);
+export const edgePresent = (L: X, a: Arg, b: Arg) => call('edgePresent', L, a, b);
+// In algorithms: the agent's Look.
+export const here = () => call('here');
+export const visible = () => call('visible');
+export const neighbors = (l: Arg) => call('neighbors', l);
+export const distance = (a: Arg, b: Arg) => call('distance', a, b);
+/** A sensor read by the algorithm: once per Look, or at a location. */
+export const sense = (sensor: string, at?: Arg) => wrap({ e: 'sense', sensor, ...(at === undefined ? {} : { loc: ir(at) }) });
 export const range = (n: Arg) => call('range', n);
 export const subsets = (l: Arg) => call('subsets', l);
 export const subsetsUpTo = (l: Arg, k: Arg) => call('subsetsUpTo', l, k);
@@ -218,9 +227,24 @@ export function flag(name: string, visibility: Flag['visibility'], acts: Flag['a
   return { name, visibility, acts };
 }
 
-/** A sensor: `C`, `me` and `frame` are in scope. */
-export function sensor(name: string, type: Type, body: (s: { C: X; me: X; frame: X }) => Arg, equivariance?: Equivariance): Sensor {
-  return { name, type, body: ir(body({ C: v('C'), me: v('me'), frame: v('frame') })), ...(equivariance ? { equivariance } : {}) };
+/** A sensor read once per Look: its Look `L` is in scope; `look` binds its Look-level part, which may choose. */
+export function sensor(name: string, type: Type, body: (s: { L: X } & Record<string, X>) => Arg, look: Record<string, (s: { L: X } & Record<string, X>) => Arg> = {}): Sensor {
+  return lookSensor(name, type, false, look, body);
+}
+
+/** A sensor read at a location: `L` and the location `l` are in scope; the body is deterministic. */
+export function locationSensor(name: string, type: Type, body: (s: { L: X; l: X } & Record<string, X>) => Arg, look: Record<string, (s: { L: X } & Record<string, X>) => Arg> = {}): Sensor {
+  return lookSensor(name, type, true, look, body as (s: { L: X } & Record<string, X>) => Arg);
+}
+
+function lookSensor(name: string, type: Type, perLocation: boolean, look: Record<string, (s: { L: X } & Record<string, X>) => Arg>, body: (s: { L: X } & Record<string, X>) => Arg): Sensor {
+  const scope: { L: X } & Record<string, X> = { L: v('L'), ...(perLocation ? { l: v('l') } : {}) };
+  const bindings = Object.entries(look).map(([n, f]) => {
+    const value = ir(f(scope));
+    scope[n] = v(n);
+    return { name: n, value };
+  });
+  return { name, type, perLocation, ...(bindings.length ? { look: bindings } : {}), body: ir(body(scope)) };
 }
 
 export function def(name: string, params: Record<string, Type>, ret: Type, body: (args: Record<string, X>) => Arg) {
@@ -246,7 +270,7 @@ export type ComponentSpec = {
   beforeMove?: (C: X, p: Params) => Arg;
   afterMove?: (C: X, p: Params) => Arg;
   defs?: Component['defs'];
-  equivariance?: Equivariance;
+  equivariant?: boolean;
 };
 
 export function component(spec: ComponentSpec): Component {
@@ -269,17 +293,18 @@ export function component(spec: ComponentSpec): Component {
     beforeMove: hook(spec.beforeMove),
     afterMove: hook(spec.afterMove),
     defs: spec.defs,
-    equivariance: spec.equivariance,
+    equivariant: spec.equivariant,
   };
   return dropUndefined(c);
 }
 
 export type ModelSpec = {
   name: string;
-  topology: Topology;
+  space: Space;
+  observation: Observation;
+  frames: Frames;
   sensors: Sensor[];
   memory?: Model['memory'];
-  frame?: FrameModel;
   round?: Model['round'];
   components?: Component[];
   symmetries?: Model['symmetries'];
@@ -289,20 +314,54 @@ export type ModelSpec = {
 export function model(spec: ModelSpec): Model {
   return dropUndefined({
     name: spec.name,
-    topology: spec.topology,
+    space: spec.space,
+    observation: spec.observation,
+    frames: spec.frames,
     sensors: spec.sensors,
     memory: spec.memory ?? 'persistent',
-    frame: spec.frame ?? { kind: 'common' },
     round: spec.round ?? 'fsync',
-    movement: 'rigid',
+    movement: 'alongEdges' as const,
     components: spec.components ?? [],
     symmetries: spec.symmetries ?? 'derived',
     defs: spec.defs,
   });
 }
 
-export const ring = (size: Arg): Topology => ({ kind: 'ring', size: ir(size) });
-export const dynamicRing = (size: Arg, k = 1): Topology => ({ kind: 'dynamicRing', size: ir(size), k });
+/** A graph space; `params` are its parameters, with their values as expressions over experiment parameters. */
+export function graph(spec: {
+  name: string; vertex: Type; params?: Record<string, { type: Type; value: Arg }>;
+  vertices?: (p: Params) => Arg; neighbors: (v: X, p: Params) => Arg; automorphisms?: Automorphisms;
+}): Space {
+  const ps = Object.entries(spec.params ?? {});
+  const p: Params = Object.fromEntries(ps.map(([name]) => [name, v(name)]));
+  return dropUndefined({
+    kind: 'graph' as const,
+    name: spec.name,
+    params: ps.length ? ps.map(([name, { type }]) => ({ name, type })) : undefined,
+    args: ps.length ? Object.fromEntries(ps.map(([name, { value }]) => [name, ir(value)])) : undefined,
+    vertex: spec.vertex,
+    vertices: spec.vertices && ir(spec.vertices(p)),
+    neighbors: { vertex: 'v', body: ir(spec.neighbors(v('v'), p)) },
+    automorphisms: spec.automorphisms ?? { kind: 'computed' },
+  });
+}
+
+/** The cycle C_n of `Graphs.Cycle` (port 0 to v + 1, port 1 to v - 1), its size given by `size`. */
+export const cycle = (size: Arg = param('N')): Space => graph({
+  name: 'Graphs.Cycle', vertex: T.nat, params: { n: { type: T.nat, value: size } },
+  vertices: p => range(p.n),
+  neighbors: (x, p) => call('list', x.add(1).mod(p.n), x.add(p.n).sub(1).mod(p.n)),
+  automorphisms: { kind: 'dihedral', n: v('n').ir },
+});
+
+export const dynamic = (base: Space, missing: Arg = 1): Space => ({ kind: 'dynamic', base, missing: ir(missing) });
+export const full: Observation = { kind: 'full' };
+export const radius = (r: Arg): Observation => ({ kind: 'radius', r: ir(r) });
+export const frames = {
+  isomorphisms: { kind: 'isomorphisms' } as Frames,
+  identity: { kind: 'identity' } as Frames,
+  portPermutations: (when: 'perLook' | 'perRobot', among: 'all' | 'symmetries' = 'all'): Frames => ({ kind: 'portPermutations', when, among }),
+};
 
 export type AlgorithmSpec = {
   name: string;
@@ -310,8 +369,8 @@ export type AlgorithmSpec = {
   pub: Type;
   mem?: Type;
   init: { pub: (i: X) => Arg; mem?: (i: X) => Arg };
-  /** Returns `{ move, pub, mem, ...actions }`; missing `pub` and `mem` are kept unchanged. */
-  step?: (s: { mem: X; pub: X; view: X }) => Record<string, Arg>;
+  /** Returns `{ move, pub, mem, ...actions }`; missing `pub` and `mem` are kept unchanged, a missing `move` stays. */
+  step?: (s: { mem: X; pub: X }) => Record<string, Arg>;
   line?: (mem: X) => Arg;
   native?: string;
   defs?: Algorithm['defs'];
@@ -319,8 +378,8 @@ export type AlgorithmSpec = {
 
 export function algorithm(spec: AlgorithmSpec): Algorithm {
   const mem = spec.mem ?? T.unit;
-  const s = { mem: v('mem'), pub: v('pub'), view: v('view') };
-  const step = spec.step ? spec.step(s) : { move: move('stay') };
+  const s = { mem: v('mem'), pub: v('pub') };
+  const step = { move: here(), ...(spec.step ? spec.step(s) : {}) };
   return dropUndefined({
     name: spec.name,
     uses: spec.uses,
@@ -334,8 +393,8 @@ export function algorithm(spec: AlgorithmSpec): Algorithm {
   });
 }
 
-export function task(spec: { name: string; goal: Goal; verdict: (C: X) => Arg; equivariance?: Equivariance; defs?: Task['defs'] }): Task {
-  return dropUndefined({ name: spec.name, goal: spec.goal, verdict: ir(spec.verdict(v('C'))), equivariance: spec.equivariance, defs: spec.defs });
+export function task(spec: { name: string; goal: Goal; verdict: (C: X) => Arg; equivariant?: boolean; defs?: Task['defs'] }): Task {
+  return dropUndefined({ name: spec.name, goal: spec.goal, verdict: ir(spec.verdict(v('C'))), equivariant: spec.equivariant, defs: spec.defs });
 }
 
 export function experiment(spec: {

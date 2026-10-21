@@ -1,4 +1,4 @@
-import type { Field, Type } from './ir';
+import type { Field, Space, Type } from './ir';
 
 export const T = {
   unit: { k: 'unit' } as Type,
@@ -6,9 +6,9 @@ export const T = {
   nat: { k: 'nat' } as Type,
   int: { k: 'int' } as Type,
   string: { k: 'string' } as Type,
-  node: { k: 'node' } as Type,
-  move: { k: 'move' } as Type,
-  frame: { k: 'frame' } as Type,
+  pos: { k: 'pos' } as Type,
+  loc: { k: 'loc' } as Type,
+  look: { k: 'look' } as Type,
   agent: { k: 'agent' } as Type,
   config: { k: 'config' } as Type,
   effect: { k: 'effect' } as Type,
@@ -25,7 +25,6 @@ export const T = {
   fn: (params: Type[], ret: Type): Type => ({ k: 'fn', params, ret }),
 };
 
-export const MOVES = ['stay', 'cw', 'ccw'] as const;
 export const VERDICTS = ['success', 'failure', 'inProgress'] as const;
 
 export function typeEq(a: Type, b: Type): boolean {
@@ -72,21 +71,27 @@ function wrap(t: Type) {
 /** Types whose values can be compared, stored in configurations and encoded. */
 export function isData(t: Type): boolean {
   switch (t.k) {
-    case 'fn': case 'config': case 'effect': case 'decision': return false;
+    case 'fn': case 'config': case 'look': case 'effect': case 'decision': return false;
     case 'option': case 'list': case 'multiset': return isData(t.of);
     case 'record': return t.fields.every(f => isData(f.type));
     default: return true;
   }
 }
 
-/** Data that can be kept in a configuration: agents are only references within a round. */
-export function isStorable(t: Type): boolean {
+/** Whether `t` mentions a type of kind `k`. */
+export function mentions(t: Type, k: Type['k']): boolean {
+  if (t.k === k) return true;
   switch (t.k) {
-    case 'agent': return false;
-    case 'option': case 'list': case 'multiset': return isStorable(t.of);
-    case 'record': return t.fields.every(f => isStorable(f.type));
-    default: return isData(t);
+    case 'option': case 'list': case 'multiset': return mentions(t.of, k);
+    case 'record': return t.fields.some(f => mentions(f.type, k));
+    case 'fn': return t.params.some(p => mentions(p, k)) || mentions(t.ret, k);
+    default: return false;
   }
+}
+
+/** Data that can be kept in a configuration: agents and locations are only valid within a round. */
+export function isStorable(t: Type): boolean {
+  return isData(t) && !mentions(t, 'agent') && !mentions(t, 'loc');
 }
 
 export function isCollection(t: Type): t is { k: 'list' | 'multiset'; of: Type } {
@@ -106,4 +111,9 @@ export function resolvePub(t: Type, pub: Type): Type {
     case 'fn': return { k: 'fn', params: t.params.map(p => resolvePub(p, pub)), ret: resolvePub(t.ret, pub) };
     default: return t;
   }
+}
+
+/** The graph under a space (a dynamic graph's base), or undefined for a Euclidean space. */
+export function graphOf(s: Space): Extract<Space, { kind: 'graph' }> | undefined {
+  return s.kind === 'graph' ? s : s.kind === 'dynamic' ? graphOf(s.base) : undefined;
 }

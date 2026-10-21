@@ -16,8 +16,8 @@ export type Layout = {
   worldType: Type;
   pub: Type;
   mem: Type;
-  /** What `step` receives as `view`: one field per sensor the algorithm uses. */
-  view: Type;
+  /** The sensors the algorithm uses, by the name it reads them with. */
+  used: Owned<Sensor>[];
   /** What `step` returns. */
   decision: Type;
   /** Definitions visible from every piece: the model's. */
@@ -46,7 +46,7 @@ export function layout(exp: Experiment): Layout {
   const sensors = unique('sensor', [...owned(MODEL, model.sensors), ...model.components.flatMap(c => owned(c.name, c.sensors))])
     .map(s => ({ ...s, type: resolvePub(s.type, algorithm.pub) }));
   const actions = unique('action', model.components.flatMap(c => owned(c.name, c.actions)));
-  const reserved = new Set(['pos', 'pub', 'mem']);
+  const reserved = new Set(['pos', 'pub', 'mem', 'decided', 'target']);
   for (const f of [...agentFields, ...flags]) {
     if (reserved.has(f.name)) errors.push(`agent field '${f.name}' of ${f.owner} is reserved`);
   }
@@ -56,10 +56,10 @@ export function layout(exp: Experiment): Layout {
   for (const a of actions) {
     if (['move', 'pub', 'mem'].includes(a.name)) errors.push(`action '${a.name}' of ${a.owner} is reserved`);
   }
-  const view: Field[] = [];
+  const used: Owned<Sensor>[] = [];
   for (const name of algorithm.uses) {
     const sensor = sensors.find(s => s.name === name);
-    if (sensor) view.push({ name, type: sensor.type });
+    if (sensor) used.push(sensor);
     else errors.push(`algorithm ${algorithm.name} uses sensor '${name}', which the model does not provide`);
   }
   return {
@@ -67,9 +67,9 @@ export function layout(exp: Experiment): Layout {
     worldType: T.record(world.map(({ name, type }) => ({ name, type }))),
     pub: algorithm.pub,
     mem: algorithm.mem,
-    view: T.record(view),
+    used,
     decision: T.record([
-      { name: 'move', type: T.move }, { name: 'pub', type: algorithm.pub }, { name: 'mem', type: algorithm.mem },
+      { name: 'move', type: T.loc }, { name: 'pub', type: algorithm.pub }, { name: 'mem', type: algorithm.mem },
       ...actions.map(({ name, type }) => ({ name, type })),
     ]),
     defs: model.defs ?? [],

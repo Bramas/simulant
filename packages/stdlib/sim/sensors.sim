@@ -1,50 +1,58 @@
-/-! Library sensors (plan, Section 3.2). A sensor is a function of the configuration `C`,
-the observing agent `me`, and its frame; the sensors of a model are exactly what its
-algorithms can know. -/
+/-! Library sensors (docs/core-redesign.md, section 4).
+
+A sensor receives the Look `L` and, for a per-location sensor, a location. Its result cannot
+contain `Pos`, `Agent` or `Loc`. Choices are made once per Look, for the whole view (one sensor
+environment per Look). A sensor that reads only the Look API is equivariant under every
+automorphism of the space, since positions are opaque to it; no `@[equivariant]` claim is
+needed (see the answers to the open questions). `ringPresence`, `ringCount`, `lineView` and
+`colorView` are gone: an algorithm maps a per-location sensor over locations instead. -/
+
+/-- Is someone at this location? (weak multiplicity) -/
+sensor occupied (L : Look) (l : Loc) : Bool :=
+  (L.occupants l).any present
+
+/-- How many agents are at this location (strong multiplicity). -/
+sensor count (L : Look) (l : Loc) : Nat :=
+  (L.occupants l).count present
+
+/-- Multiplicity detection only where I stand: 0, 1 or 2 (two or more). -/
+sensor localMultiplicity (L : Look) (l : Loc) : Nat :=
+  min (if l = L.here then 2 else 1) ((L.occupants l).count present)
+
+/-- The adversary may hide up to `k` agents of the whole view, once per Look. -/
+@[implements occupied]
+sensor lossyOccupied (k : Nat) (L : Look) where
+  hidden := choose (subsetsUpTo k (L.visibleAgents.filter present))
+    labels fun h => if h.isEmpty then "hides nobody" else "hides " ++ show h
+  at (l : Loc) : Bool := (L.occupants l).any fun a => present a ∧ !hidden.contains a
+
+/-- The colors present at this location, in palette order. Needs `Storage.Lights`.
+Multiplicities and faults are not observable. -/
+sensor colors (L : Look) (l : Loc) : List Nat :=
+  (range L.world.colorCount).filter fun c => (L.occupants l).any fun a => present a ∧ a.light = c
+
+/-- My own light. Needs `Storage.Lights`. -/
+sensor ownLight (L : Look) : Nat :=
+  L.me.light
 
 /-- Public states of the other agents on my node. -/
-@[equivariant rotations reflections]
-sensor otherStates (C : Config) (me : Agent) : Multiset Pub :=
-  (C.agents.filter fun b => b ≠ me ∧ present b ∧ b.pos = me.pos).map (·.pub)
+sensor otherStates (L : Look) : Multiset Pub :=
+  ((L.occupants L.here).filter fun b => b ≠ L.me ∧ present b).map (·.pub)
 
-/-- The adversary may hide up to `k` of the agents on my node, once per activation. -/
-@[equivariant rotations reflections, implements otherStates]
-sensor otherStatesLossy (k : Nat) (C : Config) (me : Agent) : Multiset Pub :=
-  let seen := (C.agents.filter fun b => b ≠ me ∧ present b ∧ b.pos = me.pos).map (·.pub)
+/-- The adversary may hide up to `k` of the agents on my node. A sensor without a location is
+already evaluated once per Look, so its choice needs no separate Look-level part. -/
+@[implements otherStates]
+sensor otherStatesLossy (k : Nat) (L : Look) : Multiset Pub :=
+  let seen := ((L.occupants L.here).filter fun b => b ≠ L.me ∧ present b).map (·.pub)
   let hidden := choose (subsetsUpTo k seen) labels fun h => if h.isEmpty then "hides nobody" else "hides " ++ show h
   seen.diff hidden
 
-/-- Knowledge of the ring size. -/
-@[equivariant rotations reflections]
-sensor ringSize (C : Config) (me : Agent) : Nat :=
-  C.size
+/-- Is the edge to this neighbor present this round? Dynamic spaces only. -/
+sensor edgeTo (L : Look) (l : Loc) : Bool :=
+  L.edgePresent L.here l
 
-/-- Which local offsets are occupied (weak multiplicity). States are not visible. -/
-@[equivariant rotations reflections]
-sensor ringPresence (C : Config) (me : Agent) (frame : Frame) : List Bool :=
-  ofFn C.size fun i => C.agents.any fun b => present b ∧ b.pos = offset me.pos frame i
+/-- Knowledge of the size of a finite space (today's `ringSize`). -/
+sensor spaceSize (L : Look) : Nat :=
+  L.spaceSize
 
-/-- How many agents are at each local offset (strong multiplicity). -/
-@[equivariant rotations reflections]
-sensor ringCount (C : Config) (me : Agent) (frame : Frame) : List Nat :=
-  ofFn C.size fun i => C.agents.count fun b => present b ∧ b.pos = offset me.pos frame i
-
-/-- Centered radius-phi occupancy view, from -phi to +phi: 0 = empty, 1 = occupied.
-Needs `Vision.Radius`. It exposes neither multiplicities nor the topology size.
-On a padded ring it also represents a finite-radius observation of a line. -/
-@[equivariant rotations reflections]
-sensor lineView (C : Config) (me : Agent) (frame : Frame) : List Nat :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    if C.agents.any (fun a => present a ∧ a.pos = p) then 1 else 0
-
-/-- Centered finite-radius sets of colors, in palette order. Needs `Vision.Radius`
-and `Storage.Lights`. Each node is a list of distinct colors in 0..colorCount-1;
-an empty list means unoccupied. Multiplicities, slots and faults are not observable. -/
-@[equivariant rotations reflections]
-sensor colorView (C : Config) (me : Agent) (frame : Frame) : List (List Nat) :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    (range C.world.colorCount).filter fun color => C.agents.any fun a =>
-      present a ∧ a.pos = p ∧
-      (if a.slot < C.world.lights.length then C.world.lights.at a.slot else 0) = color
+-- `pebblesHere` belongs to `Storage.Pebbles` (components.sim).
