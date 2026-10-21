@@ -55,7 +55,7 @@ test('an edit that only moves lines redraws, and the algorithm view follows', ()
   hot.save(original.replace('import "std/models.sim"', '-- a comment\nimport "std/models.sim"'));
   assert.deepEqual(updates.map(u => u.kind), ['redraw']);
   // The configuration comes from the running system (old line table); the view shows the new lines.
-  assert.ok(project.getAlgorithmViewInfo!(snapshot)!.source.lines.some(l => l.number === 33 && l.text.trim() === 'move .cw'));
+  assert.ok(project.getAlgorithmViewInfo!(snapshot)!.source.lines.some(l => l.number === 33 && l.text.trim() === 'move Ring.cw'));
   assert.deepEqual(lines(), [33, 33, 36, 36]);
   // The model view follows too.
   assert.equal(project.describe!().sources.find(s => s.kind === 'experiment')!.lines[0].number, 39);
@@ -65,7 +65,7 @@ test('an edit that does not compile keeps the last good experiment, and a fix re
   const hot = hotModule(original);
   const project = simProject(hot.module, 'algo1');
   const updates = record(project);
-  hot.save(original.replace('move .cw', 'move .clockwise'));
+  hot.save(original.replace('move Ring.cw', 'move Ring.clockwise'));
   assert.equal(updates[0].kind, 'failed');
   if (updates[0].kind !== 'failed') return;
   assert.match(updates[0].diagnostics[0], /algo1\.sim:\d+:\d+: /);
@@ -77,7 +77,7 @@ test('an edit that does not compile keeps the last good experiment, and a fix re
 });
 
 test('a module that fails on first load reports its diagnostics at setup, and recovers', () => {
-  const hot = hotModule(original.replace('move .cw', 'move .clockwise'));
+  const hot = hotModule(original.replace('move Ring.cw', 'move Ring.clockwise'));
   const project = simProject(hot.module, 'algo1');
   const updates = record(project);
   assert.throws(() => project.setup(null), /algo1\.sim:\d+:\d+: /);

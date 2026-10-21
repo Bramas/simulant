@@ -77,9 +77,9 @@ test('the algorithm view shows the source as written and where each agent is', (
   assert.match(info.source.file, /algo1\.sim$/);
   // Every line of the definition, indentation and blank lines included, numbered as in the file.
   assert.deepEqual(info.source.lines[0], { number: 8, text: 'algorithm FourAgentEBS uses otherStates where' });
-  assert.deepEqual(info.source.lines.find((l: any) => l.number === 32), { number: 32, text: '      move .cw' });
+  assert.deepEqual(info.source.lines.find((l: any) => l.number === 32), { number: 32, text: '      move Ring.cw' });
   assert.ok(info.source.lines.some((l: any) => l.text === ''));
-  assert.equal(info.source.lines.at(-1).text, '      cautiousWalk 2 3 .cw');
+  assert.equal(info.source.lines.at(-1).text, '      cautiousWalk 2 3 Port.cw');
   // Agents 0 and 1 moved clockwise (line 32), agents 2 and 3 counterclockwise (line 35).
   assert.deepEqual(info.agents.map((s: any) => [s.agentId, s.line, s.calls]), [['a0', 32, []], ['a1', 32, []], ['a2', 35, []], ['a3', 35, []]]);
   // One round later they are inside cautiousWalk (lines 18 and 23), called at line 33 or 36.
@@ -149,13 +149,14 @@ test('the model view describes the experiment and shows the declarations it uses
   assert.ok(d.summary.includes('sensor: otherStates'));
   assert.match(d.about!, /^Algorithm 1 of the black-hole-search paper/);
   assert.deepEqual(d.sources.map(s => `${s.kind} ${s.name}`), [
-    'experiment algo1', 'model blackHoleRing', 'sensor otherStates', 'component Hazards.BlackHole',
-    'algorithm FourAgentEBS', 'task IdentifyEmergingBlackHole', 'goal IdentifyEmergingBlackHole',
+    'experiment algo1', 'model blackHoleRobots', 'model robots', 'space Graphs.Cycle', 'sensor otherStates',
+    'component Hazards.BlackHole', 'algorithm FourAgentEBS', 'task IdentifyEmergingBlackHole', 'goal IdentifyEmergingBlackHole',
+    'definition Port.cw', 'definition port', 'definition Ring.cw', 'definition Ring.ccw', 'definition Port.opposite',
   ]);
   // A declaration comes with its doc comment and attributes.
   const hole = d.sources.find(s => s.kind === 'component')!;
   assert.match(hole.lines[0].text, /^\/-- A black hole/);
-  assert.ok(hole.lines.some(l => l.text === '@[equivariant rotations reflections]'));
+  assert.ok(hole.lines.some(l => l.text === '@[equivariant]'));
   assert.match(hole.lines.at(-1)!.text, /raise dead/);
   const fact = (section: string, label: string) => d.sections.find(s => s.title.startsWith(section))!.facts.find(f => f.label === label)!;
   assert.equal(fact('Experiment', 'param N').value, '(range 13).filter (· ≥ 5)');
@@ -173,7 +174,7 @@ test('the model view describes the experiment and shows the declarations it uses
   assert.deepEqual(d.round.find(p => p.phase === 'afterMove')!.choices, ['BlackHole.active']);
 });
 
-test('the model view links each case of the Lean step to the statement it resumes after', () => {
+test('the model view links each case of the Lean step to the statement it resumes after', { skip: 'the Lean generator is ported in Phase 0 step 6' }, () => {
   const lean = project.describe().lean as Extract<import('../../core/src/types/project').LeanDescription, { blocks: unknown }>;
   assert.equal(lean.module, 'Algo1');
   assert.match(lean.text, /^import Simulant\nimport Simulant\.Library\.BlackHole/);

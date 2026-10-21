@@ -343,15 +343,41 @@ export function AlgorithmViewer(props: AlgorithmViewerProps) {
                     <span>frame: {e().frame}</span>
                   </div>
                   <div class="ex-section">
-                    <h4>Sensors</h4>
-                    <Show when={Object.keys(e().view).length} fallback={<p class="ex-none">No sensor.</p>}>
+                    <h4>Look</h4>
+                    <div class="ex-look-wrap">
+                      <table class="ex-look">
+                        <thead>
+                          <tr>
+                            <th>location</th><th>position</th><th>neighbors</th>
+                            <For each={Object.keys(e().locations[0]?.sensors ?? {})}>{name => <th class="si-key">{name}</th>}</For>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <For each={e().locations}>
+                            {(l, i) => (
+                              <tr classList={{ 'ex-here': l.here }}>
+                                <td>ℓ{i()}{l.here ? ' (here)' : ''}</td>
+                                <td>{l.position}</td>
+                                <td>{l.neighbors.map(n => `ℓ${n}`).join(', ')}</td>
+                                <For each={Object.values(l.sensors)}>{v => <td class="ex-result">{v}</td>}</For>
+                              </tr>
+                            )}
+                          </For>
+                        </tbody>
+                      </table>
+                    </div>
+                    <p class="ex-note">The algorithm sees locations, their order and the sensors; positions are shown for reading.</p>
+                  </div>
+                  <Show when={Object.keys(e().view).length}>
+                    <div class="ex-section">
+                      <h4>Sensors</h4>
                       <dl class="ex-view">
                         <For each={Object.entries(e().view)}>
                           {([k, v]) => <><dt class="si-key">{k}</dt><dd class="ex-result">{v}</dd></>}
                         </For>
                       </dl>
-                    </Show>
-                  </div>
+                    </div>
+                  </Show>
                   <div class="ex-section">
                     <h4>Calls</h4>
                     <Show when={e().calls.length} fallback={<p class="ex-none">No definition was called.</p>}>

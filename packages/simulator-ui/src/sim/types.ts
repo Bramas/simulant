@@ -22,7 +22,8 @@ export type Point = { x: number; y: number };
 export type Layout = {
   center: Point;
   radius: number;
-  nodePosition(node: number): Point;
+  /** Where a vertex is drawn (a vertex is a number on cycles, lines and stars). */
+  nodePosition(node: any): Point;
   /** Where each agent was drawn, for hit testing. */
   agents: AgentRenderInfo[];
 };

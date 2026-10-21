@@ -48,13 +48,19 @@ function about(text: string): string | undefined {
   return m ? m[1].trim().split(/\n\s*\n/).map(p => p.replace(/\s*\n\s*/g, ' ')).join('\n\n') : undefined;
 }
 
-/** An item of a declaration (`param N : Nat in ...`, `agents := 4`): its value as written, and its line. */
+/**
+ * An item of a declaration (`agents := 4`, `param N : Nat in ...`): its value as written, and its
+ * line. A parameter's value is its domain (`(range 9).filter (· ≥ 3)`, `(range 9) where …`,
+ * `where …`).
+ */
 function item(lines: Line[], name: RegExp): { text: string; line: number } | undefined {
   const i = lines.findIndex(l => name.test(l.text));
   if (i < 0) return undefined;
   const indent = (s: string) => s.length - s.trimStart().length;
   const own = indent(lines[i].text);
-  const parts = [lines[i].text.slice(lines[i].text.indexOf(':=') + 2).trim()];
+  const first = lines[i].text;
+  const domain = /^\s*param\b/.test(first) ? /\s(in|where)\s/.exec(first) : undefined;
+  const parts = [domain ? first.slice(domain.index + 1).replace(/^in\s+/, '').trim() : first.slice(first.indexOf(':=') + 2).trim()];
   for (let j = i + 1; j < lines.length && lines[j].text.trim() && indent(lines[j].text) > own; j++) parts.push(lines[j].text.trim());
   return { text: parts.join(' ').replace(/\s+--.*$/, ''), line: lines[i].number };
 }
@@ -192,15 +198,19 @@ function lineTable(exp: Experiment): Record<string, number> {
   return Object.fromEntries(Object.entries(l.cases).flatMap(([pc, e]) => e.e === 'lit' && typeof e.value === 'number' ? [[pc, e.value]] : []));
 }
 
+const KIND_ORDER: SourceExcerpt['kind'][] = ['experiment', 'model', 'space', 'sensor', 'component', 'algorithm', 'task', 'goal', 'definition'];
+
 export function describeExperiment(exp: Experiment, sources: Record<string, string>, revision?: string, lean?: SimLean, checkSettings?: () => Iterable<unknown>): ModelDescription {
   const { model, algorithm, task } = exp;
   const key = (kind: string, name: string) => `${kind} ${name}`;
 
   // The declarations as written. Without recorded uses (IR built otherwise), the algorithm alone.
   const uses = exp.source?.uses ?? (algorithm.source ? [{ kind: 'algorithm' as const, name: algorithm.name, ...algorithm.source }] : []);
+  // By kind, then in order of use (a model before the models it builds on).
   const excerpts: SourceExcerpt[] = uses
     .filter(u => sources[u.file] !== undefined)
-    .map(u => ({ kind: u.kind, name: u.name, file: u.file, lines: excerpt(sources[u.file], u.line, u.endLine) }));
+    .map(u => ({ kind: u.kind, name: u.name, file: u.file, lines: excerpt(sources[u.file], u.line, u.endLine) }))
+    .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
   const expLines = excerpts.find(s => s.kind === 'experiment')?.lines ?? [];
   /** A declaration shown, by kind and name (a component's declaration is `Hazards.BlackHole`, its IR name `BlackHole`). */
   const shown = (kind: string, name: string) => excerpts.find(s => s.kind === kind && (s.name === name || s.name.split('.').pop() === name));

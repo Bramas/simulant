@@ -80,8 +80,11 @@ export type StepExplanation = {
   /** The line of the statement that decided. */
   line?: number;
   frame: string;
+  /** The values of the sensors that are not per location, as text. */
   view: Record<string, string>;
-  /** The move the algorithm returned, in the agent's frame. */
+  /** The visible locations in the Look's order: the position behind each, whether it is the agent's own, its neighbors (as locations), per-location sensor values. */
+  locations: { position: string; here: boolean; neighbors: number[]; sensors: Record<string, string> }[];
+  /** Where the agent moved: `stay`, or the location and the position behind it. */
   move: string;
   calls: TraceCall[];
 };

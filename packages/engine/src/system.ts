@@ -28,9 +28,15 @@ export type Explanation = {
   line?: number;
   /** The morphism of the Look, when the frames leave a choice. */
   frame: string;
-  /** Each sensor's value, as text: per-location sensors over the visible locations, in order. */
+  /** The values of the sensors that are not per location, as text. */
   view: Record<string, string>;
-  /** Where the agent moves (`stay`, or the position). */
+  /**
+   * The Look's visible locations, in its order: the position behind each (which the algorithm
+   * does not see), whether it is the agent's own, its neighbors as locations, and the values of
+   * the per-location sensors there.
+   */
+  locations: { position: string; here: boolean; neighbors: number[]; sensors: Record<string, string> }[];
+  /** Where the agent moves: `stay`, or the location and the position behind it (`ℓ3 (u1)`). */
   move: string;
   /** The definitions the step called, with their arguments, results and return lines. */
   calls: TraceCall[];
@@ -302,7 +308,13 @@ export class System {
 
   private explainStep(a: AgentV, input: StepInput): Explanation {
     const { rt, exp, lay } = this;
-    const view = this.showEnv(input.look, input.env);
+    const { look, env } = input;
+    const perLocation = this.sensors.filter(s => s.perLocation);
+    const view = Object.fromEntries(this.sensors.filter(s => !s.perLocation).map(s => [s.name, show(s.t, true)(env.get(s.name)!.value)]));
+    const locations = Array.from({ length: look.size }, (_, l) => ({
+      position: show(T.pos)(look.vertex(l)), here: l === look.here, neighbors: look.neighbors(l),
+      sensors: Object.fromEntries(perLocation.map(s => [s.name, show(s.t, true)(env.get(s.name)!.at!(l))])),
+    }));
     if (!this.traced) {
       const { model, algorithm } = exp;
       const compiler = new Compiler(rt, lay, new Map(exp.params.map(p => [p.name, p.type])), true);
@@ -310,12 +322,12 @@ export class System {
       this.traced = (mem, pub) => runDet(fn, [mem, pub]) as Record<string, V>;
     }
     rt.trace = { stack: [[]], count: 0 };
-    rt.look = input.look; rt.env = input.env;
+    rt.look = look; rt.env = env;
     try {
       const local = this.traced(a.mem, a.pub);
-      const target = input.look.vertex(local.move);
-      const move = vertexKey(target) === vertexKey(a.pos) ? 'stay' : show(T.pos)(target);
-      return { line: rt.trace.line, frame: input.label, view, move, calls: rt.trace.stack[0] };
+      const target = look.vertex(local.move);
+      const move = vertexKey(target) === vertexKey(a.pos) ? 'stay' : `${show(T.loc)(local.move)} (${show(T.pos)(target)})`;
+      return { line: rt.trace.line, frame: input.label, view, locations, move, calls: rt.trace.stack[0] };
     } finally {
       rt.trace = undefined; rt.look = undefined; rt.env = undefined;
     }

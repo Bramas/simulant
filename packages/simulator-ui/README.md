@@ -40,7 +40,9 @@ contains Solid JSX that the consuming application must compile. Include the
 Simulant plugin in graph workers too. The initializer supplies this setup.
 
 `simProject` supplies a settings form, execution adapter, model description,
-state inspector and default ring renderer from the compiled experiment.
+state inspector and a default renderer from the compiled experiment: a ring for
+cycles, a window of the infinite line, or a circular layout of another finite
+graph (`renderers/space.ts`).
 Projects can supply a custom drawing function, agent names and aliases for
 older parameter names. Settings outside declared domains produce advisory
 warnings; execution remains available.

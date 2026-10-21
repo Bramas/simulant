@@ -44,6 +44,8 @@ export class SpaceRuntime {
       this.vertices = vertices;
       this.keys = new Set(vertices.map(vertexKey));
       if (this.keys.size !== vertices.length) throw new Error(`${name}: repeated vertices`);
+      // A finite graph is checked when it is built: neighbors are vertices, and there is no self-loop.
+      for (const v of vertices) this.neighbors(v);
     }
     this.missingSets = missing > 0 ? this.removals(missing) : [{ state: [], label: '' }];
   }
@@ -59,6 +61,7 @@ export class SpaceRuntime {
     if (!out) {
       out = this.nbrs(v);
       if (this.keys) for (const w of out) if (!this.has(w)) throw new Error(`${this.name}: neighbor ${vertexKey(w)} of ${k} is not a vertex`);
+      if (out.some(w => vertexKey(w) === k)) throw new Error(`${this.name}: vertex ${k} is its own neighbor (self-loops are not supported)`);
       this.nbrCache.set(k, out);
     }
     return out;
