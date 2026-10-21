@@ -32,8 +32,7 @@ algorithm Disperse uses count where
 /-- Three robots at the center. At the center the leaves are symmetric, so `free.at 0` is
 whichever empty leaf the morphism put first; the adversary chooses each robot's morphism
 independently and may give the three robots the same one. Under FSYNC they then move to the
-same leaf, come back together and repeat forever: the check must find this lasso (a cycle of
-length 2 from the initial configuration, up to the star's automorphisms). -/
+same leaf, come back together and repeat forever: the check must find a lasso. -/
 experiment starDispersion where
   model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [count]
   algorithm := Disperse

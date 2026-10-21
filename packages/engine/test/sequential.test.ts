@@ -1,16 +1,16 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { experiment, model, node } from '@bramas/simulant-lang/builder';
+import { experiment, frames, pos, radius } from '@bramas/simulant-lang/builder';
 import { T } from '@bramas/simulant-lang/types';
 import { Explorer } from '@bramas/simulant-engine/explorer';
 import { System } from '@bramas/simulant-engine/system';
 import { EveryoneActivated, MarkActivated } from '../../stdlib/test/helpers/examples';
-import { Ring } from '../../stdlib/test/helpers/models';
+import { Cycle, robots } from '../../stdlib/test/helpers/models';
 
 const make = (count: number) => experiment({
-  name: 'sequential', model: model({ name: 'sequential', topology: Ring(), sensors: [], round: 'sequential' }),
+  name: 'sequential', model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [], round: 'sequential' }),
   algorithm: MarkActivated, task: EveryoneActivated,
-  params: [{ name: 'N', type: T.nat }], agents: { count, pos: i => node(i) },
+  params: [{ name: 'N', type: T.nat }], agents: { count, pos: i => pos(i) },
 });
 
 test('sequential rounds activate exactly one agent and preserve identities', () => {

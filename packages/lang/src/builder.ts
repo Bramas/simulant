@@ -211,6 +211,8 @@ export const distance = (a: Arg, b: Arg) => call('distance', a, b);
 /** A sensor read by the algorithm: once per Look, or at a location. */
 export const sense = (sensor: string, at?: Arg) => wrap({ e: 'sense', sensor, ...(at === undefined ? {} : { loc: ir(at) }) });
 export const range = (n: Arg) => call('range', n);
+/** `[a, b, ...]` (at least one element; an empty list is `emptyList`). */
+export const list = (...xs: Arg[]) => call('list', ...xs);
 export const subsets = (l: Arg) => call('subsets', l);
 export const subsetsUpTo = (l: Arg, k: Arg) => call('subsetsUpTo', l, k);
 export const ofFn = (n: Arg, f: (i: X) => Arg) => wrap({ e: 'call', fn: 'ofFn', args: [ir(n), lambda(1, f)] });
@@ -350,7 +352,7 @@ export function graph(spec: {
 export const cycle = (size: Arg = param('N')): Space => graph({
   name: 'Graphs.Cycle', vertex: T.nat, params: { n: { type: T.nat, value: size } },
   vertices: p => range(p.n),
-  neighbors: (x, p) => call('list', x.add(1).mod(p.n), x.add(p.n).sub(1).mod(p.n)),
+  neighbors: (x, p) => list(x.add(1).mod(p.n), x.add(p.n).sub(1).mod(p.n)),
   automorphisms: { kind: 'dihedral', n: v('n').ir },
 });
 

@@ -3,45 +3,31 @@
  * Project simulations and Lean generation use ../../sim/sensors.sim; see ../../README.md.
  */
 import {
-  agents, and, range, choose, concat, ite, let_, ofFn, offset, present, sensor, show, size, str, subsetsUpTo, type X,
+  and, choose, concat, ite, let_, locationSensor, occupants, present, range, sensor, show, str, subsetsUpTo, type X,
 } from '@bramas/simulant-lang/builder';
-import type { Equivariance } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
 
-/** Library sensors only use the topology through the observer's frame. */
-const equivariant: Equivariance = { rotations: true, reflections: true };
+const seenHere = (L: X) => occupants(L, L.here).filter(b => and(b.ne(L.me), present(b))).map(b => b.pub);
 
-const seenHere = (C: X, me: X) =>
-  agents(C).filter(b => and(b.ne(me), present(b), b.pos.eq(me.pos))).map(b => b.pub);
+/** Is someone at this location? (weak multiplicity) */
+export const occupied = locationSensor('occupied', T.bool, ({ L, l }) => occupants(L, l).any(a => present(a)));
+
+/** How many agents are at this location (strong multiplicity). */
+export const count = locationSensor('count', T.nat, ({ L, l }) => occupants(L, l).count(a => present(a)));
+
+/** The colors present at this location, in palette order. Needs `Storage.Lights`. */
+export const colors = locationSensor('colors', T.list(T.nat), ({ L, l }) =>
+  range(L.world.colorCount).filter(c => occupants(L, l).any(a => and(present(a), a.light.eq(c)))));
 
 /** Public states of the other agents on my node. */
-export const otherStates = sensor('otherStates', T.multiset(T.pub), ({ C, me }) => seenHere(C, me), equivariant);
+export const otherStates = sensor('otherStates', T.multiset(T.pub), ({ L }) => seenHere(L));
 
-/** The adversary may hide up to `k` of the agents on my node (fixed for the activation). */
-export const otherStatesLossy = (k: number) => sensor('otherStates', T.multiset(T.pub), ({ C, me }) =>
-  let_('seen', seenHere(C, me), seen =>
+/** The adversary may hide up to `k` of the agents on my node (fixed for the Look). */
+export const otherStatesLossy = (k: number) => sensor('otherStates', T.multiset(T.pub), ({ L }) =>
+  let_('seen', seenHere(L), seen =>
     let_('hidden', choose('otherStatesLossy.hidden', subsetsUpTo(seen, k), {
       label: h => ite(h.isEmpty(), str('hides nobody'), concat('hides ', show(h))),
-    }), hidden => seen.diff(hidden))), equivariant);
+    }), hidden => seen.diff(hidden))));
 
-/** Knowledge of the ring size. */
-export const ringSize = sensor('ringSize', T.nat, ({ C }) => size(C), equivariant);
-
-/** Which local offsets are occupied (weak multiplicity). States are not visible. */
-export const ringPresence = sensor('ringPresence', T.list(T.bool), ({ C, me, frame }) =>
-  ofFn(size(C), i => agents(C).any(b => and(present(b), b.pos.eq(offset(me.pos, frame, i))))), equivariant);
-
-/** How many agents are at each local offset (strong multiplicity). */
-export const ringCount = sensor('ringCount', T.list(T.nat), ({ C, me, frame }) =>
-  ofFn(size(C), i => agents(C).count(b => and(present(b), b.pos.eq(offset(me.pos, frame, i))))), equivariant);
-
-/** Centered finite-radius occupancy, with no multiplicity or size observation. */
-export const lineView = sensor('lineView', T.list(T.nat), ({ C, me, frame }) =>
-  ofFn(C.world.phi.mul(2).add(1), i => let_('p', offset(me.pos, frame, size(C).add(i).sub(C.world.phi).mod(size(C))), p =>
-    ite(agents(C).any(a => and(present(a), a.pos.eq(p))), 1, 0))), equivariant);
-
-/** Centered sets of colors in the model's finite palette. */
-export const colorView = sensor('colorView', T.list(T.list(T.nat)), ({ C, me, frame }) =>
-  ofFn(C.world.phi.mul(2).add(1), i => let_('p', offset(me.pos, frame, size(C).add(i).sub(C.world.phi).mod(size(C))), p =>
-    range(C.world.colorCount).filter(color => agents(C).any(a => and(present(a), a.pos.eq(p),
-      ite(a.slot.lt(C.world.lights.length()), C.world.lights.at(a.slot), 0).eq(color)))))), equivariant);
+/** Knowledge of the size of a finite space. */
+export const spaceSize = sensor('spaceSize', T.nat, ({ L }) => L.spaceSize);

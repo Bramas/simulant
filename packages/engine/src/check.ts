@@ -1,10 +1,12 @@
 /**
  * Checks of experiments, for the CLI and the UI (plan, Phase 6).
  *
- * `checkSettings` explores many settings at once: settings with the same ring
- * size share one state graph. This is sound because parameters reach only
- * the initialisation and the topology size (the checker enforces it), so the
- * transition relation is the same for every setting of a size; a
+ * `checkSettings` explores many settings at once: settings with the same
+ * instantiated model (the values of the model's arguments: the space's
+ * parameters, the observation radius) share one state graph. This is sound
+ * because parameters reach only the initialisation and the model's arguments
+ * (the checker enforces it), so the transition relation is the same for every
+ * setting of a group; a
  * counterexample starts from the initial configuration of one setting, which
  * is reported with it. Initial configurations equal up to the symmetry group
  * merge, which is the enumeration "up to the group" of plan Section 3.11.
@@ -48,7 +50,7 @@ export type CheckResult = {
 };
 
 export type CheckAllResult = CheckResult & {
-  /** Settings checked, and state graphs explored (one per ring size when shared). */
+  /** Settings checked, and state graphs explored (one per instantiated model when shared). */
   settings: number;
   graphs: number;
 };
@@ -84,7 +86,7 @@ export async function checkSetting(exp: Experiment, settings: Record<string, V>,
 }
 
 /**
- * Checks every setting, sharing a state graph between settings of the same ring size
+ * Checks every setting, sharing a state graph between settings of the same instantiated model
  * (`shared: false` explores each setting alone). Stops at the first failure.
  */
 export async function checkSettings(
@@ -113,14 +115,14 @@ export async function checkSettings(
     for (const s of all) groups.push([s]);
   } else if (all.length) {
     const sizer = new System(exp, all[0], limits.system);
-    const bySize = new Map<number, Record<string, V>[]>();
+    const byModel = new Map<string, Record<string, V>[]>();
     for (const s of all) {
-      const size = sizer.sizeWith(s);
-      const group = bySize.get(size);
+      const model = sizer.instantiationWith(s);
+      const group = byModel.get(model);
       if (group) group.push(s);
-      else bySize.set(size, [s]);
+      else byModel.set(model, [s]);
     }
-    for (const group of bySize.values()) groups.push(group);
+    for (const group of byModel.values()) groups.push(group);
   }
   let done = 0;
   for (const group of groups) {
@@ -140,7 +142,7 @@ export async function checkSettings(
       const at = origin[r.counterexample!.initialIndex];
       return { status: 'failure', reason: r.reason, stats, settings: all.length, graphs, trace: tracePath(system, r.counterexample!, at.settings, at.index) };
     }
-    if (r.status === 'incomplete') incomplete ??= group.length > 1 ? `${r.reason} (settings of size ${system.topo.size})` : `${r.reason} (${JSON.stringify(group[0])})`;
+    if (r.status === 'incomplete') incomplete ??= group.length > 1 ? `${r.reason} (${group.length} settings sharing ${JSON.stringify(group[0])})` : `${r.reason} (${JSON.stringify(group[0])})`;
   }
   if (incomplete) return { status: 'incomplete', reason: incomplete, stats, settings: all.length, graphs };
   return { status: 'success', reason: 'every admissible execution of every setting satisfies the task', stats, settings: all.length, graphs };

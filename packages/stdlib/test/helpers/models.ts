@@ -1,49 +1,49 @@
 /**
- * Hand-written builder model families for conformance and unit tests.
- * Project simulations and Lean generation use ../../sim/models.sim; see ../../README.md.
+ * Hand-written builder spaces and model families for conformance and unit tests.
+ * Project simulations and Lean generation use ../../sim/spaces.sim and models.sim; see ../../README.md.
  */
-import { dynamicRing, model, param, ring } from '@bramas/simulant-lang/builder';
-import type { Component, FrameModel, Model, Sensor, Topology } from '@bramas/simulant-lang/ir';
+import { cycle, frames as F, graph, int, ite, list, lit, model, param, radius, range, type Arg } from '@bramas/simulant-lang/builder';
+import type { Component, Frames, Model, Observation, Sensor, Space } from '@bramas/simulant-lang/ir';
+import { T } from '@bramas/simulant-lang/types';
 import { Hazards, type HolePolicy } from './components';
-import { otherStates, ringPresence, ringSize } from './sensors';
+import { otherStates, spaceSize } from './sensors';
 
-export const Ring = (): Topology => ring(param('N'));
-export const DynamicRing = (k = 1): Topology => dynamicRing(param('N'), k);
+/** The cycle C_n (`Graphs.Cycle`); its size is the experiment parameter `N` by default. */
+export const Cycle = (n: Arg = param('N')): Space => cycle(n);
 
-/** The black-hole family: three hole policies, known or unknown size, any extra components. */
-export function blackHoleRing(opts: {
-  policy: HolePolicy;
-  size: 'known' | 'unknown';
-  extra?: Component[];
-  topology?: Topology;
-  view?: Sensor;
+/** The infinite line (`Graphs.Line`). */
+export const Line = (): Space => graph({
+  name: 'Graphs.Line', vertex: T.int,
+  neighbors: v => list(v.add(int(1)), v.sub(int(1))),
+  automorphisms: { kind: 'translationsAndReflection' },
+});
+
+/** A star with a center (vertex 0) and `k` leaves (`Graphs.Star`). */
+export const Star = (k: Arg = param('k')): Space => graph({
+  name: 'Graphs.Star', vertex: T.nat, params: { k: { type: T.nat, value: k } },
+  vertices: p => range(p.k.add(1)),
+  neighbors: (v, p) => ite(v.eq(0), range(p.k).map(x => x.add(1)), lit(T.list(T.nat), [0])),
+});
+
+/** Agents with the given space, observation, frames and sensors (`robots`). */
+export function robots(opts: {
+  name?: string; space: Space; observation: Observation; frames: Frames; views: Sensor[]; components?: Component[];
+  memory?: Model['memory']; round?: Model['round']; symmetries?: Model['symmetries'];
 }): Model {
   return model({
-    name: `blackHoleRing(${opts.policy}, ${opts.size})`,
-    topology: opts.topology ?? Ring(),
-    sensors: [opts.view ?? otherStates, ...(opts.size === 'known' ? [ringSize] : [])],
-    components: [Hazards.BlackHole(opts.policy), ...(opts.extra ?? [])],
+    name: opts.name ?? 'robots', space: opts.space, observation: opts.observation, frames: opts.frames, sensors: opts.views,
+    components: opts.components, memory: opts.memory ?? 'oblivious', round: opts.round, symmetries: opts.symmetries,
   });
 }
 
-/** Oblivious robots with a global view. */
-export function obliviousRing(opts: {
-  topology?: Topology;
-  sensor?: Sensor;
-  frame?: FrameModel;
-  components?: Component[];
-  round?: Model['round'];
-  name?: string;
-  symmetries?: Model['symmetries'];
-} = {}): Model {
-  return model({
-    name: opts.name ?? 'obliviousRing',
-    topology: opts.topology ?? Ring(),
-    sensors: [opts.sensor ?? ringPresence],
-    memory: 'oblivious',
-    frame: opts.frame ?? { kind: 'dynamicReflection' },
-    components: opts.components ?? [],
-    round: opts.round,
-    symmetries: opts.symmetries,
+/** Black-hole search: chirality, radius-1 views, co-located states (`blackHoleRobots`). */
+export function blackHoleRobots(opts: {
+  space?: Space; policy: HolePolicy; size: 'known' | 'unknown'; extra?: Component[]; view?: Sensor; round?: Model['round'];
+}): Model {
+  return robots({
+    name: `blackHoleRobots(${opts.policy}, ${opts.size})`,
+    space: opts.space ?? Cycle(), observation: radius(1), frames: F.identity,
+    views: [opts.view ?? otherStates, ...(opts.size === 'known' ? [spaceSize] : [])],
+    components: [Hazards.BlackHole(opts.policy), ...(opts.extra ?? [])], memory: 'persistent', round: opts.round,
   });
 }

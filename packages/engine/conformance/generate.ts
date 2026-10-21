@@ -13,13 +13,18 @@ const table: [string, string, Record<string, unknown>, number?][] = [
   ['black-hole-emerging', 'blackHoleEmerging', { N: 4, site: 2 }],
   ['black-hole-crash-stop', 'blackHoleCrashStop', { N: 4, site: 3 }],
   ['black-hole-lossy', 'blackHoleLossy', { N: 4, site: 2 }],
+  ['two-node-cycle', 'blackHoleEmerging', { N: 2, site: 1 }],
   ['pebbles', 'pebbles', { N: 3, site: 1 }, 5],
   ['gathering-with-crash', 'gatheringRobots', { N: 5, positions: [0, 1, 3], crashNode: 1 }],
-  ['dynamic-ring', 'dynamicRing', { N: 4, positions: [0, 1], crashNode: 0 }],
+  ['dynamic-ring', 'dynamicRing', { N: 4, positions: [0, 1] }],
+  ['own-orientation', 'ownOrientation', { N: 4, positions: [0, 1] }],
+  ['port-permutations', 'portPermutations', { N: 4, positions: [0, 1] }],
   ['ssync', 'ssync', { N: 3 }],
   ['sequential', 'sequential', { N: 3 }],
   ['parameter-acceptance', 'parameterAcceptance', { N: 4 }],
-  ['lights', 'lights', { N: 3, positions: [0, 0, 2], phi: 1, crashNode: 1 }, 24],
+  ['lights', 'lights', { positions: [0, 0, 2], phi: 1, crashNode: 1 }, 24],
+  ['star-gathering', 'starGathering', { k: 3, start: [1, 2, 0] }],
+  ['star-dispersion', 'starDispersion', { k: 3 }],
 ];
 
 const out = compile(loadProgram(stdlibDir + 'conformance.sim'));

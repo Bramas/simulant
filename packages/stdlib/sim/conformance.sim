@@ -8,150 +8,196 @@ algorithm PebbleTest uses pebblesHere where
   Pub := { id : Nat }
   Mem := { round : Nat }
   init i := { pub := { id := i }, mem := { round := 0 } }
-  step mem pub view :=
-    { move := .stay, mem := { round := mem.round + 1 },
+  step mem pub :=
+    { move := here, mem := { round := mem.round + 1 },
       pebble := if mem.round = 0 ∧ pub.id = 0 then .drop
-        else if mem.round = 1 ∧ view.pebblesHere > 0 then .pick else .none }
+        else if mem.round = 1 ∧ pebblesHere > 0 then .pick else .none }
 
-/-- Oblivious robots: move towards the nearest robot, stay on a tie or when alone. -/
-algorithm NearestNeighbour uses ringPresence where
-  init i := {}
-  step mem pub view :=
-    let v := view.ringPresence
-    let n := v.length
-    let cw := (range n).filter fun i => i > 0 ∧ v.at i
-    let ccw := (range n).filter fun i => i > 0 ∧ v.at (n - i)
-    { move := if cw.isEmpty then .stay else
-        let dcw := cw.at 0
-        let dccw := ccw.at 0
-        if dcw < dccw then .cw else if dccw < dcw then .ccw else .stay }
+/-- The distance from a location to the nearest of `others` (some of which are visible). -/
+def nearest (from : Loc) (others : List Loc) : Nat :=
+  ((range visible.length).filter fun k => others.any fun l => distance from l = k).at 0
 
-/-- Oblivious robots that always try to move clockwise. -/
-algorithm AlwaysClockwise uses ringCount where
+/-- Oblivious robots with a full view: move to the neighbor closer to the nearest robot, stay on
+a tie or when alone. -/
+algorithm NearestNeighbour uses occupied where
   init i := {}
-  step mem pub view := { move := .cw }
+  step mem pub :=
+    let others := visible.filter fun l => l ≠ here ∧ occupied l
+    { move := if others.isEmpty then here else
+        let d := nearest here others
+        let closer := (neighbors here).filter fun n => nearest n others < d
+        if closer.length = 1 then closer.at 0 else here }
+
+/-- Oblivious robots that always move through their port 0. -/
+algorithm AlwaysClockwise uses count where
+  init i := {}
+  step mem pub := { move := Ring.cw }
 
 /-- Each agent records, in its public state, that it has been activated. -/
 algorithm MarkActivated where
   Pub := { activated : Bool }
   init i := { pub := { activated := false } }
-  step mem pub view := { move := .stay, pub := { pub with activated := true } }
+  step mem pub := { move := here, pub := { pub with activated := true } }
 
-@[equivariant rotations reflections]
+@[equivariant]
 task EveryoneActivated (C : Config) : Verdict :=
   if C.agents.all (·.pub.activated) then .success else .inProgress
 
 goal EveryoneActivated := eventually .success
 
 /-- Never fails, never succeeds: for experiments that only look at the reachable configurations. -/
-@[equivariant rotations reflections]
+@[equivariant]
 task Observe (C : Config) : Verdict := .inProgress
 
 goal Observe := always ¬ .failure
 
-def ssyncRing : Model where
-  round := .ssync
-
-def sequentialRing : Model where
-  round := .sequential
+/-- Agents on a cycle that see nothing, under a given round. -/
+def cycleRobots (round : Round) : Model :=
+  robots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [] (round := round)
 
 experiment blackHoleEmerging where
-  model := blackHoleRing .mayEmerge .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat
-  param site : Node
+  param site : Pos
   agents := 2
-  position i := node 0
+  position i := pos 0
 
 experiment blackHoleCrashStop where
-  model := blackHoleRing .initiallyPresent .known (extra := [Faults.CrashStop 1])
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .known (extra := [Faults.CrashStop 1])
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat
-  param site : Node
+  param site : Pos
   agents := 2
-  position i := node 0
+  position i := pos 0
 
 experiment blackHoleLossy where
-  model := blackHoleRing .initiallyPresent .unknown (view := otherStatesLossy 1)
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown (view := otherStatesLossy 1)
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat
-  param site : Node
+  param site : Pos
   agents := 2
-  position i := node 0
+  position i := pos 0
 
 experiment pebbles where
-  model := blackHoleRing .none .unknown (extra := [Storage.Pebbles])
+  model := blackHoleRobots (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])
   algorithm := PebbleTest
   task := Observe
   param N : Nat
-  param site : Node
+  param site : Pos
   agents := 2
-  position i := node 0
+  position i := pos 0
 
 experiment gatheringRobots where
-  model := obliviousRing (components := [Faults.CrashAtNode])
+  model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
   algorithm := NearestNeighbour
   task := Gathering
   param N : Nat
-  param positions : List Node
-  param crashNode : Node
+  param positions : List Pos
+  param crashNode : Pos
   agents := positions.length
   position i := positions.at i
 
 experiment dynamicRing where
-  model := obliviousRing (topology := DynamicRing 1) (view := ringCount) (frame := Frames.common)
+  model := robots (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 1) Frames.identity [count]
     (components := [Monitors.Visited])
   algorithm := AlwaysClockwise
   task := Exploration
   param N : Nat
-  param positions : List Node
-  param crashNode : Node
+  param positions : List Pos
+  agents := positions.length
+  position i := positions.at i
+
+/-- Each robot keeps its own orientation: its port 0 is either side, chosen once. -/
+experiment ownOrientation where
+  model := robots (Graphs.Cycle N) (Observe.radius 1) (Frames.portPermutations .perRobot) [count]
+    (components := [Monitors.Visited])
+  algorithm := AlwaysClockwise
+  task := Exploration
+  param N : Nat
+  param positions : List Pos
+  agents := positions.length
+  position i := positions.at i
+
+/-- A fresh orientation at each Look, among the symmetries of the cycle. -/
+experiment portPermutations where
+  model := robots (Graphs.Cycle N) (Observe.radius 1) (Frames.portPermutations .perLook (among := .symmetries)) [count]
+    (components := [Monitors.Visited])
+  algorithm := AlwaysClockwise
+  task := Exploration
+  param N : Nat
+  param positions : List Pos
   agents := positions.length
   position i := positions.at i
 
 experiment ssync where
-  model := ssyncRing
+  model := cycleRobots .ssync
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat
   agents := 3
-  position i := node i
+  position i := pos i
 
 experiment sequential where
-  model := sequentialRing
+  model := cycleRobots .sequential
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat
   agents := 3
-  position i := node i
+  position i := pos i
 
-/-- A predicate-only domain accepts arbitrary ring sizes satisfying its bound. -/
+/-- A predicate-only domain accepts arbitrary cycle sizes satisfying its bound. -/
 experiment parameterAcceptance where
-  model := sequentialRing
+  model := cycleRobots .sequential
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat where N ≥ 3
   agents := 3
-  position i := node i
+  position i := pos i
 
-/-- Exercise a three-color palette, color-set observations and fixed-node crashes. -/
-algorithm CycleLight uses colorView where
+/-- Exercise a three-color palette, color-set observations, fixed-node crashes and the line. -/
+algorithm CycleLight uses colors where
   init i := {}
-  step mem pub view :=
-    let v := view.colorView
-    { move := .cw, light := some (((v.at (v.length / 2)).sum + 1) % 3) }
+  step mem pub := { move := Ring.cw, setLight := some (((colors here).sum + 1) % 3) }
 
 experiment lights where
-  model := obliviousRing (view := colorView)
-    (components := [Vision.Radius, Storage.Lights 3, Faults.CrashAtNode])
+  model := robots Graphs.Line (Observe.radius phi) Frames.isomorphisms [colors]
+    (components := [Storage.Lights 3, Faults.CrashAt])
   algorithm := CycleLight
   task := Observe
-  param N : Nat
-  param positions : List Node
+  param positions : List Int
   param phi : Nat
-  param crashNode : Node
+  param crashNode : Pos
   agents := positions.length
-  position i := positions.at i
+  position i := pos (positions.at i)
+
+/-- Robots on leaves move to the center; robots at the center stay. -/
+algorithm ToHub uses occupied where
+  main :=
+    if (neighbors here).length = 1 then move ((neighbors here).at 0) else stay
+
+experiment starGathering where
+  model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [occupied]
+  algorithm := ToHub
+  task := Gathering
+  param k : Nat
+  param start : List Nat
+  agents := start.length
+  position i := pos (start.at i)
+
+/-- Dispersion on any graph: leave a crowded node for an empty neighbor. -/
+algorithm Disperse uses count where
+  main :=
+    let free := (neighbors here).filter fun l => count l = 0
+    if count here > 1 ∧ !free.isEmpty then move (free.at 0) else stay
+
+experiment starDispersion where
+  model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [count]
+  algorithm := Disperse
+  task := Dispersion
+  param k : Nat
+  agents := 3
+  position i := pos 0

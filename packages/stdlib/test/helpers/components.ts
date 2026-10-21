@@ -5,13 +5,11 @@
  * flags, and reacts at the hook points of the round.
  */
 import {
-  agents, and, choose, component, concat, correct, decisionOf, effect, flag, frames, ite, let_, lit, param, present,
-  ofFn, sensor, show, str, subsets, type X,
+  agents, and, choose, component, concat, correct, decisionOf, effect, flag, ite, let_, lit, param, position, present, rec,
+  sensor, show, str, subsets, type X,
 } from '@bramas/simulant-lang/builder';
-import type { Component, Equivariance } from '@bramas/simulant-lang/ir';
+import type { Component } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
-
-const equivariant: Equivariance = { rotations: true, reflections: true };
 
 const crashed = flag('crashed', 'visible', 'never');
 
@@ -30,7 +28,7 @@ export const Hazards = {
     name: 'BlackHole',
     params: { policy: HolePolicyT },
     args: { policy },
-    world: { site: T.node, active: T.bool },
+    world: { site: T.pos, active: T.bool },
     flags: [flag('dead', 'hidden', 'never')],
     init: { world: { site: param('site'), active: p => p.policy.eq(lit(HolePolicyT, 'initiallyPresent')) } },
     afterMove: (C, p) => let_('active',
@@ -43,7 +41,7 @@ export const Hazards = {
         world: { active },
         raise: { dead: a => and(present(a), active, a.pos.eq(C.world.site)) },
       })),
-    equivariance: equivariant,
+    equivariant: true,
   }),
 };
 
@@ -58,93 +56,68 @@ export const Faults = {
       such: S => agents(C).count(a => a.crashed).add(S.length()).le(p.f),
       label: crashLabel,
     }), S => effect({ raise: { crashed: S } })),
-    equivariance: equivariant,
+    equivariant: true,
   }),
 
-  /**
-   * Robots on the faulty node (`param crashNode`) may crash instead of
-   * executing the move they decided.
-   */
-  CrashAtNode: (): Component => component({
-    name: 'CrashAtNode',
-    world: { crashNode: T.node },
+  /** Robots at `param crashNode` may crash after Compute, instead of moving. */
+  CrashAt: (): Component => component({
+    name: 'CrashAt',
+    world: { crashNode: T.pos },
     flags: [crashed],
     init: { world: { crashNode: param('crashNode') } },
-    beforeMove: C => let_('S', choose('CrashAtNode.S', subsets(agents(C).filter(a => and(correct(a), a.pos.eq(C.world.crashNode)))), {
+    beforeMove: C => let_('S', choose('CrashAt.S', subsets(agents(C).filter(a => and(correct(a), a.pos.eq(C.world.crashNode)))), {
       label: crashLabel,
     }), S => effect({ raise: { crashed: S } })),
-    equivariance: equivariant,
-  }),
-};
-
-export const Vision = {
-  Radius: (): Component => component({
-    name: 'Radius', world: { phi: T.nat },
-    init: { world: { phi: param('phi') } }, equivariance: equivariant,
+    equivariant: true,
   }),
 };
 
 export const PebbleAction = T.enum('PebbleAction', ['none', 'drop', 'pick']);
 
 export const Storage = {
-  /** Fixed finite palette, initial color 0 and optional color updates. */
+  /** Lights with a palette of `colors` colors, initially 0, as an agent field set by `setLight`. */
   Lights: (colors: number): Component => component({
     name: 'Lights', params: { colors: T.nat }, args: { colors },
-    world: { colorCount: T.nat, lights: T.list(T.nat) }, agent: { slot: T.nat },
-    actions: [{ name: 'light', type: T.option(T.nat), default: null }],
-    init: { world: { colorCount: p => p.colors, lights: lit(T.list(T.nat), []) }, agent: { slot: i => i } },
-    beforeMove: C => effect({ world: { lights: ofFn(agents(C).length(), i =>
-      let_('previous', ite(i.lt(C.world.lights.length()), C.world.lights.at(i), 0), previous =>
-        let_('updates', agents(C).filter(a => and(a.slot.eq(i), decisionOf(a).decided,
-          decisionOf(a).light.isSome(), decisionOf(a).light.getD(0).lt(C.world.colorCount))), updates =>
-          ite(updates.isEmpty(), previous, updates.map((a: X) => decisionOf(a).light.getD(0)).sum())))) } }),
-    equivariance: equivariant,
+    world: { colorCount: T.nat }, agent: { light: T.nat },
+    actions: [{ name: 'setLight', type: T.option(T.nat), default: null }],
+    init: { world: { colorCount: p => p.colors }, agent: { light: () => 0 } },
+    beforeMove: (_C, p) => effect({
+      agents: a => let_('c', decisionOf(a).setLight, c =>
+        rec({ light: ite(and(decisionOf(a).decided, c.isSome(), c.getD(0).lt(p.colors)), c.getD(0), a.light) })),
+    }),
+    equivariant: true,
   }),
   /**
-   * Pebbles on nodes, one multiset entry per pebble. Dropping and picking are
-   * actions, applied in `beforeMove`. Conflicts: all drops succeed; picks at
-   * a node succeed up to the number of pebbles there (multiset difference is
-   * truncated), so two agents cannot pick the same pebble.
+   * Pebbles on positions, one multiset entry per pebble. Dropping and picking are
+   * actions, applied in `beforeMove`: all drops succeed; picks at a position succeed
+   * up to the number of pebbles there (multiset difference is truncated).
    */
   Pebbles: (): Component => component({
     name: 'Pebbles',
-    world: { pebbles: T.multiset(T.node) },
+    world: { pebbles: T.multiset(T.pos) },
     actions: [{ name: 'pebble', type: PebbleAction, default: 'none' }],
-    sensors: [sensor('pebblesHere', T.nat, ({ C, me }) => C.world.pebbles.count((n: X) => n.eq(me.pos)), equivariant)],
-    init: { world: { pebbles: lit(T.multiset(T.node), []) } },
+    sensors: [sensor('pebblesHere', T.nat, ({ L }) => L.world.pebbles.count((p: X) => p.eq(position(L, L.here))))],
+    init: { world: { pebbles: lit(T.multiset(T.pos), []) } },
     beforeMove: C => {
       const doing = (what: string) => agents(C)
         .filter(a => and(decisionOf(a).decided, decisionOf(a).pebble.eq(lit(PebbleAction, what))))
         .map(a => a.pos);
       return effect({ world: { pebbles: C.world.pebbles.diff(doing('pick')).append(doing('drop')) } });
     },
-    equivariance: equivariant,
-  }),
-};
-
-export const Frames = {
-  /** Each agent has its own orientation, chosen at initialisation and fixed for the execution. */
-  PersistentReflection: (): Component => component({
-    name: 'PersistentReflection',
-    agent: { mirrored: T.frame },
-    init: { agent: { mirrored: () => choose('PersistentReflection.mirrored', frames(), { label: f => concat('frame ', show(f)) }) } },
-    equivariance: equivariant,
+    equivariant: true,
   }),
 };
 
 export const Monitors = {
-  /**
-   * The nodes visited so far, stored by a monitor component for tasks that
-   * depend on the history.
-   */
+  /** The positions visited so far, for tasks that depend on the history. */
   Visited: (): Component => component({
     name: 'Visited',
-    world: { visited: T.multiset(T.node) },
-    init: { world: { visited: lit(T.multiset(T.node), []) } },
+    world: { visited: T.multiset(T.pos) },
+    init: { world: { visited: lit(T.multiset(T.pos), []) } },
     // Initial positions are recorded by the first round's beforeLook.
     beforeLook: C => effect({ world: { visited: markVisited(C) } }),
     afterMove: C => effect({ world: { visited: markVisited(C) } }),
-    equivariance: equivariant,
+    equivariant: true,
   }),
 };
 

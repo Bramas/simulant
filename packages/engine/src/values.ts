@@ -1,12 +1,13 @@
 /**
- * Runtime values (plan, Section 6.4). Values are immutable JavaScript data:
+ * Runtime values (docs/ir.md). Values are immutable JavaScript data:
  *
  *   Unit, none            null
  *   Bool                  boolean
- *   Nat, Int, Node        number
+ *   Nat, Int              number
+ *   Pos                   the vertex: a number, or a record of numbers
+ *   Loc                   number (index of a location in the current Look)
  *   Agent                 number (index in the configuration of the round)
- *   Frame (ring)          boolean (mirrored)
- *   Move, enums, Verdict  string (constructor name)
+ *   enums, Verdict        string (constructor name)
  *   String                string
  *   Option T              null or the value (options of options are not supported)
  *   records               plain objects
@@ -36,9 +37,9 @@ function makeEncoder(t: Type): Encoder {
   switch (t.k) {
     case 'unit': return () => '';
     case 'bool': return v => v ? '1' : '0';
-    case 'frame': return v => v ? 'm' : 'i';
-    case 'nat': case 'int': case 'node': case 'agent': return v => String(v);
-    case 'move': case 'enum': case 'verdict': return v => v;
+    case 'nat': case 'int': case 'loc': case 'agent': return v => String(v);
+    case 'pos': return vertexKey;
+    case 'enum': case 'verdict': return v => v;
     case 'string': return v => JSON.stringify(v);
     case 'option': {
       const inner = encoder(t.of);
@@ -65,8 +66,14 @@ function makeEncoder(t: Type): Encoder {
   }
 }
 
+/** A vertex's encoding: a number, or a record of numbers with its fields in name order. */
+export function vertexKey(v: V): string {
+  if (typeof v === 'number') return String(v);
+  return `{${Object.keys(v).sort().map(k => `${k}:${v[k]}`).join(',')}}`;
+}
+
 function isAtomic(t: Type) {
-  return !['option', 'list', 'multiset', 'record'].includes(t.k);
+  return !['option', 'list', 'multiset', 'record', 'pos'].includes(t.k);
 }
 
 export function equality(t: Type): (a: V, b: V) => boolean {
@@ -78,7 +85,7 @@ export function equality(t: Type): (a: V, b: V) => boolean {
 
 /** Sorts the elements of a multiset into canonical order. */
 export function canonicalSort(elem: Type): (xs: V[]) => V[] {
-  if (elem.k === 'nat' || elem.k === 'int' || elem.k === 'node' || elem.k === 'agent') {
+  if (elem.k === 'nat' || elem.k === 'int' || elem.k === 'agent') {
     return xs => xs.slice().sort((a, b) => a - b);
   }
   const enc = encoder(elem);
@@ -93,8 +100,8 @@ export function show(t: Type, compact = false): (v: V) => string {
   switch (t.k) {
     case 'unit': return () => '()';
     case 'agent': return v => `a${v}`;
-    case 'node': return v => `u${v}`;
-    case 'frame': return v => v ? 'mirrored' : 'as is';
+    case 'pos': return v => typeof v === 'number' ? `u${v}` : `u(${Object.keys(v).map(k => v[k]).join(', ')})`;
+    case 'loc': return v => `ℓ${v}`;
     case 'string': return v => v;
     case 'option': {
       const inner = show(t.of, compact);
@@ -113,14 +120,13 @@ export function show(t: Type, compact = false): (v: V) => string {
   }
 }
 
-/** How an automorphism acts on the values of a type: nodes are mapped, frames composed. */
-export type Action = { node: (n: number) => number; frame: (f: V) => V };
+/** How an automorphism of the space acts on values: positions are mapped. */
+export type Action = { vertex: (v: V) => V };
 
 /** The action on values of type `t`, or `undefined` when it is the identity. */
 export function mapper(t: Type): ((v: V, g: Action) => V) | undefined {
   switch (t.k) {
-    case 'node': return (v, g) => g.node(v);
-    case 'frame': return (v, g) => g.frame(v);
+    case 'pos': return (v, g) => g.vertex(v);
     case 'option': {
       const inner = mapper(t.of);
       return inner && ((v, g) => v === null ? null : inner(v, g));
