@@ -1,17 +1,19 @@
 /**
- * Translation of IR expressions to Lean terms (plan, Section 5.1).
+ * Translation of IR expressions to Lean terms (docs/ir.md; lean/Simulant/Round.lean).
  *
  * A deterministic expression becomes a plain term; an expression with a
  * choice becomes a term of type `ND T`, built with `do` and `←`, in the
  * interpreter's evaluation order, so that witnesses coincide. Choice labels
  * are only for display and are dropped.
+ *
+ * Positions are the space's `Pos`; locations are `Nat` indices of the Look; a Look is
+ * `Look σ`, read through the functions of `Simulant.Look`. An algorithm reads its Look `L` and
+ * its sensor environment `E`; definitions that read them (algorithm-local definitions) take both
+ * as their first arguments.
  */
 import { BUILTINS } from '@bramas/simulant-lang/builtins';
 import type { Def, Expr, Json, Type } from '@bramas/simulant-lang/ir';
 import { fieldType, isCollection, resolvePub, showType, T, typeEq, VERDICTS } from '@bramas/simulant-lang/types';
-
-/** The moves of IR version 1, which this generator still translates (Phase 0 step 6 ports it to version 2). */
-const MOVES = ['stay', 'cw', 'ccw'] as const;
 
 export class GenError extends Error {}
 
@@ -29,10 +31,13 @@ export function ident(name: string): string {
 
 /** How generated code refers to the composition it is part of. */
 export interface Env {
-  /** Lean types of nodes and agents, the ring size and the number of agents. */
-  node: string;
+  /** The space (`σ.S`, `(space N)`), the Lean type of its positions, and a position from a vertex. */
+  space: string;
+  pos: string;
+  posOf(vertex: string): string;
+  /** The signature (`σ`, `(sig N nAgents)`), the Lean type of agents, and the number of agents. */
+  sig: string;
   agent: string;
-  N: string;
   k: string;
   /** Name of a record or enum type. */
   typeName(t: Type): string;
@@ -47,19 +52,50 @@ export interface Env {
   param(name: string): string;
   paramType(name: string): Type;
   /** An effect, in a component's hook. */
-  effect?(world: [string, string][], raise: [string, { pred?: string; set?: string }][]): string;
-  /** Variables of the round available in hooks and sensors. */
-  ts?: string;
+  effect?(world: [string, string][], raise: [string, { pred?: string; set?: string }][], agents?: string): string;
+  /** The decisions, in `beforeMove` hooks. */
   ds?: string;
+  /** In algorithms and their local definitions: the Look and the sensor environment. */
+  look?: string;
+  sensors?: string;
+  /** Whether a sensor of the environment is per location. */
+  perLocation?(sensor: string): boolean;
   layout: {
     pub: Type; mem: Type; worldType: Type;
     flags: { name: string }[]; agentFields: { name: string; type: Type }[]; actions: { name: string; type: Type }[];
   };
   defs: Map<string, Def>;
+  /** The code that calls a definition (with the arguments every definition takes first). */
   defName(name: string): string;
+  /** Definitions that read the Look: they take the Look and the sensor environment first. */
+  localDefs?: Set<string>;
 }
 
 type Scope = { vars: Map<string, { code: string; t: Type }>; config?: string };
+
+/** The definitions that read the Look (`here`, `visible`, `neighbors`, `distance`, a sensor), directly or through a call. */
+export function algorithmLocalDefs(defs: Def[]): Set<string> {
+  const byName = new Map(defs.map(d => [d.name, d]));
+  const local = new Set<string>();
+  const reads = (x: unknown, seen: Set<string>): boolean => {
+    if (!x || typeof x !== 'object') return false;
+    if (Array.isArray(x)) return x.some(y => reads(y, seen));
+    const o = x as Record<string, unknown>;
+    if (o.e === 'sense') return true;
+    if (o.e === 'call') {
+      const fn = o.fn as string;
+      if (['here', 'visible', 'neighbors', 'distance'].includes(fn)) return true;
+      const d = byName.get(fn);
+      if (d && !seen.has(fn)) {
+        seen.add(fn);
+        if (reads(d.body, seen)) return true;
+      }
+    }
+    return Object.values(o).some(v => reads(v, seen));
+  };
+  for (const d of defs) if (reads(d.body, new Set([d.name]))) local.add(d.name);
+  return local;
+}
 
 export class Translator {
   private fresh = 0;
@@ -74,13 +110,13 @@ export class Translator {
     const env = this.env;
     switch (t.k) {
       case 'unit': return 'Unit';
-      case 'bool': case 'frame': return 'Bool';
-      case 'nat': return 'Nat';
+      case 'bool': return 'Bool';
+      case 'nat': case 'loc': return 'Nat';
       case 'int': return 'Int';
       case 'string': return 'String';
-      case 'node': return env.node;
+      case 'pos': return env.pos;
       case 'agent': return env.agent;
-      case 'move': return 'Move';
+      case 'look': return `Look ${env.sig}`;
       case 'verdict': return 'Verdict';
       case 'pub': return env.pub;
       case 'option': return `Option (${this.type(t.of)})`;
@@ -91,7 +127,6 @@ export class Translator {
   }
 
   ctor(t: Type, c: string): string {
-    if (t.k === 'move') return `Move.${c}`;
     if (t.k === 'verdict') return `Verdict.${c}`;
     if (t.k === 'enum') return `${this.env.typeName(t)}.${ident(c)}`;
     throw new GenError(`no constructors for ${showType(t)}`);
@@ -101,12 +136,12 @@ export class Translator {
     t = this.resolve(t);
     switch (t.k) {
       case 'unit': return '()';
-      case 'bool': case 'frame': return String(v);
-      case 'nat': return String(v);
+      case 'bool': return String(v);
+      case 'nat': case 'loc': return String(v);
       case 'int': return `(${v} : Int)`;
       case 'string': return JSON.stringify(v);
-      case 'node': return `(Fin.ofNat ${this.env.N} ${v})`;
-      case 'move': case 'verdict': case 'enum': return this.ctor(t, v as string);
+      case 'pos': return this.env.posOf(typeof v === 'number' && v < 0 ? `(${v} : Int)` : String(v));
+      case 'verdict': case 'enum': return this.ctor(t, v as string);
       case 'option': return v === null ? `(none : ${this.type(t)})` : `(some ${this.lit(v, t.of)})`;
       case 'list': case 'multiset': return `([${(v as Json[]).map(x => this.lit(x, t.of)).join(', ')}] : ${this.type(t)})`;
       case 'record': {
@@ -215,29 +250,45 @@ export class Translator {
           if (x.e === 'fn') return [flag, { pred: this.lambda(x, [T.agent], scope).code }] as const;
           return [flag, { set: this.tr(x, scope) }] as const;
         });
+        const agents = e.agents ? this.lambda(e.agents, [T.agent], scope).code : undefined;
         const parts = [...world.map(([, t]) => t), ...raises.flatMap(([, r]) => 'set' in r ? [r.set!] : [])];
         return this.seq(parts, T.effect, cs => {
           let j = world.length;
           return env.effect!(
             world.map(([n], i) => [n, cs[i]]),
             raises.map(([flag, r]) => [flag, 'pred' in r ? { pred: r.pred } : { set: cs[j++] }]),
+            agents,
           );
         });
+      }
+      case 'sense': {
+        const E = env.sensors ?? fail('sensors are read only by algorithms');
+        const name = ident(e.sensor);
+        if (!e.loc) return { code: `${E}.${name}`, t: this.senseType(e.sensor), nd: false };
+        const l = this.tr(e.loc, scope);
+        return this.seq([l], this.senseType(e.sensor), ([x]) => `(${E}.${name} ${wrap(x)})`);
       }
       case 'call':
         return BUILTINS[e.fn] ? this.builtin(e, scope) : this.callDef(e, scope);
     }
   }
 
+  /** The type of a sensor the algorithm reads (`Owned<Sensor>` of the layout). */
+  senseType(name: string): Type {
+    const s = (this.env.layout as { used?: { name: string; type: Type }[] }).used?.find(u => u.name === name)
+      ?? fail(`unknown sensor ${name}`);
+    return this.resolve(s.type);
+  }
+
   private get(e: Extract<Expr, { e: 'get' }>, scope: Scope): Tr {
     const env = this.env;
-    // `C.world.f`
+    // `C.world.f`, `L.world.f`
     if (e.on.e === 'get' && e.on.field === 'world') {
       const C = this.tr(e.on.on, scope);
-      if (C.t.k === 'config') {
+      if (C.t.k === 'config' || C.t.k === 'look') {
         const f = env.layout.worldType.k === 'record' ? fieldType(env.layout.worldType, e.field) : undefined;
         if (!f) fail(`unknown world field ${e.field}`);
-        return this.seq([C], this.resolve(f), ([c]) => env.worldField(c, e.field));
+        return this.seq([C], this.resolve(f), ([c]) => env.worldField(C.t.k === 'look' ? `${wrap(c)}.config` : c, e.field));
       }
     }
     const on = this.tr(e.on, scope);
@@ -249,11 +300,20 @@ export class Translator {
       case 'config':
         if (e.field === 'agents') return { code: `(List.finRange ${env.k})`, t: T.multiset(T.agent), nd: false };
         return fail(`configurations have no field ${e.field} here`);
+      case 'look':
+        switch (e.field) {
+          case 'me': return this.seq([on], T.agent, ([L]) => `${wrap(L)}.me`);
+          case 'here': return this.seq([on], T.loc, ([L]) => `${wrap(L)}.here`);
+          case 'visible': return this.seq([on], T.list(T.loc), ([L]) => `(List.range ${wrap(L)}.size)`);
+          case 'visibleAgents': return this.seq([on], T.multiset(T.agent), ([L]) => `${wrap(L)}.visibleAgents`);
+          case 'spaceSize': return { code: `(${env.space}.vertices.getD []).length`, t: T.nat, nd: false };
+          default: return fail(`a Look has no field ${e.field} here`);
+        }
       case 'agent': {
         const C = scope.config ?? fail(`reading ${e.field} of an agent needs a configuration`);
         const at = (a: string) => `${C}.agents[${a}]`;
         const lay = env.layout;
-        if (e.field === 'pos') return this.seq([on], T.node, ([a]) => `${at(a)}.pos`);
+        if (e.field === 'pos') return this.seq([on], T.pos, ([a]) => `${at(a)}.pos`);
         if (e.field === 'pub') return this.seq([on], lay.pub, ([a]) => `${at(a)}.pub`);
         if (e.field === 'mem') return this.seq([on], lay.mem, ([a]) => `${at(a)}.mem`);
         if (lay.flags.some(f => f.name === e.field)) return this.seq([on], T.bool, ([a]) => env.agentFlag(at(a), e.field));
@@ -261,8 +321,8 @@ export class Translator {
         return this.seq([on], f.type, ([a]) => env.agentField(at(a), e.field));
       }
       case 'decision': {
-        if (e.field === 'move' || e.field === 'decided') {
-          return this.seq([on], e.field === 'move' ? T.move : T.bool, ([d]) => `${wrap(d)}.${e.field}`);
+        if (e.field === 'target' || e.field === 'decided') {
+          return this.seq([on], e.field === 'target' ? T.pos : T.bool, ([d]) => `${wrap(d)}.${e.field}`);
         }
         const a = env.layout.actions.find(a => a.name === e.field) ?? fail(`decisions have no action ${e.field}`);
         return this.seq([on], a.type, ([d]) => env.decisionAction(d, e.field));
@@ -288,10 +348,14 @@ export class Translator {
   }
 
   private callDef(e: Extract<Expr, { e: 'call' }>, scope: Scope): Tr {
-    const def = this.env.defs.get(e.fn) ?? fail(`unknown function ${e.fn}`);
+    const env = this.env;
+    const def = env.defs.get(e.fn) ?? fail(`unknown function ${e.fn}`);
     const args = e.args.map(a => this.tr(a, scope));
     const ret = this.resolve(def.ret);
-    const call = (cs: string[]) => `(${this.env.defName(e.fn)} ${cs.map(wrap).join(' ')})`;
+    const local = env.localDefs?.has(e.fn)
+      ? [env.look ?? fail(`${e.fn} reads the Look: only algorithms call it`), env.sensors ?? fail(`${e.fn} reads the Look`)]
+      : [];
+    const call = (cs: string[]) => `(${env.defName(e.fn)} ${[...local, ...cs.map(wrap)].join(' ')})`;
     // Definitions are generated before their callers, which marks those with choices.
     if (!(def as Def & { nd?: boolean }).nd) return this.seq(args, ret, call);
     return this.bindSeq(args, ret, call);
@@ -333,6 +397,7 @@ export class Translator {
     const ret = sig.ret(types);
     if (typeof ret === 'string') fail(ret);
     const C = scope.config;
+    const L = () => env.look ?? fail(`${e.fn} reads the Look: only algorithms use it`);
     return this.seq(parts, ret, vals => {
       let j = 0;
       const a = lambdas.map(l => l ?? vals[j++]);
@@ -357,6 +422,7 @@ export class Translator {
         case 'min': return `(min ${w[0]} ${w[1]})`;
         case 'max': return `(max ${w[0]} ${w[1]})`;
         case 'toInt': return `(Int.ofNat ${w[0]})`;
+        case 'toNat': return `(Int.toNat ${w[0]})`;
         case 'some': return `(some ${w[0]})`;
         case 'isSome': return `${w[0]}.isSome`;
         case 'isNone': return `${w[0]}.isNone`;
@@ -371,7 +437,7 @@ export class Translator {
         case 'sum': return `${w[0]}.sum`;
         case 'mem': return `(${w[1]}.contains ${w[0]})`;
         case 'range': return `(List.range ${w[0]})`;
-        case 'toMultiset': return a[0];
+        case 'toMultiset': case 'toList': return a[0];
         case 'subsets': case 'subsetsUpTo':
           if (t0.k === 'multiset' && (t0 as { of: Type }).of.k !== 'agent') {
             fail(`${e.fn} of a multiset of ${showType((t0 as { of: Type }).of)}: equal elements are not merged in Lean yet`);
@@ -383,20 +449,24 @@ export class Translator {
         case 'list': return `[${a.join(', ')}]`;
         case 'at': return `(${w[0]}[${a[1]}]!)`;
         case 'ofFn': return `(B.ofFn ${w[0]} ${w[1]})`;
+        case 'show': case 'concat': return '""';
         case 'agents': return `(List.finRange ${env.k})`;
-        case 'nodes': return `(List.finRange ${env.N})`;
-        case 'size': return env.N;
         case 'correct': return `(FlagSet.correct ${C ?? fail('correct needs a configuration')}.agents[${a[0]}].flags)`;
         case 'present': return `(FlagSet.present ${C ?? fail('present needs a configuration')}.agents[${a[0]}].flags)`;
         case 'decisionOf': return `(${env.ds ?? fail('decisionOf outside beforeMove')} ${w[0]})`;
-        case 'target': return `(Ring.target ${w[0]} ${w[1]})`;
-        case 'advance': return `(Ring.advance ${w[0]} ${w[1]} ${w[2]})`;
-        case 'edgePresent': return `(Ring.canMove ${env.ts ?? fail('no topology state here')} ${w[0]} ${w[1]})`;
-        case 'offset': return `(Ring.offset ${w[0]} ${w[1]} ${w[2]})`;
-        case 'toGlobal': return `(toGlobal ${w[0]} ${w[1]})`;
-        case 'opposite': return `(Move.flip ${w[0]})`;
-        case 'frames': return '[false, true]';
-        case 'node': return `(Fin.ofNat ${env.N} ${w[0]})`;
+        case 'resolve': case 'follow': {
+          const agent = `${wrap(a[0])}.agents[${a[1]}]`;
+          return `(Space.follow ${env.space} ${agent}.pos (${agent}.port ${w[2]}) ${e.fn === 'resolve' ? '1' : w[3]})`;
+        }
+        case 'pos': return env.posOf(w[0]);
+        case 'positions': return `(${env.space}.vertices.getD [])`;
+        case 'occupants': return `(${w[0]}.occupants ${w[1]})`;
+        case 'position': return `(${w[0]}.position ${w[1]})`;
+        case 'edgePresent': return `(${w[0]}.edgePresent ${w[1]} ${w[2]})`;
+        case 'here': return `${L()}.here`;
+        case 'visible': return `(List.range ${L()}.size)`;
+        case 'neighbors': return `(${L()}.neighbors ${w[0]})`;
+        case 'distance': return `(${L()}.distance ${w[0]} ${w[1]})`;
         default: return fail(`builtin ${e.fn} has no Lean translation`);
       }
     });
@@ -421,4 +491,4 @@ function balanced(s: string): boolean {
   return depth === 0;
 }
 
-export { MOVES, VERDICTS, typeEq };
+export { VERDICTS, typeEq };

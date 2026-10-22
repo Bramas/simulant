@@ -8,6 +8,7 @@ import type { Experiment } from '@bramas/simulant-lang/ir';
 import type { Automorphism } from '@bramas/simulant-engine/space';
 import { equivarianceViolations } from '@bramas/simulant-engine/symmetry';
 import { System } from '@bramas/simulant-engine/system';
+import { generateModel } from '@bramas/simulant-lean-gen/model';
 
 const host = nodeHost();
 function experiment(source: string, name: string): Experiment {
@@ -47,6 +48,8 @@ test('lights support fixed palettes with more than two colors and no geometry in
       config = system.successors(config)[0].config;
       assert.deepEqual(lights(config), [round % colors, round % colors]);
     }
+    // The Lean model reuses the library's component.
+    assert.match(generateModel(exp, 'Cycling'), /import Simulant.Library.Lights/);
   }
 });
 

@@ -1,5 +1,7 @@
 import Simulant.ND
-import Simulant.Ring
+import Simulant.Space
+import Simulant.Spaces
+import Simulant.Views
 import Simulant.Round
 import Simulant.Builtins
 import Simulant.Exec

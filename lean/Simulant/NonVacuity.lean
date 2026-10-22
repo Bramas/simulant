@@ -71,42 +71,41 @@ theorem activate_total (C : Config σ) : ∃ a, ND.Can (m.activate C) a := by
       obtain ⟨x, hx⟩ := List.exists_mem_of_ne_nil _ (fun he => h (List.isEmpty_iff.2 he))
       exact ⟨[x], ND.can_choose.2 (List.mem_map_of_mem hx)⟩
 
-omit [FlagSet σ.F] in
-theorem frames_ne_nil (a : Agent σ) : m.frames a ≠ [] := by
-  unfold Model.frames; split <;> simp
-
-theorem options_total (ts : TState) (C : Config σ) (i : Fin σ.k)
-    (hview : ∀ f, ∃ v, ND.Can (m.view ts C i f) v) : ∃ d, ND.Can (m.options act0 ts C i) d := by
+theorem options_total (ts : TState σ.S) (C : Config σ) (i : Fin σ.k)
+    (hpres : m.presentations C.agents[i] ≠ []) (henv : ∀ L, ∃ e, ND.Can (m.env L) e) :
+    ∃ d, ND.Can (m.options act0 ts C i) d := by
   unfold Model.options
   dsimp only
   split
-  · exact ⟨_, ND.can_bind_of (ND.can_choose.2 (List.mem_cons_self)) (ND.can_pure.2 rfl)⟩
-  · obtain ⟨f, hf⟩ := chooseIfMany_total ("frame " ++ agentName i) (m.frames_ne_nil C.agents[i])
-    obtain ⟨v, hv⟩ := hview f
-    exact ⟨_, ND.can_bind_of hf (ND.can_bind_of hv (ND.can_pure.2 rfl))⟩
+  · refine ⟨_, ND.can_bind_of (a := C.agents[i].pos) (ND.can_choose.2 ?_) (ND.can_pure.2 rfl)⟩
+    rw [List.mem_eraseDups]; exact List.mem_cons_self
+  · obtain ⟨p, hp⟩ := chooseIfMany_total ("frame " ++ agentName i) hpres
+    obtain ⟨e, he⟩ := henv (m.look ts C i p)
+    exact ⟨_, ND.can_bind_of hp (ND.can_bind_of he (ND.can_pure.2 rfl))⟩
 
-theorem decideAll_total (ts : TState) (C : Config σ) (hview : ∀ i f, ∃ v, ND.Can (m.view ts C i f) v) :
+theorem decideAll_total (ts : TState σ.S) (C : Config σ) (hpres : ∀ a : Agent σ, m.presentations a ≠ [])
+    (henv : ∀ L, ∃ e, ND.Can (m.env L) e) :
     ∀ (active : List (Fin σ.k)) (init : Fin σ.k → Decision σ),
       ∃ ds, ND.Can (active.foldlM (fun ds i => do
           let d ← m.options act0 ts C i
           pure fun j => if j = i then d else ds j) init) ds
   | [], init => ⟨init, ND.can_pure.2 rfl⟩
   | i :: rest, init => by
-    obtain ⟨d, hd⟩ := m.options_total act0 ts C i (hview i)
-    obtain ⟨ds, hds⟩ := decideAll_total ts C hview rest (fun j => if j = i then d else init j)
+    obtain ⟨d, hd⟩ := m.options_total act0 ts C i (hpres _) henv
+    obtain ⟨ds, hds⟩ := decideAll_total ts C hpres henv rest (fun j => if j = i then d else init j)
     exact ⟨ds, by
       rw [List.foldlM_cons]
       exact ND.can_bind_of (ND.can_bind_of hd (ND.can_pure.2 rfl)) hds⟩
 
 /-- A round built from total pieces always has a successor. -/
 theorem total (hts : m.tstates ≠ []) (hc : ∀ c ∈ m.components, c.Total)
-    (hview : ∀ ts C i f, ∃ v, ND.Can (m.view ts C i f) v) (C : Config σ) :
+    (hpres : ∀ a : Agent σ, m.presentations a ≠ []) (henv : ∀ L, ∃ e, ND.Can (m.env L) e) (C : Config σ) :
     ∃ w a C', (w, (a, C')) ∈ m.roundA act0 C := by
-  obtain ⟨ts, hts⟩ := chooseIfMany_total "topology" hts
+  obtain ⟨ts, hts⟩ := chooseIfMany_total "edges" hts
   obtain ⟨e1, h1⟩ := parallel_total C (m.components.map fun c => c.beforeLook ts) (by
     intro hk hm; simp only [List.mem_map] at hm; obtain ⟨c, hcm, rfl⟩ := hm; exact (hc c hcm).1 ts C)
   obtain ⟨active, ha⟩ := m.activate_total (C.apply e1)
-  obtain ⟨ds, hd⟩ := m.decideAll_total act0 ts (C.apply e1) (hview ts _) active
+  obtain ⟨ds, hd⟩ := m.decideAll_total act0 ts (C.apply e1) hpres henv active
     (fun j => Decision.idle (C.apply e1).agents[j] act0)
   obtain ⟨e2, h2⟩ := parallel_total (C.apply e1) (m.components.map fun c D => c.beforeMove ts D ds) (by
     intro hk hm; simp only [List.mem_map] at hm; obtain ⟨c, hcm, rfl⟩ := hm; exact (hc c hcm).2.1 ts _ ds)

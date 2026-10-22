@@ -7,45 +7,43 @@ set_option linter.unusedVariables false
 namespace Simulant.Library.Lights
 open Simulant
 
-structure World (N : Nat) where
+structure World (P : Type) where
   colorCount : Nat
-  lights : List (Nat)
 deriving DecidableEq, Repr
 
-structure Fields (N : Nat) where
-  slot : Nat
+structure Fields (P : Type) where
+  light : Nat
 deriving DecidableEq, Repr
 
 /-- The flags declared by `Lights`, with the laws of a composition's flags. -/
 class Flags (F : Type) [FlagSet F] where
 
 class Actions (A : Type) where
-  light : A → Option (Nat)
+  setLight : A → Option (Nat)
 
 /-- What the composition gives the component: lenses on the state it owns. -/
 structure Ctx (σ : Sig) where
-  world : Lens σ.W (World σ.N)
-  fields : Lens σ.X (Fields σ.N)
+  world : Lens σ.W (World σ.S.Pos)
+  fields : Lens σ.X (Fields σ.S.Pos)
 
-def initWorld {N : Nat} [NeZero N] (colors : Nat)  : ND (World N) := do
+def initWorld {S : Space} (colors : Nat)  : ND (World S.Pos) := do
   let colorCount ← (pure colors)
-  let lights ← (pure ([] : List (Nat)))
-  pure { colorCount := colorCount, lights := lights }
+  pure { colorCount := colorCount }
 
-def init_slot {N : Nat} [NeZero N] (colors : Nat)  (i : Nat) : ND (Nat) :=
-  (pure i)
+def init_light {S : Space} (colors : Nat)  (i : Nat) : ND (Nat) :=
+  (pure 0)
 
 section
 variable {σ : Sig} [FlagSet σ.F] [Flags σ.F] [Actions σ.A]
 
-/-- The hooks, on the part of the world the component owns. -/
-def hooks (colors : Nat) (L : Ctx σ) : Hooks σ (World σ.N) where
-  beforeLook := fun ts C => pure ⟨id, fun _ => FlagSet.none⟩
-  beforeMove := fun ts C ds => (pure (let lights := (B.ofFn ((List.finRange σ.k).length) (fun (i : Nat) => (let previous := (if (decide (i < (((L.world.get C.world).lights).length))) then (((L.world.get C.world).lights)[i]!) else 0); (let updates := ((List.finRange σ.k).filter (fun (a : Fin σ.k) => ((((L.fields.get C.agents[a].fields).slot) == i) && ((ds a).decided) && ((Actions.light (ds a).act).isSome) && (decide (((Actions.light (ds a).act).getD 0) < ((L.world.get C.world).colorCount)))))); (if updates.isEmpty then previous else (updates.map (fun (a : Fin σ.k) => ((Actions.light (ds a).act).getD 0))).sum))))); ({ world := fun x => { x with lights := lights }, raise := fun a => FlagSet.none } : OwnEffect σ (World σ.N))))
-  afterMove := fun ts C => pure ⟨id, fun _ => FlagSet.none⟩
+/-- The hooks, on the parts of the state the component owns. -/
+def hooks (colors : Nat) (L : Ctx σ) : Hooks σ (World σ.S.Pos) (Fields σ.S.Pos) where
+  beforeLook := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
+  beforeMove := fun ts C ds => (pure ({ world := id, raise := fun a => FlagSet.none, fields := fun a _ => (fun (a : Fin σ.k) => (let c := (Actions.setLight (ds a).act); ({ light := (if (((ds a).decided) && c.isSome && (decide ((c.getD 0) < colors))) then (c.getD 0) else (L.fields.get C.agents[a].fields).light) } : Fields σ.S.Pos))) a } : OwnEffect σ (World σ.S.Pos) (Fields σ.S.Pos)))
+  afterMove := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
 
 def component (colors : Nat) (L : Ctx σ) : Component σ :=
-  (hooks colors L).toComponent L.world
+  (hooks colors L).toComponent L.world L.fields
 
 end
 

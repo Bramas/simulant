@@ -19,7 +19,7 @@ theorem Decision.idle_pub (a : Agent σ) (act : σ.A) : (Decision.idle a act).pu
 theorem Config.apply_pub (C : Config σ) (e : Effect σ) (i : Fin σ.k) : (C.apply e).agents[i].pub = C.agents[i].pub := by
   rw [Config.apply_agent]
 
-theorem moveAll_pub (ts : TState) (C : Config σ) (ds : Fin σ.k → Decision σ) (i : Fin σ.k) :
+theorem moveAll_pub (ts : TState σ.S) (C : Config σ) (ds : Fin σ.k → Decision σ) (i : Fin σ.k) :
     (moveAll ts C ds).agents[i].pub =
       if ((ds i).decided && FlagSet.acts C.agents[i].flags != .never) = true then (ds i).pub else C.agents[i].pub := by
   simp only [moveAll, Fin.getElem_fin, Vector.getElem_ofFn]
@@ -29,21 +29,21 @@ namespace Model
 
 variable (m : Model σ) (act0 : σ.A) (P : σ.P → Prop)
 
-theorem options_pub (ts : TState) (C : Config σ) (i : Fin σ.k)
-    (hstep : ∀ mem pub v, P pub → P (m.step mem pub v).pub) (hC : P C.agents[i].pub)
+theorem options_pub (ts : TState σ.S) (C : Config σ) (i : Fin σ.k)
+    (hstep : ∀ mem pub L e, P pub → P (m.step mem pub L e).pub) (hC : P C.agents[i].pub)
     {d : Decision σ} (hd : ND.Can (m.options act0 ts C i) d) : P d.pub := by
   unfold Model.options at hd
   dsimp only at hd
   split at hd
   · obtain ⟨_, -, rfl⟩ := ND.can_map.1 hd
     exact hC
-  · obtain ⟨f, -, hd⟩ := ND.can_bind.1 hd
-    obtain ⟨v, -, hd⟩ := ND.can_bind.1 hd
+  · obtain ⟨p, -, hd⟩ := ND.can_bind.1 hd
+    obtain ⟨e, -, hd⟩ := ND.can_bind.1 hd
     rw [ND.can_pure.1 hd]
-    exact hstep _ _ _ hC
+    exact hstep _ _ _ _ hC
 
-theorem decideAll_pub (ts : TState) (C : Config σ)
-    (hstep : ∀ mem pub v, P pub → P (m.step mem pub v).pub) (hC : ∀ i : Fin σ.k, P C.agents[i].pub) :
+theorem decideAll_pub (ts : TState σ.S) (C : Config σ)
+    (hstep : ∀ mem pub L e, P pub → P (m.step mem pub L e).pub) (hC : ∀ i : Fin σ.k, P C.agents[i].pub) :
     ∀ (active : List (Fin σ.k)) (init : Fin σ.k → Decision σ), (∀ j, P (init j).pub) →
       ∀ ds, ND.Can (active.foldlM (fun ds i => do
           let d ← m.options act0 ts C i
@@ -63,7 +63,7 @@ theorem decideAll_pub (ts : TState) (C : Config σ)
     · simp only [h, ite_false]; exact hinit j
 
 /-- A property of public states preserved by the step holds of every agent after a round. -/
-theorem step_pub {C C' : Config σ} {w : Witness} (hstep : ∀ mem pub v, P pub → P (m.step mem pub v).pub)
+theorem step_pub {C C' : Config σ} {w : Witness} (hstep : ∀ mem pub L e, P pub → P (m.step mem pub L e).pub)
     (h : m.Step act0 C w C') (hC : ∀ i : Fin σ.k, P C.agents[i].pub) : ∀ i : Fin σ.k, P C'.agents[i].pub := by
   obtain ⟨_, h⟩ := h
   simp only [Model.roundA, ND.mem_bind, ND.mem_pure] at h
@@ -78,7 +78,7 @@ theorem step_pub {C C' : Config σ} {w : Witness} (hstep : ∀ mem pub v, P pub 
   · exact h1 i
 
 /-- ... and so of every agent in every reachable configuration. -/
-theorem reachable_pub (init : ND (Config σ)) (hstep : ∀ mem pub v, P pub → P (m.step mem pub v).pub)
+theorem reachable_pub (init : ND (Config σ)) (hstep : ∀ mem pub L e, P pub → P (m.step mem pub L e).pub)
     (hinit : ∀ C, ND.Can init C → ∀ i : Fin σ.k, P C.agents[i].pub) {C : Config σ}
     (h : m.Reachable act0 init C) : ∀ i : Fin σ.k, P C.agents[i].pub := by
   induction h with

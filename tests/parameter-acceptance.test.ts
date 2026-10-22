@@ -87,7 +87,7 @@ test('domain predicates are Boolean, deterministic and cannot refer to later par
   }
 });
 
-test('Lean statements preserve predicate-only domains and finite-domain intersections', { skip: 'the Lean generator is ported in Phase 0 step 6' }, () => {
+test('Lean statements preserve predicate-only domains and finite-domain intersections', () => {
   const lean = out.lean?.generalDomain;
   assert.ok(lean && !('error' in lean));
   assert.match(lean.text, /def accepts_positions/);

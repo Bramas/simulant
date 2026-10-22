@@ -174,7 +174,7 @@ test('the model view describes the experiment and shows the declarations it uses
   assert.deepEqual(d.round.find(p => p.phase === 'afterMove')!.choices, ['BlackHole.active']);
 });
 
-test('the model view links each case of the Lean step to the statement it resumes after', { skip: 'the Lean generator is ported in Phase 0 step 6' }, () => {
+test('the model view links each case of the Lean step to the statement it resumes after', () => {
   const lean = project.describe().lean as Extract<import('../../core/src/types/project').LeanDescription, { blocks: unknown }>;
   assert.equal(lean.module, 'Algo1');
   assert.match(lean.text, /^import Simulant\nimport Simulant\.Library\.BlackHole/);

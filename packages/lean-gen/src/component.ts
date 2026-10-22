@@ -1,11 +1,12 @@
 /**
  * Generates a component as a Lean module that is generic over the
- * composition (plan, Section 5.1): the component sees its own world fields
- * and agent fields through lenses (`Ctx`), its own flags through a class,
- * and its own actions through a class. A model provides the instances. A
- * lemma about the component then applies to every model that contains it.
+ * composition (docs/ir.md): the component sees its own world fields and
+ * agent fields through lenses (`Ctx`), its own flags through a class, and
+ * its own actions through a class. A model provides the instances. A lemma
+ * about the component then applies to every model that contains it, whatever
+ * its space: positions are the composition's `σ.S.Pos`.
  */
-import type { Component, Expr, Field, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Expr, Field, Sensor, Type } from '@bramas/simulant-lang/ir';
 import { T, showType, typeEq } from '@bramas/simulant-lang/types';
 import { fail, ident, Translator, type Env } from './translate';
 
@@ -82,7 +83,7 @@ export function componentInfo(c: Component, namespace: string): ComponentInfo {
   return {
     name: c.name, namespace, inputs: inputsOf(c),
     hasWorld: !!c.world?.length, hasFields: !!c.agent?.length,
-    enums: [...enums].map(([name, ctors]) => ({ name, ctors })).filter(e => e.name !== 'Move'),
+    enums: [...enums].map(([name, ctors]) => ({ name, ctors })),
   };
 }
 
@@ -97,15 +98,17 @@ export function generateComponent(c: Component, namespace: string): string {
   const worldT = T.record(world);
   const fieldsT = T.record(fields);
   const enumNames = new Set(info.enums.map(e => e.name));
-  /** The part of the world the component owns. */
-  const own = world.length ? '(World σ.N)' : 'Unit';
+  /** The parts of the world and of the agents' fields the component owns. */
+  const ownW = world.length ? '(World σ.S.Pos)' : 'Unit';
+  const ownX = fields.length ? '(Fields σ.S.Pos)' : 'Unit';
 
-  const env = (node: string, N: string, k: string): Env => ({
-    node, agent: `Fin ${k}`, N, k, pub: 'σ.P',
+  const env = (space: string, pos: string, sig: string, k: string): Env => ({
+    space, pos, sig, agent: `Fin ${k}`, k, pub: 'σ.P',
+    posOf: () => fail(`${c.name}: positions from vertex numbers are only available in experiments`),
     typeName: t => {
       if (t.k === 'enum' && enumNames.has(t.name)) return ident(t.name);
-      if (t.k === 'record' && typeEq(t, worldT)) return `World ${N}`;
-      if (t.k === 'record' && typeEq(t, fieldsT)) return `Fields ${N}`;
+      if (t.k === 'record' && typeEq(t, worldT)) return `World ${pos}`;
+      if (t.k === 'record' && typeEq(t, fieldsT)) return `Fields ${pos}`;
       return fail(`${c.name}: no Lean name for ${showType(t)}`);
     },
     worldField: (C, f) => `(L.world.get ${C}.world).${ident(f)}`,
@@ -114,7 +117,7 @@ export function generateComponent(c: Component, namespace: string): string {
     decisionAction: (d, a) => `(Actions.${ident(a)} ${d}.act)`,
     param: name => ident(name),
     paramType: name => info.inputs.find(i => i.name === name)?.type ?? fail(`unknown parameter ${name}`),
-    effect: (w, raise) => {
+    effect: (w, raise, agents) => {
       const worldCode = w.length ? `fun x => { x with ${w.map(([f, v]) => `${ident(f)} := ${v}`).join(', ')} }` : 'id';
       const one = ([flag, r]: [string, { pred?: string; set?: string }]) => {
         const cond = r.pred ? `${r.pred} a` : `(${r.set}).contains a`;
@@ -123,16 +126,17 @@ export function generateComponent(c: Component, namespace: string): string {
       const raiseCode = raise.length
         ? raise.map(one).reduce((acc, x) => `FlagSet.merge ${acc} ${x}`)
         : 'FlagSet.none';
-      return `({ world := ${worldCode}, raise := fun a => ${raiseCode} } : OwnEffect σ ${own})`;
+      const fieldsCode = agents ? `, fields := fun a _ => ${agents} a` : '';
+      return `({ world := ${worldCode}, raise := fun a => ${raiseCode}${fieldsCode} } : OwnEffect σ ${ownW} ${ownX})`;
     },
-    ts: 'ts', ds: 'ds',
+    ds: 'ds',
     layout: { pub: T.pub, mem: T.unit, worldType: worldT, flags, agentFields: fields, actions },
     defs: new Map((c.defs ?? []).map(d => [d.name, d])),
     defName: n => ident(n),
   });
 
-  const hookEnv = env('Fin σ.N', 'σ.N', 'σ.k');
-  const initEnv = env('Fin N', 'N', 'k');
+  const hookEnv = env('σ.S', 'σ.S.Pos', 'σ', 'σ.k');
+  const initEnv = env('S', 'S.Pos', 'σ', 'σ.k');
   const tr = new Translator(hookEnv);
   const trInit = new Translator(initEnv);
   const paramVars = params.map(p => [p.name, ident(p.name), p.type] as [string, string, Type]);
@@ -143,8 +147,8 @@ export function generateComponent(c: Component, namespace: string): string {
   out.push(`import Simulant\n\n/-! Generated from the IR of component \`${c.name}\` by packages/lean-gen. Do not edit. -/\n\nset_option linter.unusedVariables false\n`);
   out.push(`namespace ${namespace}\nopen Simulant\n`);
   for (const e of info.enums) out.push(enumDecl(e.name, e.ctors));
-  if (world.length) out.push(structDecl('World', ' (N : Nat)', world, t => trInit.type(t)));
-  if (fields.length) out.push(structDecl('Fields', ' (N : Nat)', fields, t => trInit.type(t)));
+  if (world.length) out.push(structDecl('World', ' (P : Type)', world, t => trInit.type(t).replace(/\bS\.Pos\b/g, 'P')));
+  if (fields.length) out.push(structDecl('Fields', ' (P : Type)', fields, t => trInit.type(t).replace(/\bS\.Pos\b/g, 'P')));
   out.push(`/-- The flags declared by \`${c.name}\`, with the laws of a composition's flags. -/`);
   if (flags.length) {
     out.push(`class Flags (F : Type) [FlagSet F] where\n${flags.map(f => {
@@ -158,7 +162,7 @@ export function generateComponent(c: Component, namespace: string): string {
     ? `class Actions (A : Type) where\n${actions.map(a => `  ${ident(a.name)} : A → ${trInit.type(a.type)}`).join('\n')}\n`
     : 'class Actions (A : Type) where\n');
   out.push(`/-- What the composition gives the component: lenses on the state it owns. -/\nstructure Ctx (σ : Sig) where\n${
-    [world.length ? '  world : Lens σ.W (World σ.N)' : '', fields.length ? '  fields : Lens σ.X (Fields σ.N)' : ''].filter(Boolean).join('\n')}\n`);
+    [world.length ? '  world : Lens σ.W (World σ.S.Pos)' : '', fields.length ? '  fields : Lens σ.X (Fields σ.S.Pos)' : ''].filter(Boolean).join('\n')}\n`);
 
   // Initial values
   if (world.length) {
@@ -166,32 +170,54 @@ export function generateComponent(c: Component, namespace: string): string {
       const r = trInit.root(c.init!.world![f.name], paramVars);
       return [f.name, r] as const;
     });
-    out.push(`def initWorld {N : Nat} [NeZero N] ${paramBinders} ${inputBinders} : ND (World N) := do\n${
+    out.push(`def initWorld {S : Space} ${paramBinders} ${inputBinders} : ND (World S.Pos) := do\n${
       binds.map(([n, r]) => `  let ${ident(n)} ← ${trInit.nd(r)}`).join('\n')}\n  pure { ${world.map(f => `${ident(f.name)} := ${ident(f.name)}`).join(', ')} }\n`);
   }
   for (const f of fields) {
     const r = trInit.root(c.init!.agent![f.name], [['i', 'i', T.nat], ...paramVars]);
-    out.push(`def init_${ident(f.name)} {N : Nat} [NeZero N] ${paramBinders} ${inputBinders} (i : Nat) : ND (${trInit.type(f.type)}) :=\n  ${trInit.nd(r)}\n`);
+    out.push(`def init_${ident(f.name)} {S : Space} ${paramBinders} ${inputBinders} (i : Nat) : ND (${trInit.type(f.type)}) :=\n  ${trInit.nd(r)}\n`);
   }
 
   out.push(`section\nvariable {σ : Sig} [FlagSet σ.F] [Flags σ.F] [Actions σ.A]\n`);
-  for (const s of c.sensors ?? []) {
-    const r = tr.root(s.body, [['C', 'C', T.config], ['me', 'me', T.agent], ['frame', 'frame', T.frame], ...paramVars], 'C');
-    out.push(`def sensor_${ident(s.name)} (L : Ctx σ) ${paramBinders} (ts : TState) (C : Config σ) (me : Fin σ.k) (frame : Bool) : ND (${tr.type(r.t)}) :=\n  ${tr.nd(r)}\n`);
-  }
+  for (const s of c.sensors ?? []) out.push(sensorDef(tr, s, `(L : Ctx σ) ${paramBinders}`, paramVars, 'σ'));
   const hook = (body: Expr | undefined, args: string) => {
-    if (!body) return `fun ${args} => pure ⟨id, fun _ => FlagSet.none⟩`;
+    if (!body) return `fun ${args} => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩`;
     return `fun ${args} => ${tr.nd(tr.root(body, [['C', 'C', T.config], ...paramVars], 'C'))}`;
   };
-  out.push(`/-- The hooks, on the part of the world the component owns. -/
-def hooks ${paramBinders} (L : Ctx σ) : Hooks σ ${own} where
+  out.push(`/-- The hooks, on the parts of the state the component owns. -/
+def hooks ${paramBinders} (L : Ctx σ) : Hooks σ ${ownW} ${ownX} where
   beforeLook := ${hook(c.beforeLook, 'ts C')}
   beforeMove := ${hook(c.beforeMove, 'ts C ds')}
   afterMove := ${hook(c.afterMove, 'ts C')}
 
 def component ${paramBinders} (L : Ctx σ) : Component σ :=
-  (hooks ${params.map(p => ident(p.name)).join(' ')} L).toComponent ${world.length ? 'L.world' : '(Lens.unit σ.W)'}
+  (hooks ${params.map(p => ident(p.name)).join(' ')} L).toComponent ${world.length ? 'L.world' : '(Lens.unit σ.W)'} ${fields.length ? 'L.fields' : '(Lens.unit σ.X)'}
 `);
   out.push(`end\n\nend ${namespace}\n`);
   return out.join('\n');
+}
+
+/**
+ * A sensor, as a function of a Look: its Look-level bindings (with their choices), then its
+ * value, a function of the location for a per-location sensor.
+ */
+export function sensorDef(tr: Translator, s: Sensor, binders: string, vars: [string, string, Type][], sig: string): string {
+  const scope: [string, string, Type][] = [['L', 'Lk', T.look], ...vars];
+  const binds: string[] = [];
+  for (const b of s.look ?? []) {
+    const r = tr.root(b.value, scope, 'Lk.config');
+    binds.push(`let ${ident(b.name)} ← ${tr.nd(r)}`);
+    scope.push([b.name, ident(b.name), r.t]);
+  }
+  const t = tr.resolve(s.type);
+  let value: string;
+  if (s.perLocation) {
+    const r = tr.root(s.body, [...scope, ['l', 'l', T.loc]], 'Lk.config');
+    if (r.nd) fail(`sensor ${s.name}: the per-location part cannot contain choices`);
+    value = `pure (fun (l : Nat) => ${r.code})`;
+  } else {
+    value = tr.nd(tr.root(s.body, scope, 'Lk.config'));
+  }
+  const ret = s.perLocation ? `Nat → ${tr.type(t)}` : tr.type(t);
+  return `def sensor_${ident(s.name)} ${binders} (Lk : Look ${sig}) : ND (${ret}) := do\n${binds.map(b => `  ${b}\n`).join('')}  ${value}\n`;
 }

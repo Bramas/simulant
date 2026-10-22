@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
+import { compile } from '@bramas/simulant-lang/elab/elaborate';
+import { loadProgram } from '@bramas/simulant-lang/elab/node';
 import { checkProofFile, checkProofs } from '@bramas/simulant-lean-gen/check-proofs';
 import { differential } from '@bramas/simulant-lean-gen/differential';
 import { examples, generateExamples } from '../src/examples';
@@ -72,6 +74,12 @@ test('differential: the computable Lean round has the interpreter\'s successors 
     const algo1 = differential(examples.Algo1, { N: 5, site: 2 }, leanDir.pathname, 40);
     assert.deepEqual(algo1.mismatches, []);
     assert.ok(algo1.successors > 0);
+    // The two-color stand-up rules: the line, isomorphism frames under the physical reference
+    // ordering, lights, and definitions that read the Look (`Line.window`).
+    const standup = compile(loadProgram(new URL('../../../projects/standup-gathering/sim/two-colors.sim', import.meta.url).pathname));
+    const colors = differential(standup.experiments.twoColors.experiment!, { positions: [0, 2, 4], phi: 2, crashNode: 0 }, leanDir.pathname, 40);
+    assert.deepEqual(colors.mismatches, []);
+    assert.ok(colors.successors > 0);
     // A semantic difference is detected.
     const mutated = differential(examples.CautiousPairCrash, { N: 5, site: 2 }, leanDir.pathname, 30,
       src => src.replace('Simulant.Library.CrashStop.component 1 ', 'Simulant.Library.CrashStop.component 0 '));

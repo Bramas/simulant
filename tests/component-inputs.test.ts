@@ -28,16 +28,14 @@ test('derived component initializers reuse directly known input types regardless
   assert.deepEqual(system.initial()[0].config.world.lights, [false, false, false]);
 });
 
-const lean = { skip: 'the Lean generator is ported in Phase 0 step 6' };
-
-test('Lean statements type component inputs from their direct initializers', lean, () => {
+test('Lean statements type component inputs from their direct initializers', () => {
   const out = compileSource(file, source).module.lean?.fixedLights;
   assert.ok(out && !('error' in out));
   assert.match(out.text, /positions : List \(Nat\)/);
   assert.doesNotMatch(out.text, /positions : List \(Bool\)/);
 });
 
-test('transformed inputs still explain missing types when no direct initializer determines them', lean, () => {
+test('transformed inputs still explain missing types when no direct initializer determines them', () => {
   const module = compileSource(file, source
     .replace('lights : List Bool, positions : List Nat', 'lights : List Bool')
     .replace(', positions := param positions', '')).module;
