@@ -116,7 +116,8 @@ Finish runtime package rebuilding before starting CLI or package-consumer tests.
 The build replaces `dist/` files, so overlapping it with a running consumer can
 produce transient `ERR_MODULE_NOT_FOUND` errors.
 
-The ordinary suite checks initializer creation and overwrite refusal. Sequential scheduling has a public conformance fixture and tests for singleton activation, stable identities, unbounded finite activation gaps and fair liveness; Lean differential verification includes that fixture.
+The ordinary suite checks initializer creation in new and existing empty directories, and overwrite refusal. The initializer copies template entries individually: copying the template directory onto an already-created destination with `errorOnExist` fails on Node.js 24.22. The release fix passed the full suite and installed-archive acceptance on Linux with Node.js 24.22.1.
+Sequential scheduling has a public conformance fixture and tests for singleton activation, stable identities, unbounded finite activation gaps and fair liveness; Lean differential verification includes that fixture.
 `pnpm test:packages` separately installs the real archives into a temporary
 project with no workspace links, checks its CLI, builds its website, and
 starts its dev server to check that the published Solid JSX is transformed.

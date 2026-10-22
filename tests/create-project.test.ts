@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -33,4 +33,14 @@ test('the initializer has help and rejects missing names and unknown options', a
   assert.match((await run(['--help'])).stdout, /Usage: npm create @bramas\/simulant/);
   await assert.rejects(run([]), /Give one project directory/);
   await assert.rejects(run(['--force']), /Give one project directory/);
+});
+
+test('the initializer accepts an existing empty directory', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'create-simulant-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const directory = join(root, 'empty');
+  await mkdir(directory);
+  await run([directory]);
+  assert.match(await readFile(join(directory, 'src/main.sim'), 'utf8'), /experiment cautiousPair/);
+  assert.ok((await readdir(directory)).includes('.gitignore'));
 });

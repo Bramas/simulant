@@ -1,5 +1,9 @@
 # Release notes
 
+## 0.4.1 (2026-10-22): initializer compatibility
+
+The initializer copies each template entry into the destination, preserving overwrite refusal while accepting both new and existing empty directories on Node.js 24.22. The `0.4.0` tag failed CI before npm publication; `0.4.1` includes the generic-core changes below and this correction.
+
 ## 0.4.0 (2026-10-22, breaking): the generic core
 
 This release replaces the ring-based core with a generic one ([core-redesign.md](core-redesign.md)). It is breaking at every level: `.sim` sources, the IR (version 2), the engine's API, the simulator's renderers and the Lean library. It increments the minor version while the packages are `0.x`. Saved links and settings from earlier versions are not kept.

@@ -15,7 +15,10 @@ if (args.length === 1 && ['-h', '--help'].includes(args[0])) {
     const directory = resolve(args[0]);
     if (existsSync(directory) && readdirSync(directory).length) throw new Error(`The directory is not empty: ${directory}. Choose a new or empty directory.`);
     mkdirSync(directory, { recursive: true });
-    cpSync(fileURLToPath(new URL('../template/', import.meta.url)), directory, { recursive: true, errorOnExist: true, force: false });
+    const template = fileURLToPath(new URL('../template/', import.meta.url));
+    for (const entry of readdirSync(template)) {
+      cpSync(resolve(template, entry), resolve(directory, entry), { recursive: true, errorOnExist: true, force: false });
+    }
     renameSync(resolve(directory, 'gitignore'), resolve(directory, '.gitignore'));
     const file = resolve(directory, 'package.json');
     const manifest = JSON.parse(readFileSync(file, 'utf8'));
