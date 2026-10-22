@@ -13,7 +13,7 @@ the reference ordering (section 3). -/
 def Port.cw : Nat := 0
 def Port.ccw : Nat := 1
 
-/-- The other port of a vertex of degree 2 (today's `Move.opposite`). -/
+/-- The other port of a vertex of degree 2: on a cycle, the way back. -/
 def Port.opposite (p : Nat) : Nat := 1 - p
 
 /-- The neighbor behind my port `i`. Indexing beyond my degree is an error, as for any list. -/

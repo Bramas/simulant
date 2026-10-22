@@ -11,13 +11,13 @@ inductive SizeKnowledge | unknown | known
 
 /-- The base of every model family. -/
 def robots (space : Space) (observe : Observation) (frames : Frames)
-    (views : List Sensor) (components : List Component := [])
+    (sensors : List Sensor) (components : List Component := [])
     (memory : Memory := .oblivious) (movement : Movement := .alongEdges)
     (round : Round := .fsync) (symmetries : Symmetries := .derived) : Model where
   space := space
   observation := observe
   frames := frames
-  sensors := views
+  sensors := sensors
   components := components
   memory := memory
   movement := movement

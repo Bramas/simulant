@@ -27,11 +27,11 @@ export const Star = (k: Arg = param('k')): Space => graph({
 
 /** Agents with the given space, observation, frames and sensors (`robots`). */
 export function robots(opts: {
-  name?: string; space: Space; observation: Observation; frames: Frames; views: Sensor[]; components?: Component[];
+  name?: string; space: Space; observation: Observation; frames: Frames; sensors: Sensor[]; components?: Component[];
   memory?: Model['memory']; round?: Model['round']; symmetries?: Model['symmetries'];
 }): Model {
   return model({
-    name: opts.name ?? 'robots', space: opts.space, observation: opts.observation, frames: opts.frames, sensors: opts.views,
+    name: opts.name ?? 'robots', space: opts.space, observation: opts.observation, frames: opts.frames, sensors: opts.sensors,
     components: opts.components, memory: opts.memory ?? 'oblivious', round: opts.round, symmetries: opts.symmetries,
   });
 }
@@ -43,7 +43,7 @@ export function blackHoleRobots(opts: {
   return robots({
     name: `blackHoleRobots(${opts.policy}, ${opts.size})`,
     space: opts.space ?? Cycle(), observation: radius(1), frames: F.identity,
-    views: [opts.view ?? otherStates, ...(opts.size === 'known' ? [spaceSize] : [])],
+    sensors: [opts.view ?? otherStates, ...(opts.size === 'known' ? [spaceSize] : [])],
     components: [Hazards.BlackHole(opts.policy), ...(opts.extra ?? [])], memory: 'persistent', round: opts.round,
   });
 }

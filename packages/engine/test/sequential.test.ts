@@ -8,7 +8,7 @@ import { EveryoneActivated, MarkActivated } from '../../stdlib/test/helpers/exam
 import { Cycle, robots } from '../../stdlib/test/helpers/models';
 
 const make = (count: number) => experiment({
-  name: 'sequential', model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [], round: 'sequential' }),
+  name: 'sequential', model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round: 'sequential' }),
   algorithm: MarkActivated, task: EveryoneActivated,
   params: [{ name: 'N', type: T.nat }], agents: { count, pos: i => pos(i) },
 });

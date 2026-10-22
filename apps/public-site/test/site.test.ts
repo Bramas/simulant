@@ -8,8 +8,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  analyze, build, byName, components, isCustom, locate, models, newDraft, outputTypes, sensorArgs, spaceOptions, syntaxError, tasks, useOf, viewSensors, withCustom,
-  type Draft,
+  analyze, build, byName, components, isCustom, locate, modelText, models, newDraft, outputTypes, sensorArgs, spaceOptions, syntaxError, tasks, undeclared, useOf,
+  viewSensors, withCustom, type Draft,
 } from '../src/builder';
 import { compileText } from '../src/compile';
 import { completeFiles } from '../src/guide-examples';
@@ -96,9 +96,23 @@ test('the builder writes positions the space accepts', () => {
   }
 });
 
+test('the builder passes sensors only their own arguments, and sizes only finite spaces', () => {
+  const draft = newDraft(library, 'robots');
+  assert.match(modelText(library, draft), /\[occupied\]/);
+  assert.deepEqual(useOf(library, byName(library, 'lossyOccupied')!).args.length, sensorArgs(byName(library, 'lossyOccupied')!).length);
+  assert.deepEqual(undeclared(library, draft.lists.sensors), []);
+  assert.ok(analyze(library, draft).params.some((p) => p.name === 'N'));
+  draft.args.space = 'Graphs.Line';
+  assert.ok(!analyze(library, draft).params.some((p) => p.name === 'N'));
+  assertCompiles(draft, 'robots on the line');
+  draft.lists.sensors.push(useOf(library, byName(library, 'lossyOccupied')!));
+  assert.match(analyze(library, draft).warnings.map((w) => w.message).join('\n'), /occupied and lossyOccupied both provide the sensor occupied/);
+  assert.match(build(library, sources, draft).text, /uses occupied where/);
+});
+
 test('the builder reports the compiler diagnostics of a rejected combination', () => {
   const draft = newDraft(library, 'robots');
-  draft.lists.views = [{ name: 'colors', args: [] }];
+  draft.lists.sensors = [{ name: 'colors', args: [] }];
   assert.equal(analyze(library, draft).warnings[0]?.fix?.component, 'Storage.Lights');
   const built = build(library, sources, draft);
   assert.equal(built.experiment, undefined);
@@ -129,7 +143,7 @@ test('the builder offers custom components and sensors, and compiles a draft tha
     custom,
     body: 'main :=\n  if notAlone then\n    stay\n  else\n    move Ring.cw',
   };
-  draft.lists.views = [{ name: 'notAlone', args: [] }];
+  draft.lists.sensors = [{ name: 'notAlone', args: [] }];
   draft.lists.components = [useOf(lib, trap)];
   // The page keeps its state in `#draft=`: the shared link restores the same file.
   const shared = JSON.parse(decodeURIComponent(encodeURIComponent(JSON.stringify(draft)))) as Draft;

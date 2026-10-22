@@ -25,9 +25,9 @@ function placed(m: Model, algorithm: Algorithm, task: Task, extra: { name: strin
   });
 }
 
-const onCycle = (round: Model['round']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [], round });
+const onCycle = (round: Model['round']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round });
 const exploring = (f: Model['frames'], space = Cycle()) =>
-  robots({ space, observation: radius(1), frames: f, views: [count], components: [Monitors.Visited()] });
+  robots({ space, observation: radius(1), frames: f, sensors: [count], components: [Monitors.Visited()] });
 const three = (name: string, m: Model, accepts?: boolean) => experiment({
   name, model: m, algorithm: MarkActivated, task: EveryoneActivated,
   params: [{ name: 'N', type: T.nat, ...(accepts ? { accepts: param('N').ge(3) } : {}) }], agents: { count: 3, pos: i => pos(i) },
@@ -44,7 +44,7 @@ export const builderExperiments: Record<string, Experiment> = {
     params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.pos }], agents: { count: 2, pos: () => pos(0) },
   }),
   'gathering-with-crash': placed(
-    robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, views: [occupied], components: [Faults.CrashAt()] }),
+    robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, sensors: [occupied], components: [Faults.CrashAt()] }),
     NearestNeighbour, Gathering, [{ name: 'crashNode', type: T.pos }]),
   'dynamic-ring': placed(exploring(frames.identity, dynamic(Cycle(), 1)), AlwaysClockwise, Exploration),
   'own-orientation': placed(exploring(frames.portPermutations('perRobot')), AlwaysClockwise, Exploration),
@@ -54,19 +54,19 @@ export const builderExperiments: Record<string, Experiment> = {
   'parameter-acceptance': three('parameterAcceptance', onCycle('sequential'), true),
   lights: experiment({
     name: 'lights',
-    model: robots({ space: Line(), observation: radius(param('phi')), frames: frames.isomorphisms, views: [colors], components: [Storage.Lights(3), Faults.CrashAt()] }),
+    model: robots({ space: Line(), observation: radius(param('phi')), frames: frames.isomorphisms, sensors: [colors], components: [Storage.Lights(3), Faults.CrashAt()] }),
     algorithm: CycleLight, task: Observe,
     params: [{ name: 'positions', type: T.list(T.int) }, { name: 'phi', type: T.nat }, { name: 'crashNode', type: T.pos }],
     agents: { count: param('positions').length(), pos: i => pos(param('positions').at(i)) },
   }),
   'star-gathering': experiment({
-    name: 'starGathering', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, views: [occupied] }),
+    name: 'starGathering', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, sensors: [occupied] }),
     algorithm: ToHub, task: Gathering,
     params: [{ name: 'k', type: T.nat }, { name: 'start', type: T.list(T.nat) }],
     agents: { count: param('start').length(), pos: i => pos(param('start').at(i)) },
   }),
   'star-dispersion': experiment({
-    name: 'starDispersion', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, views: [count] }),
+    name: 'starDispersion', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, sensors: [count] }),
     algorithm: Disperse, task: Dispersion,
     params: [{ name: 'k', type: T.nat }], agents: { count: 3, pos: () => pos(0) },
   }),

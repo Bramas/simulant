@@ -379,7 +379,7 @@ The automorphism acts on every `Pos` value in the state and on the robots' kept 
 ```sim-design
 /-- The base of every model family: no capability is granted implicitly. -/
 def robots (space : Space) (observe : Observation) (frames : Frames)
-    (views : List Sensor) (components : List Component := [])
+    (sensors : List Sensor) (components : List Component := [])
     (memory : Memory := .oblivious) (movement : Movement := .alongEdges)
     (round : Round := .fsync) (symmetries : Symmetries := .derived) : Model where
   space := space

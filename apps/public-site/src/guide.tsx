@@ -177,6 +177,9 @@ function Guide() {
               <code>occupied</code> tells, for each location, whether a robot stands there. Under <code>Frames.isomorphisms</code>, the
               adversary chooses at each activation which of the two neighbors comes first, so <code>Ring.cw</code> is whichever side it
               presents first: the robot has no sense of direction.
+              The simulator itself lists the locations of a view in a fixed order. When a view has no symmetry, that order can
+              reveal more than the model grants, so an algorithm must not depend on it; the generated Lean statements hold for every
+              valid order.
             </p>
           </Section>
 

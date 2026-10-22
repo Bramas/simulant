@@ -51,7 +51,7 @@ sensor otherStatesLossy (k : Nat) (L : Look) : Multiset Pub :=
 sensor edgeTo (L : Look) (l : Loc) : Bool :=
   L.edgePresent L.here l
 
-/-- Knowledge of the size of a finite space (today's `ringSize`). -/
+/-- The number of positions of a finite space, for models where agents know it. -/
 sensor spaceSize (L : Look) : Nat :=
   L.spaceSize
 

@@ -127,7 +127,7 @@ function ComponentPicker(props: { lib: Library; draft: Draft; list: string; sens
                 <Yours entry={c} />
               </label>
               <p class="hint">{firstSentence(c.doc)}</p>
-              <Show when={use() && c.params.length}>
+              <Show when={use() && (props.sensors ? sensorArgs(c) : c.params).length}>
                 <div class="pick-args">
                   <Index each={props.sensors ? sensorArgs(c) : c.params}>
                     {(p, i) => (
@@ -357,7 +357,7 @@ function Builder() {
           <For each={params().filter((p) => p.type === 'List Sensor')}>
             {(p) => (
               <fieldset>
-                <legend>Sensors <small>({p.name})</small></legend>
+                <legend>Sensors <Show when={p.name !== 'sensors'}><small>({p.name})</small></Show></legend>
                 <ComponentPicker lib={lib()} draft={draft()} list={p.name} sensors onChange={(uses) => update({ lists: { ...draft().lists, [p.name]: uses } })} />
                 <p class="hint">What an agent learns about each location of its view. The algorithm reads the ones it <code>uses</code>.</p>
               </fieldset>
@@ -367,7 +367,7 @@ function Builder() {
           <For each={params().filter((p) => p.type === 'List Component')}>
             {(p) => (
               <fieldset>
-                <legend>3. Components <small>({p.name})</small></legend>
+                <legend>3. Components <Show when={p.name !== 'components'}><small>({p.name})</small></Show></legend>
                 <ComponentPicker lib={lib()} draft={draft()} list={p.name} onChange={(uses) => update({ lists: { ...draft().lists, [p.name]: uses } })} />
                 <p class="hint">Components, sensors and tasks declared in <a href="#custom" onClick={(e) => { e.preventDefault(); document.getElementById('custom')?.scrollIntoView({ behavior: 'smooth' }); }}>your code</a> are listed with the library’s.</p>
               </fieldset>
@@ -426,7 +426,7 @@ function Builder() {
                 )}
               </For>
             </div>
-            <p class="hint">Parameters come from the topology (<code>N</code>) and from the components that read them.</p>
+            <p class="hint">Parameters come from the space (the size <code>N</code> of a finite one) and from the components that read them.</p>
           </fieldset>
 
           <fieldset id="custom">

@@ -111,7 +111,7 @@ describe('black-hole search: radius-1 views, persistent memory, chirality', () =
 });
 
 describe('oblivious robots: full view, isomorphisms at each Look, crash at a position', () => {
-  const exp = placed(robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, views: [occupied], components: [Faults.CrashAt()] }), NearestNeighbour, Gathering);
+  const exp = placed(robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, sensors: [occupied], components: [Faults.CrashAt()] }), NearestNeighbour, Gathering);
 
   test('the derived group has the rotations and reflections of the cycle', () => {
     const sys = new System(exp, { N: 5, positions: [0, 2], crashNode: 0 });
@@ -136,7 +136,7 @@ describe('oblivious robots: full view, isomorphisms at each Look, crash at a pos
 
   test('with chirality, symmetry reduction merges the rotated configurations only', () => {
     // Robots that keep moving through their port 0 only visit rotations of their initial configuration.
-    const rotating = placed(robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [count] }), AlwaysClockwise, Gathering);
+    const rotating = placed(robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [count] }), AlwaysClockwise, Gathering);
     const params = { N: 5, positions: [0, 2], crashNode: 0 };
     const a = explore(new System(rotating, params));
     const b = explore(new System(rotating, params), { symmetry: false });
@@ -161,7 +161,7 @@ describe('oblivious robots: full view, isomorphisms at each Look, crash at a pos
       name: 'FirstOccupied', goal: 'eventually', equivariant: true,
       verdict: C => ite(agents(C).any(a => a.pos.eq(positions().at(0))), verdict('success'), verdict('inProgress')),
     });
-    const bad = placed(robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, views: [occupied] }), NearestNeighbour, first);
+    const bad = placed(robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, sensors: [occupied] }), NearestNeighbour, first);
     const sys = new System(bad, { N: 5, positions: [1, 2], crashNode: 0 });
     assert.equal(new Symmetry(sys).size, 10); // the claim is believed...
     assert.notDeepEqual(equivarianceViolations(sys, sys.initial().map(s => s.config), finiteGroup(sys)), []); // ...and refuted
@@ -169,7 +169,7 @@ describe('oblivious robots: full view, isomorphisms at each Look, crash at a pos
 });
 
 describe('robots on a dynamic cycle: the adversary removes an edge each round', () => {
-  const visiting = (space = Cycle()) => robots({ space, observation: radius(1), frames: frames.identity, views: [count], components: [Monitors.Visited()] });
+  const visiting = (space = Cycle()) => robots({ space, observation: radius(1), frames: frames.identity, sensors: [count], components: [Monitors.Visited()] });
 
   test('a robot that always moves through port 0 explores a static cycle but not a dynamic one', () => {
     assert.equal(explore(new System(placed(visiting(), AlwaysClockwise, Exploration), { N: 4, positions: [0], crashNode: 0 })).status, 'success');
@@ -197,14 +197,14 @@ describe('robots on a dynamic cycle: the adversary removes an edge each round', 
 
 describe('executions: synchronous rounds check every cycle, SSYNC only scheduler-fair ones', () => {
   const exp = (round: 'fsync' | 'ssync') => experiment({
-    name: `mark ${round}`, model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [], round }),
+    name: `mark ${round}`, model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round }),
     algorithm: MarkActivated, task: EveryoneActivated,
     params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => pos(i) },
   });
 
   test('a repeatable cycle that violates the task fails under FSYNC', () => {
     // Two robots that always move through port 0 never gather: a lasso, although nothing forces the cycle.
-    const m = robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [count] });
+    const m = robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [count] });
     const r = explore(new System(placed(m, AlwaysClockwise, Gathering), { N: 4, positions: [0, 2], crashNode: 0 }));
     assert.equal(r.status, 'failure');
     assert.equal(r.counterexample?.kind, 'lasso');

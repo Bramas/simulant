@@ -163,7 +163,7 @@ function Library() {
           <section class="docs-section" id="builtins">
             <h2>Built in</h2>
             <p class="section-lead">
-              Topologies, rounds, frames and symmetry reduction are implemented by the semantic core. Model families take them as arguments.
+              Observations, frames, rounds, memory, symmetry reduction and dynamic spaces are implemented by the semantic core. Model families take them as arguments.
             </p>
             <For each={builtins}>
               {(b) => (

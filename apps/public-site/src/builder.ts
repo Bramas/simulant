@@ -143,8 +143,10 @@ export function initialValue(lib: Library, param: Param): string {
   return '';
 }
 
+/** A fresh use of a component or sensor; a sensor's arguments are those before its Look. */
 export function useOf(lib: Library, entry: Entry): Use {
-  return { name: entry.name, args: entry.params.map((p) => initialValue(lib, p)) };
+  const params = entry.kind === 'sensor' ? sensorArgs(entry) : entry.params;
+  return { name: entry.name, args: params.map((p) => initialValue(lib, p)) };
 }
 
 export function newDraft(lib: Library, model = models(lib)[0]?.name ?? ''): Draft {
@@ -177,7 +179,7 @@ export function withCustom(librarySources: Record<string, string>, custom: strin
 }
 
 const wrap = (value: string) => (/\s/.test(value.trim()) && !/^[[({]/.test(value.trim()) ? `(${value.trim()})` : value.trim());
-export const useText = (use: Use) => [use.name, ...use.args.map(wrap)].join(' ');
+export const useText = (use: Use) => [use.name, ...use.args.filter((a) => a.trim()).map(wrap)].join(' ');
 
 /** Components the model contains: the family's own and the chosen ones. */
 export function selectedComponents(lib: Library, draft: Draft): string[] {
@@ -228,8 +230,9 @@ export function syntaxError(custom: string): { line: number; column: number; mes
   }
 }
 
-/** Uses of components that are no longer declared, such as a deleted custom one. */
-export const undeclared = (lib: Library, uses: Use[]) => uses.filter((u) => byName(lib, u.name)?.kind !== 'component');
+/** Uses of components or sensors that are no longer declared, such as a deleted custom one. */
+export const undeclared = (lib: Library, uses: Use[]) =>
+  uses.filter((u) => !['component', 'sensor'].includes(byName(lib, u.name)?.kind ?? ''));
 
 export type Analysis = {
   params: (Field & { domain: string })[];
@@ -260,11 +263,21 @@ export function analyze(lib: Library, draft: Draft): Analysis {
       warnings.push({ message: `${who} needs the ${component} component.`, ...(list ? { fix: { list, component } } : {}) });
     }
   };
-  for (const sensor of chosenSensors(lib, draft)) need(sensor.name, sensor.requires);
+  const provided = new Map<string, string>();
+  for (const sensor of chosenSensors(lib, draft)) {
+    need(sensor.name, sensor.requires);
+    // A variant such as `lossyOccupied` provides the sensor it implements, under that name.
+    const name = sensor.implements ?? sensor.name;
+    const other = provided.get(name);
+    if (other) warnings.push({ message: `${other} and ${sensor.name} both provide the sensor ${name}: keep one of them.` });
+    else provided.set(name, sensor.name);
+  }
   const task = byName(lib, draft.task);
   need(draft.task, task?.requires);
 
-  const fields: Field[] = [{ name: 'N', type: 'Nat' }];
+  // `N` is the size of the space, when the space has one (the line has none).
+  const sized = Object.values(draft.args).some((value) => /\bN\b/.test(value));
+  const fields: Field[] = sized ? [{ name: 'N', type: 'Nat' }] : [];
   for (const name of selected) {
     for (const read of byName(lib, name)?.reads ?? []) {
       if (!fields.some((f) => f.name === read.name)) fields.push(read);
@@ -364,7 +377,7 @@ export function build(lib: Library, sources: Record<string, string>, draft: Draf
   const probe = compileText(generate(lib, { ...draft, body: undefined }, []), sources).experiments[draft.experiment];
   const sensors = probe
     ? modelSensors(probe)
-    : chosenSensors(lib, draft).map((s) => ({ name: s.implements ?? s.name }));
+    : [...new Set(chosenSensors(lib, draft).map((s) => s.implements ?? s.name))].map((name) => ({ name }));
   const { text, regions } = layout(lib, draft, sensors);
   const compiled = compileText(text, sources);
   return { text, regions, skeleton: skeleton(lib, draft, sensors), compiled, experiment: compiled.experiments[draft.experiment] };
