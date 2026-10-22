@@ -1,39 +1,39 @@
-/-! A starter experiment: two agents look for a black hole on a ring.
+/-! A starter experiment: two agents look for a black hole on a cycle.
 
 Edit this file while the development server runs (`npm run dev`):
 saving it updates the open page. -/
 
 import "std/models.sim"
-import "std/tasks.sim"
 
-/-- A cautious walk: agent 0 probes the next node and comes back; agent 1 waits, and
-declares the hole in direction `cw` if agent 0 does not come back. -/
+/-- A cautious walk: agent 0 probes the clockwise neighbor and comes back; agent 1 waits, and
+claims the hole behind its clockwise port if agent 0 does not come back. The agents share a
+sense of direction (`Frames.identity`), so the stored claim is a port index. -/
 algorithm CautiousPair uses otherStates where
-  Pub := { id : Nat, bh : Option Move }
+  Pub := { id : Nat, bh : Option Nat }
   output claim := pub.bh
   init i := { pub := { id := i, bh := none } }
 
   main :=
     if pub.id = 0 then
       repeat
-        move .cw
-        move .ccw
-        move .cw
+        move Ring.cw
+        move Ring.ccw
+        move Ring.cw
     else
       repeat
         stay
         stay
-        if !(otherStates.length > 0) then
-          pub := { pub with bh := some .cw }
+        if otherStates.isEmpty then
+          pub := { pub with bh := some Port.cw }
           halt
-        move .cw
+        move Ring.cw
 
 /-- The hole is present from the start, anywhere but on the agents' node. -/
 experiment cautiousPair where
-  model := blackHoleRing .initiallyPresent .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := (range 9).filter (· ≥ 3)
-  param site : Node := ((range N).filter (· ≥ 1)).map node
+  param N : Nat in (range 9).filter (· ≥ 3)
+  param site : Pos in positions.filter (· ≠ pos 0)
   agents := 2
-  position i := node 0
+  position i := pos 0

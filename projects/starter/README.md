@@ -7,7 +7,7 @@ The cautious pair searches for a black hole present from the start (`.initiallyP
 ```text
 src/main.sim            model, algorithm, task and experiment (the `.sim` language: docs/sim-language.md)
 src/projects.ts         the registry: experiments shown by the page and the CLI, presets
-src/renderers/ring.ts   optional custom drawing (the default ring renderer otherwise)
+src/renderers/ring.ts   optional custom drawing (the default renderer of the space otherwise)
 web/                    the standard viewer page
 .simulant/types/        generated snapshot types (ignored by git)
 ```

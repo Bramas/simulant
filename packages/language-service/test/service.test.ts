@@ -10,13 +10,13 @@ const sources = Object.fromEntries(readdirSync(directory).filter(n => n.endsWith
 const main = `${root}main.sim`;
 const example = `import "std/examples.sim"
 experiment e where
-  model := blackHoleRing .initiallyPresent .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in [5]
-  param site : Node in [node 2]
+  param site : Pos in [pos 2]
   agents := 2
-  position i := node 0
+  position i := pos 0
 `;
 
 function project(files: Record<string, string>) {
@@ -36,7 +36,7 @@ function position(text: string, needle: string, occurrence = 0) {
 test('compiler diagnostics use zero-based UTF-16 ranges and clear after an unsaved fix', () => {
   const { service } = project({ 'main.sim': example });
   assert.equal(service.analyze(main).diagnostics.size, 0);
-  assert.equal(service.analyze(main).experiments.e.irVersion, 1);
+  assert.equal(service.analyze(main).experiments.e.irVersion, 2);
   const invalid = example.replace('agents := 2', 'agents := true');
   service.setDocument(main, invalid, 1);
   const diagnostic = service.analyze(main).diagnostics.get(main)![0];
@@ -67,7 +67,7 @@ test('completion and import navigation work while the current declaration is inc
   const text = 'import "std/models.sim"\ndef draft : Model := blackH';
   const { service } = project({ 'main.sim': text });
   const end = TextDocument.create(main, 'simulant', 0, text).positionAt(text.length);
-  assert.ok(service.completion(main, end).some(c => c.label === 'blackHoleRing'));
+  assert.ok(service.completion(main, end).some(c => c.label === 'blackHoleRobots'));
   const location = service.definition(main, position(text, 'std/models.sim'));
   assert.equal(location?.uri, stdlib + 'models.sim');
   service.setDocument(main, 'import "std/mo', 1);
@@ -76,15 +76,15 @@ test('completion and import navigation work while the current declaration is inc
 
 test('hover and definition resolve standard-library functions without making them renameable', () => {
   const { service } = project({ 'main.sim': example });
-  const cursor = position(example, 'blackHoleRing');
+  const cursor = position(example, 'blackHoleRobots');
   assert.equal(service.definition(main, cursor)?.uri, stdlib + 'models.sim');
-  assert.match(JSON.stringify(service.hover(main, cursor)?.contents), /blackHoleRing.*HolePolicy/);
+  assert.match(JSON.stringify(service.hover(main, cursor)?.contents), /blackHoleRobots.*HolePolicy/);
   assert.equal(service.prepareRename(main, cursor), undefined);
   assert.throws(() => service.rename(main, cursor, 'changed'), /editable/);
-  const item = service.completion(main, cursor).find(c => c.label === 'blackHoleRing')!;
+  const item = service.completion(main, cursor).find(c => c.label === 'blackHoleRobots')!;
   assert.ok(item.textEdit && 'newText' in item.textEdit);
   const doc = TextDocument.create(main, 'simulant', 0, example);
-  assert.equal(doc.getText(item.textEdit.range), 'blackHoleRing');
+  assert.equal(doc.getText(item.textEdit.range), 'blackHoleRobots');
 });
 
 test('references and rename cross imports, include unopened dependents, and carry document versions', () => {
@@ -125,13 +125,10 @@ test('typed record members, enums and qualified constructors support navigation'
   assert.equal(service.prepareRename(main, position(text, 'size', 1)), undefined);
 });
 
-test('sensor references in aliased step views are included in rename', () => {
-  const text = 'sensor observation (C : Config) (me : Agent) (frame : Frame) : Nat := 1\nalgorithm A uses observation where\n  step m p look := { move := .stay, pub := p, mem := m }\n  line m := look.observation\n';
+test('sensor references in uses and in the step are included in rename', () => {
+  const text = 'sensor observation (L : Look) : Nat := 1\nalgorithm A uses observation where\n  step mem pub := { move := if observation = 1 then here else here, pub := pub, mem := mem }\n';
   const { service } = project({ 'main.sim': text });
-  // The surface has a view alias on the step binder; test an actual use inside that step.
-  const withView = text.replace('move := .stay', 'move := if look.observation = 1 then .stay else .cw').replace('  line m := look.observation\n', '');
-  service.setDocument(main, withView, 1);
-  assert.equal(service.references(main, position(withView, 'observation')).length, 3);
+  assert.equal(service.references(main, position(text, 'observation')).length, 3);
 });
 
 test('hover includes declaration documentation and ambiguous constructor renames are rejected', () => {
