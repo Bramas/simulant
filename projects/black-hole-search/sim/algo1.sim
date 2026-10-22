@@ -1,23 +1,23 @@
 /-! Algorithm 1 of the black-hole-search paper (Four-Agent EBS Solution,
-`latex-algo/algorithm-1-2e.tex`): two pairs of agents perform cautious walks.
-Migrated from `src/simulations/algo1.ts` (plan, Phase 4). -/
+`latex-algo/algorithm-1-2e.tex`): two pairs of agents perform cautious walks. Directions are
+port indices (`Port.cw`, `Port.ccw`), which mean the same for every agent under
+`Frames.identity` (common chirality). -/
 
 import "std/models.sim"
-import "std/tasks.sim"
 
 algorithm FourAgentEBS uses otherStates where
-  Pub := { id : Nat, bh : Option Move }
+  Pub := { id : Nat, bh : Option Nat }
   output claim := pub.bh
   init i := { pub := { id := i, bh := none } }
 
   /-- CautiousWalk(leader, follower, direction): the leader probes the next node and comes
   back; the follower waits, and declares the hole if the leader does not come back. -/
-  def cautiousWalk (leader : Nat) (follower : Nat) (dir : Move) :=
+  def cautiousWalk (leader : Nat) (follower : Nat) (dir : Nat) :=
     if pub.id = leader then
       repeat
-        move dir
-        move dir.opposite
-        move dir
+        move (port dir)
+        move (port (Port.opposite dir))
+        move (port dir)
     else
       repeat
         stay
@@ -25,22 +25,22 @@ algorithm FourAgentEBS uses otherStates where
         if !(otherStates.any (·.id = leader)) then
           pub := { pub with bh := some dir }
           halt
-        move dir
+        move (port dir)
 
   main :=
     if pub.id = 0 ∨ pub.id = 1 then
-      move .cw
-      cautiousWalk 0 1 .cw
+      move Ring.cw
+      cautiousWalk 0 1 Port.cw
     else
-      move .ccw
-      cautiousWalk 2 3 .cw
+      move Ring.ccw
+      cautiousWalk 2 3 Port.cw
 
-/-- The settings of the paper's checks: rings of 5 to 12 nodes, the hole anywhere. -/
+/-- The settings of the paper's checks: cycles of 5 to 12 nodes, the hole anywhere. -/
 experiment algo1 where
-  model := blackHoleRing .mayEmerge .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := FourAgentEBS
   task := IdentifyEmergingBlackHole
-  param N : Nat := (range 13).filter (· ≥ 5)
-  param site : Node := (range N).map node
+  param N : Nat in (range 13).filter (· ≥ 5)
+  param site : Pos in positions
   agents := 4
-  position i := node 0
+  position i := pos 0

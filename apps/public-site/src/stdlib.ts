@@ -6,7 +6,7 @@
 import type { SBinder, SDecl, SExpr, SStmt, SType, SWhereItem } from '../../../packages/lang/src/parse/ast';
 import { parse } from '../../../packages/lang/src/parse/parser';
 
-export type Kind = 'model' | 'component' | 'sensor' | 'task' | 'type' | 'algorithm' | 'experiment' | 'definition';
+export type Kind = 'model' | 'space' | 'component' | 'sensor' | 'task' | 'type' | 'algorithm' | 'experiment' | 'definition';
 
 export type Param = { name: string; type: string; default?: string };
 export type Field = { name: string; type: string };
@@ -74,7 +74,7 @@ function kindOf(d: SDecl): Kind | undefined {
     case 'inductive': case 'structure': return 'type';
     case 'def': {
       const t = d.type?.t === 'name' ? d.type.name : undefined;
-      return t === 'Component' ? 'component' : t === 'Model' ? 'model' : t === 'Sensor' ? 'sensor' : 'definition';
+      return t === 'Component' ? 'component' : t === 'Model' ? 'model' : t === 'Space' ? 'space' : t === 'Sensor' ? 'sensor' : 'definition';
     }
     default: return undefined;
   }
@@ -201,10 +201,11 @@ export function readLibrary(sources: Record<string, string>): Library {
     const requires = new Set<string>();
     const outputs = new Set<string>();
     const exprs = expressionsOf(d);
-    // Agents are bound by `fun a => ...` over `C.agents`, or are the observer `me`.
+    // Agents are bound by `fun a => ...` over `C.agents` or `L.occupants l`, or are the observer `L.me`.
     const agents = new Set(['me', ...exprs.flatMap((e) => (e.t === 'fun' ? e.params.map((p) => p.name) : []))]);
-    for (const path of paths(exprs)) {
-      if (path[0] === 'C' && path[1] === 'world' && path[2]) owners(path[2], 'world').forEach((c) => requires.add(c));
+    for (const raw of paths(exprs)) {
+      const path = raw[0] === 'L' && raw[1] === 'me' ? raw.slice(1) : raw;
+      if ((path[0] === 'C' || path[0] === 'L') && path[1] === 'world' && path[2]) owners(path[2], 'world').forEach((c) => requires.add(c));
       else if (agents.has(path[0]) && path.length >= 2) {
         const [, attribute, field] = path;
         const agentOwners = owners(attribute, 'agent');
@@ -236,6 +237,7 @@ export function signature(e: Entry): string {
     case 'type': return e.ctors ? join('inductive', e.name, ...e.ctors.map((c) => `| ${c}`)) : join('structure', e.name);
     case 'component': return join('def', e.name, params, ': Component');
     case 'model': return join('def', e.name, params, ': Model');
+    case 'space': return join('def', e.name, params, ': Space');
     case 'sensor': return join('sensor', e.name, params, `: ${e.type ?? 'Sensor'}`);
     case 'task': return join('task', e.name, params, `: ${e.type}`);
     case 'definition': return join('def', e.name, params, e.type ? `: ${e.type}` : '');

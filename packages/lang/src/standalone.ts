@@ -26,16 +26,23 @@ export function standaloneExperiment(c: Component): Experiment {
     irVersion: IR_VERSION,
     name: `${c.name} alone`,
     model: {
-      name: c.name, topology: { kind: 'ring', size: { e: 'param', name: 'N' } }, sensors: [], memory: 'persistent',
-      frame: { kind: 'common' }, round: 'fsync', movement: 'rigid', components: [c], symmetries: 'derived',
+      name: c.name,
+      space: {
+        kind: 'graph', name: 'Graphs.Cycle', params: [{ name: 'n', type: T.nat }], args: { n: { e: 'param', name: 'N' } }, vertex: T.nat,
+        vertices: { e: 'call', fn: 'range', args: [{ e: 'var', name: 'n' }] },
+        neighbors: { vertex: 'v', body: { e: 'call', fn: 'list', args: [{ e: 'var', name: 'v' }] } },
+        automorphisms: { kind: 'computed' },
+      },
+      observation: { kind: 'radius', r: lit(T.nat, 1) }, frames: { kind: 'identity' },
+      sensors: [], memory: 'persistent', round: 'fsync', movement: 'alongEdges', components: [c], symmetries: 'derived',
     },
     algorithm: {
       name: 'idle', uses: [], pub: T.unit, mem: T.unit, init: { pub: lit(T.unit, null), mem: lit(T.unit, null) },
-      step: { e: 'record', fields: { move: lit(T.move, 'stay'), pub: { e: 'var', name: 'pub' }, mem: { e: 'var', name: 'mem' } } },
+      step: { e: 'record', fields: { move: { e: 'call', fn: 'here', args: [] }, pub: { e: 'var', name: 'pub' }, mem: { e: 'var', name: 'mem' } } },
     },
     task: { name: 'none', goal: 'safety', verdict: lit(T.verdict, 'inProgress') },
     params: [{ name: 'N', type: T.nat }, ...inputs(c)],
-    agents: { count: lit(T.nat, 1), pos: lit(T.node, 0) },
+    agents: { count: lit(T.nat, 1), pos: { e: 'call', fn: 'pos', args: [lit(T.nat, 0)] } },
   };
 }
 

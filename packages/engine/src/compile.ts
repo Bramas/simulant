@@ -13,17 +13,75 @@
 import { BUILTINS } from '@bramas/simulant-lang/builtins';
 import type { Def, Expr, Type } from '@bramas/simulant-lang/ir';
 import type { Layout } from '@bramas/simulant-lang/layout';
+import type { Frames } from '@bramas/simulant-lang/ir';
 import { fieldType, isCollection, resolvePub, showType, T } from '@bramas/simulant-lang/types';
-import { opposite, type Move, type TopologyRuntime } from './topology';
-import { canonicalSort, encoder, equality, show, type V } from './values';
+import type { Presentation, SpaceRuntime, Vertex, View } from './space';
+import { canonicalSort, encoder, equality, show, vertexKey, type V } from './values';
 
 export type Choice = { site: string; index: number; label: string };
 
-export type AgentV = { pos: number; pub: V; mem: V; f: Record<string, V> };
+/** An agent: its position (a vertex), its kept port permutation (local → space port, under `.perRobot`), state and fields. */
+export type AgentV = { pos: Vertex; frame?: number[]; pub: V; mem: V; f: Record<string, V> };
 export type Config = { agents: AgentV[]; world: Record<string, V>; idx?: number[] };
-export type DecisionV = { decided: boolean; move: Move; pub: V; mem: V; [action: string]: V };
-/** New values of world fields, and per flag, which agents raise it. */
-export type Effect = { world: Record<string, V>; raise: Record<string, boolean[]> };
+/** A decision, as hooks see it: whether the agent decided, the position it moves to, and its actions. */
+export type DecisionV = { decided: boolean; target: Vertex; pub: V; mem: V; [action: string]: V };
+/** New values of world fields; per flag, which agents raise it; per agent, new values of the component's agent fields. */
+export type Effect = { world: Record<string, V>; raise: Record<string, boolean[]>; agents?: (Record<string, V> | undefined)[] };
+
+/** What an activated agent observes: its view, presented under one morphism of its frames. */
+export class Look {
+  /** The observer's location. */
+  readonly here: number;
+  private readonly distances = new Map<number, number[]>();
+
+  constructor(readonly agent: number, readonly config: Config, readonly view: View, readonly pres: Presentation) {
+    this.here = pres.order.indexOf(0);
+  }
+
+  get size() {
+    return this.pres.order.length;
+  }
+
+  /** The vertex behind a location. */
+  vertex(l: number): Vertex {
+    if (!(l >= 0 && l < this.pres.order.length)) throw new Error(`location ${l} is not in the Look`);
+    return this.view.vertices[this.pres.order[l]];
+  }
+
+  /** The location of a vertex of the view, if it is visible. */
+  locationOf(v: Vertex): number | undefined {
+    const i = this.view.index.get(vertexKey(v));
+    return i === undefined ? undefined : this.pres.order.indexOf(i);
+  }
+
+  neighbors(l: number): number[] {
+    return this.pres.nbrs[l] ?? (() => { throw new Error(`location ${l} is not in the Look`); })();
+  }
+
+  /** The distance within the visible domain (breadth-first over its edges). */
+  distance(a: number, b: number): number {
+    let d = this.distances.get(a);
+    if (!d) {
+      d = new Array(this.size).fill(Infinity);
+      d[a] = 0;
+      const queue = [a];
+      for (let q = 0; q < queue.length; q++) {
+        for (const w of this.pres.nbrs[queue[q]]) if (d[w] === Infinity) { d[w] = d[queue[q]] + 1; queue.push(w); }
+      }
+      this.distances.set(a, d);
+    }
+    return d[b];
+  }
+
+  /** The agents (by index) at the position behind a location. */
+  occupants(l: number): number[] {
+    const k = vertexKey(this.vertex(l));
+    return agentIndices(this.config).filter(i => vertexKey(this.config.agents[i].pos) === k);
+  }
+}
+
+/** The sensors of one Look: one environment, fixed for the activation. */
+export type SensorEnv = Map<string, { value?: V; at?: (l: number) => V }>;
 
 /** A call to a definition during a traced evaluation: its arguments, result and the line it returned from. */
 export type TraceCall = { fn: string; args: string[]; result: string; line?: number; calls: TraceCall[] };
@@ -37,8 +95,13 @@ const MAX_TRACED_CALLS = 2000;
 
 export class Runtime {
   params: Record<string, V> = {};
-  topo!: TopologyRuntime;
-  topoState: V = null;
+  space!: SpaceRuntime;
+  /** The edges missing this round (dynamic spaces). */
+  spaceState: string[] = [];
+  frames!: Frames;
+  /** While an agent decides: its Look and its sensor environment. */
+  look?: Look;
+  env?: SensorEnv;
   decisions: DecisionV[] = [];
   witness: Choice[] = [];
   /** Set only while an explanation evaluates (by a compiler built with `traced`). */
@@ -229,6 +292,8 @@ export class Compiler {
         return this.choose(expr, scope, rc, defs);
       case 'effect':
         return this.effect(expr, scope, rc, defs);
+      case 'sense':
+        return this.sense(expr, scope, rc, defs);
       case 'call':
         return BUILTINS[expr.fn] ? this.builtin(expr, scope, rc, defs) : this.callDef(expr, scope, rc, defs);
     }
@@ -265,7 +330,7 @@ export class Compiler {
         const cs = this.configSlot(scope, `reading ${field} of an agent`);
         let ft: Type;
         let read: (a: AgentV) => V;
-        if (field === 'pos') { ft = T.node; read = a => a.pos; }
+        if (field === 'pos') { ft = T.pos; read = a => a.pos; }
         else if (field === 'pub') { ft = this.lay.pub; read = a => a.pub; }
         else if (field === 'mem') { ft = this.lay.mem; read = a => a.mem; }
         else if (this.lay.flags.some(f => f.name === field)) { ft = T.bool; read = a => !!a.f[field]; }
@@ -281,9 +346,22 @@ export class Compiler {
         return { t: ft, nd: (fr, k) => n(fr, i => k(read(fr[cs].agents[i]))) };
       }
       case 'decision': {
-        const ft = field === 'move' ? T.move : field === 'decided' ? T.bool
+        const ft = field === 'target' ? T.pos : field === 'decided' ? T.bool
           : this.lay.actions.find(a => a.name === field)?.type ?? this.fail(`decisions have no action ${field}`);
         return this.lift(ft, [on], ([d]) => d[field]);
+      }
+      case 'look': {
+        const rt = this.rt;
+        const read: Record<string, [Type, (L: Look) => V]> = {
+          me: [T.agent, L => L.agent],
+          here: [T.loc, L => L.here],
+          visible: [T.list(T.loc), L => range(L.size)],
+          visibleAgents: [T.multiset(T.agent), L => agentIndices(L.config).filter(i => L.locationOf(L.config.agents[i].pos) !== undefined)],
+          world: [this.lay.worldType, L => L.config.world],
+          spaceSize: [T.nat, () => rt.space.vertices?.length ?? this.fail('spaceSize: the space is infinite')],
+        };
+        const [ft, f] = read[field] ?? this.fail(`a Look has no field ${field}`);
+        return this.lift(ft, [on], ([L]) => f(L));
       }
       default:
         return this.fail(`${showType(t)} has no fields`);
@@ -333,11 +411,24 @@ export class Compiler {
     };
   }
 
+  /** A sensor read by the algorithm, in the sensor environment of its current Look. */
+  private sense(expr: Extract<Expr, { e: 'sense' }>, scope: Scope, rc: Root, defs: Map<string, Def>): Compiled {
+    const rt = this.rt;
+    const sensor = this.lay.used.find(s => s.name === expr.sensor) ?? this.fail(`sensor ${expr.sensor} is not used`);
+    const t = this.resolve(sensor.type);
+    const name = expr.sensor;
+    const entry = () => rt.env?.get(name) ?? this.fail(`sensor ${name} read outside a Look`);
+    if (!expr.loc) return { t, det: () => entry().value };
+    return this.lift(t, [this.compile(expr.loc, scope, rc, defs)], ([l]) => entry().at!(l));
+  }
+
   private effect(expr: Extract<Expr, { e: 'effect' }>, scope: Scope, rc: Root, defs: Map<string, Def>): Compiled {
     const worldNames = Object.keys(expr.world ?? {});
     const world = worldNames.map(n => this.compile(expr.world![n], scope, rc, defs));
     const raiseNames = Object.keys(expr.raise ?? {});
-    const cs = raiseNames.length ? this.configSlot(scope, 'raising flags') : -1;
+    const cs = raiseNames.length || expr.agents ? this.configSlot(scope, 'an effect on agents') : -1;
+    // New values of the component's agent fields, agent by agent.
+    const update = expr.agents && this.lambda(expr.agents, [T.agent], scope, rc, defs).fn;
     // Each raise becomes a function from the frame to "which agents raise the flag".
     const raises: Compiled[] = raiseNames.map(n => {
       const e = expr.raise![n];
@@ -347,11 +438,13 @@ export class Compiler {
       }
       return this.lift(T.unit, [this.compile(e, scope, rc, defs)], ([idx]) => indexMarks(idx));
     });
-    const all = [...world, ...raises];
+    const agents: Compiled[] = update ? [{ t: T.unit, det: fr => fr[cs].agents.map((_: AgentV, i: number) => update(fr, i)) }] : [];
+    const all = [...world, ...raises, ...agents];
     return this.lift(T.effect, all, vs => {
       const eff: Effect = { world: {}, raise: {} };
       worldNames.forEach((n, i) => { eff.world[n] = vs[i]; });
       raiseNames.forEach((n, j) => { eff.raise[n] = vs[worldNames.length + j]; });
+      if (update) eff.agents = vs[worldNames.length + raiseNames.length];
       return eff;
     });
   }
@@ -488,6 +581,7 @@ export class Compiler {
       case 'min': return ([a, b]) => Math.min(a, b);
       case 'max': return ([a, b]) => Math.max(a, b);
       case 'toInt': return ([a]) => a;
+      case 'toNat': return ([a]) => Math.max(0, a);
       case 'some': return ([x]) => x;
       case 'isSome': return ([o]) => o !== null;
       case 'isNone': return ([o]) => o === null;
@@ -539,20 +633,22 @@ export class Compiler {
       case 'show': { const s = show(types[0]); return ([x]) => s(x); }
       case 'concat': return xs => xs.join('');
       case 'agents': return ([C]) => agentIndices(C);
-      case 'nodes': return () => Array.from({ length: rt.topo.size }, (_, i) => i);
-      case 'size': return () => rt.topo.size;
       case 'decisionOf': return ([a]) => rt.decisions[a];
-      case 'target': return ([n, m]) => rt.topo.target(n, m);
-      case 'advance': return ([n, m, i]) => {
-        const N = rt.topo.size;
-        return m === 'cw' ? (n + i) % N : m === 'ccw' ? (n + N - i % N) % N : n;
+      case 'pos': return ([v]) => {
+        if (!rt.space) this.fail('pos: no space yet (a parameter of the space is not fixed)');
+        if (!rt.space.has(v)) throw new Error(`pos: ${vertexKey(v)} is not a vertex of ${rt.space.name}`);
+        return v;
       };
-      case 'edgePresent': return ([n, m]) => rt.topo.canMove(rt.topoState, n, m);
-      case 'offset': return ([n, f, i]) => rt.topo.offset(n, f, i);
-      case 'toGlobal': return ([f, m]) => rt.topo.toGlobal(f, m);
-      case 'opposite': return ([m]) => opposite(m);
-      case 'frames': return () => rt.topo.frames;
-      case 'node': return ([n]) => n % rt.topo.size;
+      case 'positions': return () => rt.space?.vertices ?? this.fail('positions: the space is infinite or not fixed yet');
+      case 'resolve': return ([C, a, i]) => follow(rt, C.agents[a], i, 1);
+      case 'follow': return ([C, a, i, k]) => follow(rt, C.agents[a], i, k);
+      case 'occupants': return ([L, l]) => (L as Look).occupants(l);
+      case 'position': return ([L, l]) => (L as Look).vertex(l);
+      case 'edgePresent': return ([L, a, b]) => rt.space.edgePresent(rt.spaceState, (L as Look).vertex(a), (L as Look).vertex(b));
+      case 'here': return () => current(rt).here;
+      case 'visible': return () => range(current(rt).size);
+      case 'neighbors': return ([l]) => current(rt).neighbors(l);
+      case 'distance': return ([a, b]) => current(rt).distance(a, b);
     }
     return this.fail(`builtin ${fn} is not implemented`);
   }
@@ -568,6 +664,29 @@ function lexCompare(a: (boolean | number)[], b: (boolean | number)[]): number {
 
 function agentIndices(C: Config): number[] {
   return C.idx ??= C.agents.map((_, i) => i);
+}
+
+function range(n: number): number[] {
+  return Array.from({ length: n }, (_, i) => i);
+}
+
+function current(rt: Runtime): Look {
+  return rt.look ?? (() => { throw new Error('the Look is read outside an activation'); })();
+}
+
+/** From an agent's position, `k` times through its local port `i`, in its kept frame. */
+function follow(rt: Runtime, a: AgentV, i: number, k: number): Vertex {
+  if (rt.frames.kind === 'isomorphisms' || (rt.frames.kind === 'portPermutations' && rt.frames.when === 'perLook')) {
+    throw new Error('resolve and follow need a kept frame (Frames.identity, Frames.portPermutations .perRobot)');
+  }
+  const port = a.frame ? a.frame[i] : i;
+  let v = a.pos;
+  for (let s = 0; s < k; s++) {
+    const ns = rt.space.neighbors(v);
+    if (port === undefined || port >= ns.length) throw new Error(`port ${i} does not exist at u${vertexKey(v)}`);
+    v = ns[port];
+  }
+  return v;
 }
 
 function indexMarks(idx: number[]): boolean[] {

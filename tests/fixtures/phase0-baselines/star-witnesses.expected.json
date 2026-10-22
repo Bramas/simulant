@@ -1,0 +1,17 @@
+{
+  "source": "docs/phase0-target/star/witnesses.sim-design",
+  "note": "Expected results of the non-ring witnesses, derived by hand from the algorithms (there is no current code to measure). Counts are not predicted.",
+  "experiments": {
+    "starGathering": {
+      "settings": "k in [2, 3, 4]; start: every triple of vertices of Graphs.Star k (27 + 64 + 125 = 216 settings)",
+      "verdict": "success",
+      "why": "Robots on leaves move to the center in the first round and robots at the center stay, so every execution reaches a configuration with all robots at the center within one round."
+    },
+    "starDispersion": {
+      "settings": "k in [2, 3, 4]; three robots at the center (3 settings)",
+      "verdict": "failure",
+      "counterexample": { "kind": "lasso", "minStem": 0 },
+      "why": "The adversary gives the three co-located robots the same morphism, so they move to the same leaf and back. The initial configuration lies on this cycle of length 2, so the minimal stem is 0. The explorer may report another lasso; the verdict, the kind and minStem are what must match."
+    }
+  }
+}

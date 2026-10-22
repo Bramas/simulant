@@ -17,7 +17,7 @@ export type Draft = {
   model: string;
   /** Source text of each scalar model argument, by parameter name. */
   args: Record<string, string>;
-  /** Components of each `List Component` model argument. */
+  /** Components of each `List Component` model argument, and sensors of each `List Sensor` one. */
   lists: Record<string, Use[]>;
   task: string;
   agents: string;
@@ -42,16 +42,30 @@ export type Widget =
   | { kind: 'select'; options: Option[] }
   | { kind: 'sensor'; options: Entry[] }
   | { kind: 'components' }
+  | { kind: 'sensors' }
   | { kind: 'nat' }
   | { kind: 'bool' }
   | { kind: 'text' };
 
 /** Model-level built-ins (implemented by the semantic core, not by `.sim` sources). */
 export const builtinOptions: Record<string, Option[]> = {
-  Topology: [
-    { value: 'Ring', label: 'Ring', detail: 'A static ring of the experiment size N.' },
-    { value: 'DynamicRing 1', label: 'DynamicRing 1', detail: 'At most one edge is absent each round, chosen by the adversary.' },
-    { value: 'DynamicRing 2', label: 'DynamicRing 2', detail: 'At most two edges are absent each round.' },
+  Observation: [
+    { value: 'Observe.radius 1', label: 'Radius 1', detail: 'An agent sees its position and its neighbors.' },
+    { value: 'Observe.radius 2', label: 'Radius 2', detail: 'The positions at most two hops away, and the edges between them that it can explore.' },
+    { value: 'Observe.full', label: 'Full', detail: 'Every position and edge (finite spaces).' },
+  ],
+  Frames: [
+    { value: 'Frames.identity', label: 'Identity', detail: 'The ports as they are: on a cycle, a common sense of direction.' },
+    { value: 'Frames.isomorphisms', label: 'Isomorphisms', detail: 'The adversary presents the view through any of its symmetries, at each Look.' },
+    { value: 'Frames.portPermutations .perRobot', label: 'Own port numbering', detail: 'Each robot keeps its own numbering of the ports, chosen by the adversary.' },
+    { value: 'Frames.portPermutations .perLook', label: 'Port numbering per Look', detail: 'The adversary renumbers the ports at each Look.' },
+  ],
+  Memory: [
+    { value: '.oblivious', label: 'Oblivious', detail: 'Robots keep nothing between activations.' },
+    { value: '.persistent', label: 'Persistent', detail: 'Robots keep a program counter and their locals.' },
+  ],
+  Movement: [
+    { value: '.alongEdges', label: 'Along edges', detail: 'An agent moves to its position or a neighbor.' },
   ],
   Round: [
     { value: '.fsync', label: 'FSYNC', detail: 'Every agent is activated in every round.' },
@@ -64,16 +78,11 @@ export const builtinOptions: Record<string, Option[]> = {
   ],
 };
 
-export const frameOptions: Option[] = [
-  { value: 'Frames.common', label: 'Common', detail: 'All agents share chirality.' },
-  { value: 'Frames.dynamicReflection', label: 'Dynamic reflection', detail: 'The adversary chooses each activated agent’s orientation.' },
-];
-
 /** Algorithm outputs and public fields read by library tasks, with their types and initial values. */
 export const outputTypes: Record<string, { type: string; init: string }> = {
-  bh: { type: 'Option Move', init: 'none' },
-  claim: { type: 'Option Move', init: 'none' },
-  claimDir: { type: 'Option Move', init: 'none' },
+  bh: { type: 'Option Nat', init: 'none' },
+  claim: { type: 'Option Nat', init: 'none' },
+  claimPort: { type: 'Option Nat', init: 'none' },
   claimSteps: { type: 'Nat', init: '0' },
 };
 
@@ -83,6 +92,23 @@ const head = (value: string) => value.trim().split(/\s+/)[0];
 export const models = (lib: Library) => lib.entries.filter((e) => e.kind === 'model');
 export const tasks = (lib: Library) => lib.entries.filter((e) => e.kind === 'task');
 export const components = (lib: Library) => lib.entries.filter((e) => e.kind === 'component');
+export const spaces = (lib: Library) => lib.entries.filter((e) => e.kind === 'space');
+
+/** A space as a model argument: its parameters of type `Nat` are the experiment's size `N`. */
+const spaceUse = (space: Entry) => [space.name, ...space.params.map((p) => (p.type === 'Nat' ? 'N' : '_'))].join(' ');
+
+/** Library spaces, and a dynamic cycle. */
+export function spaceOptions(lib: Library): Option[] {
+  const options = spaces(lib).map((s) => ({ value: spaceUse(s), label: spaceUse(s), detail: s.doc?.split('\n')[0] }));
+  const cycle = options.find((o) => o.value.startsWith('Graphs.Cycle'));
+  return cycle
+    ? [...options, { value: `Graphs.Dynamic (${cycle.value}) 1`, label: `Graphs.Dynamic (${cycle.value}) 1`, detail: 'The cycle, where the adversary removes at most one edge each round.' }]
+    : options;
+}
+
+/** Whether the draft's space is infinite (its positions are integers, without a finite list). */
+export const infiniteSpace = (lib: Library, draft: Draft) =>
+  Object.values(draft.args).some((value) => /^\(?Graphs\.Line\b/.test(value.trim()));
 
 /** Sensors usable as a model's view: library sensors not owned by a component. */
 export function viewSensors(lib: Library): Entry[] {
@@ -90,24 +116,16 @@ export function viewSensors(lib: Library): Entry[] {
   return lib.entries.filter((e) => e.kind === 'sensor' && !owners.some((o) => e.name.startsWith(o)));
 }
 
-/** Value parameters of a sensor, before the configuration it observes. */
-export const sensorArgs = (sensor: Entry): Param[] => sensor.params.slice(0, sensor.params.findIndex((p) => p.type === 'Config'));
+/** Value parameters of a sensor, before the Look it observes. */
+export const sensorArgs = (sensor: Entry): Param[] => sensor.params.slice(0, sensor.params.findIndex((p) => p.type === 'Look'));
 
 export function widget(lib: Library, type: string, draft?: Draft): Widget {
   const inductive = lib.entries.find((e) => e.kind === 'type' && e.name === type && e.ctors);
   if (inductive) return { kind: 'select', options: inductive.ctors!.map((c) => ({ value: `.${c}`, label: `.${c}` })) };
   if (type === 'List Component') return { kind: 'components' };
+  if (type === 'List Sensor') return { kind: 'sensors' };
   if (type === 'Sensor') return { kind: 'sensor', options: viewSensors(lib) };
-  if (type === 'FrameModel') {
-    const persistent = draft ? selectedComponents(lib, draft).flatMap((c) => byName(lib, c)?.agent?.filter((f) => f.type === 'Frame') ?? []) : [];
-    return {
-      kind: 'select',
-      options: [
-        ...frameOptions,
-        ...persistent.map((f) => ({ value: `Frames.persistent ${f.name}`, label: `Persistent (${f.name})`, detail: 'Each agent keeps the orientation stored in this field.' })),
-      ],
-    };
-  }
+  if (type === 'Space') return { kind: 'select', options: spaceOptions(lib) };
   if (builtinOptions[type]) return { kind: 'select', options: builtinOptions[type] };
   if (type === 'Nat') return { kind: 'nat' };
   if (type === 'Bool') return { kind: 'bool' };
@@ -135,6 +153,8 @@ export function newDraft(lib: Library, model = models(lib)[0]?.name ?? ''): Draf
   const lists: Draft['lists'] = {};
   for (const p of family?.params ?? []) {
     if (p.type === 'List Component') lists[p.name] = [];
+    // A model sees something by default: the first view sensor (whether a location is occupied).
+    else if (p.type === 'List Sensor') lists[p.name] = viewSensors(lib).slice(0, 1).map((s) => useOf(lib, s));
     else args[p.name] = initialValue(lib, p);
   }
   const task = tasks(lib).find((t) => (t.requires ?? []).every((c) => family?.includes?.includes(c))) ?? tasks(lib)[0];
@@ -169,9 +189,10 @@ export function selectedComponents(lib: Library, draft: Draft): string[] {
 /** Sensors chosen as model arguments (by the name algorithms use). */
 function chosenSensors(lib: Library, draft: Draft): Entry[] {
   const family = byName(lib, draft.model);
-  return (family?.params ?? [])
-    .filter((p) => p.type === 'Sensor')
-    .flatMap((p) => byName(lib, head(draft.args[p.name] ?? '')) ?? []);
+  return (family?.params ?? []).flatMap((p) =>
+    p.type === 'Sensor' ? byName(lib, head(draft.args[p.name] ?? '')) ?? []
+      : p.type === 'List Sensor' ? (draft.lists[p.name] ?? []).flatMap((u) => byName(lib, u.name) ?? [])
+      : []);
 }
 
 export function modelText(lib: Library, draft: Draft): string {
@@ -180,7 +201,7 @@ export function modelText(lib: Library, draft: Draft): string {
   const positional: string[] = [];
   const named: string[] = [];
   for (const p of family.params) {
-    const value = p.type === 'List Component'
+    const value = p.type === 'List Component' || p.type === 'List Sensor'
       ? `[${(draft.lists[p.name] ?? []).map(useText).join(', ')}]`
       : (draft.args[p.name] ?? '').trim();
     if (p.default === undefined) positional.push(wrap(value || '_'));
@@ -220,9 +241,9 @@ export type Analysis = {
   actions: string[];
 };
 
-export function defaultDomain(field: Field): string {
+export function defaultDomain(field: Field, infinite = false): string {
   if (field.name === 'N') return '(range 9).filter (· ≥ 3)';
-  if (field.type === 'Node') return '(range N).map node';
+  if (field.type === 'Pos') return infinite ? '[pos 1, pos 2]' : '(range N).map pos';
   if (field.type === 'Nat') return '[1, 2]';
   if (field.type === 'Bool') return '[false, true]';
   return '';
@@ -249,14 +270,14 @@ export function analyze(lib: Library, draft: Draft): Analysis {
       if (!fields.some((f) => f.name === read.name)) fields.push(read);
     }
   }
-  const params = fields.map((f) => ({ ...f, domain: draft.domains[f.name] ?? defaultDomain(f) }));
+  const params = fields.map((f) => ({ ...f, domain: draft.domains[f.name] ?? defaultDomain(f, infiniteSpace(lib, draft)) }));
 
   const pub: Field[] = [];
   const outputs: string[] = [];
   for (const output of task?.outputs ?? []) {
     const name = output.replace(/^pub\./, '');
     if (!output.startsWith('pub.')) outputs.push(name);
-    if (!pub.some((f) => f.name === name)) pub.push({ name, type: outputTypes[name]?.type ?? 'Option Move' });
+    if (!pub.some((f) => f.name === name)) pub.push({ name, type: outputTypes[name]?.type ?? 'Option Nat' });
   }
   const actions = selected.flatMap((c) => byName(lib, c)?.actions ?? []);
   return { params, components: selected, warnings, pub, outputs, actions };
@@ -272,7 +293,7 @@ export type Region = { name: 'custom' | 'algorithm'; start: number; lines: numbe
 export function skeleton(lib: Library, draft: Draft, sensors: { name: string; type?: string }[]): string {
   const hints = [
     ...sensors.map((s) => `-- ${s.name}${s.type ? ` : ${s.type}` : ''}`),
-    ...analyze(lib, draft).actions.map((action) => `-- move .cw with { ${action.split(' ')[0]} := ... }   (${action})`),
+    ...analyze(lib, draft).actions.map((action) => `-- stay with { ${action.split(' ')[0]} := ... }   (${action})`),
   ];
   return [`main :=`, ...(hints.length ? [`  -- What an agent sees and can do:`, ...hints.map((h) => `  ${h}`)] : []), `  stay`].join('\n');
 }
@@ -298,7 +319,6 @@ export function layout(lib: Library, draft: Draft, sensors: { name: string; type
     `/-! ${draft.experiment}: say which paper, algorithm and model this file encodes. -/`,
     '',
     `import "std/models.sim"`,
-    `import "std/tasks.sim"`,
     '',
   ];
   const regions: Region[] = [];
@@ -319,7 +339,7 @@ export function layout(lib: Library, draft: Draft, sensors: { name: string; type
     `  task := ${draft.task}`,
     ...a.params.map((p) => `  param ${p.name} : ${p.type}${p.domain.trim() ? ` in ${p.domain.trim()}` : ''}`),
     `  agents := ${draft.agents.trim() || '1'}`,
-    `  position i := ${draft.placement === 'same' ? 'node 0' : 'node i'}`,
+    `  position i := ${draft.placement === 'same' ? 'pos 0' : infiniteSpace(lib, draft) ? 'pos (toInt i)' : 'pos i'}`,
     '',
   );
   return { text: lines.join('\n'), regions };

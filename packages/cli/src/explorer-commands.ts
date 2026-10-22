@@ -6,6 +6,8 @@
  * is incomplete.
  */
 import type { CheckOptions, CheckReport, ProjectType } from '@bramas/simulant-core/types/project';
+import type { Experiment } from '@bramas/simulant-lang/ir';
+import { referenceOrderingWarning } from '@bramas/simulant-lang/caveats';
 
 export type Print = (line: string) => void;
 
@@ -42,8 +44,21 @@ function printVerdict(r: CheckReport, print: Print, what: string) {
   else print(`⚠️  ${what}: exploration incomplete (${r.reason})`);
 }
 
+/** The caveats of the experiment's semantics in the interpreter (`.sim` projects only). */
+function printCaveats(project: ProjectType<any, any>, print: Print) {
+  let ir: Experiment | undefined;
+  try {
+    ir = project.experiment?.().ir as Experiment | undefined;
+  } catch {
+    return; // The check reports why the experiment is unavailable.
+  }
+  const warning = ir && referenceOrderingWarning(ir);
+  if (warning) print(`⚠️  ${warning}`);
+}
+
 export async function checkConfig(project: ProjectType<any, any>, name: string, settings: unknown, options: CheckOptions, print: Print): Promise<number> {
   print(`Checking every admissible execution of ${name} (explorer)...`);
+  printCaveats(project, print);
   print(`Settings: ${JSON.stringify(settings)}`);
   const r = await project.check!(settings, options);
   print('');
@@ -55,7 +70,8 @@ export async function checkConfig(project: ProjectType<any, any>, name: string, 
 }
 
 export async function checkAll(project: ProjectType<any, any>, name: string, options: CheckOptions, print: Print, progress?: (line: string) => void): Promise<number> {
-  print(`Checking every generated setting of ${name} (explorer${options.perSetting ? ', one state graph per setting' : ', settings of a ring size share a state graph'})...`);
+  print(`Checking every generated setting of ${name} (explorer${options.perSetting ? ', one state graph per setting' : ', settings with the same instantiated model share a state graph'})...`);
+  printCaveats(project, print);
   const r = await project.checkAll!(options, (done, total) => progress?.(`\rChecked ${done}/${total} settings`));
   progress?.('\n');
   print('');

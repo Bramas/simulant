@@ -1,13 +1,18 @@
 import Simulant.Lemmas
+import Simulant.Views
 
 /-!
-# A round built from equivariant pieces is equivariant (plan, Section 3.11)
+# A round built from equivariant pieces is equivariant (docs/core-redesign.md, section 7)
 
-A configuration map `g` moves every agent's position and transforms the
-world (a rotation of the ring moves positions and the nodes stored in the
-world). If moves commute with `g`, the algorithm's view and the components'
-hooks do not see `g`, and the world updates of effects commute with `g`,
-then `g` maps steps to steps with the same witness.
+A configuration map `g` moves every agent's position and transforms the world (an automorphism
+of the space moves positions and the positions stored in the world). If the agents' decisions
+on the mapped configuration are the mapped decisions, the components' hooks do not see `g`, the
+world updates of effects commute with `g`, and `g` is an automorphism of the space whose edges
+stay present, then `g` maps steps to steps with the same witness.
+
+`options_app` gives the first hypothesis for port-based frames, from the space: an automorphism
+maps each view onto the view of the image, so the presentations are the same and only the
+positions behind the locations move.
 -/
 
 namespace Simulant
@@ -15,11 +20,14 @@ namespace Simulant
 variable {σ : Sig} [FlagSet σ.F]
 
 structure CfgMap (σ : Sig) where
-  pos : Fin σ.N → Fin σ.N
+  pos : σ.S.Pos → σ.S.Pos
   world : σ.W → σ.W
 
 def CfgMap.app (g : CfgMap σ) (C : Config σ) : Config σ :=
   { agents := C.agents.map fun a => { a with pos := g.pos a.pos }, world := g.world C.world }
+
+/-- A decision, with its target moved by `g`. -/
+def CfgMap.dec (g : CfgMap σ) (d : Decision σ) : Decision σ := { d with target := g.pos d.target }
 
 omit [FlagSet σ.F] in
 @[simp] theorem CfgMap.app_agent (g : CfgMap σ) (C : Config σ) (i : Fin σ.k) :
@@ -54,6 +62,15 @@ theorem parallel_app (g : CfgMap σ) (C : Config σ) :
     simp only [parallel]
     rw [h hk List.mem_cons_self, parallel_app g C hs (fun hk' hm => h hk' (List.mem_cons_of_mem _ hm))]
 
+/-- Hooks that do not see `g`, possibly with different arguments, merge to the same effects. -/
+theorem parallel_map_app (g : CfgMap σ) (C : Config σ) (f f' : Component σ → Config σ → ND (Effect σ)) :
+    ∀ (cs : List (Component σ)), (∀ c ∈ cs, f' c (g.app C) = f c C) →
+      parallel (cs.map f') (g.app C) = parallel (cs.map f) C
+  | [], _ => rfl
+  | c :: cs, h => by
+    simp only [List.map_cons, parallel]
+    rw [h c List.mem_cons_self, parallel_map_app g C f f' cs (fun c' hm => h c' (List.mem_cons_of_mem _ hm))]
+
 theorem parallel_commutes (g : CfgMap σ) (C : Config σ) :
     ∀ (hooks : List (Config σ → ND (Effect σ))), (∀ hk ∈ hooks, ∀ e, ND.Can (hk C) e → g.Commutes e) →
       ∀ e, ND.Can (parallel hooks C) e → g.Commutes e
@@ -76,31 +93,81 @@ variable (m : Model σ) (act0 : σ.A)
 theorem activate_app (g : CfgMap σ) (C : Config σ) : m.activate (g.app C) = m.activate C := by
   simp [Model.activate]
 
-theorem decideAll_app (g : CfgMap σ) (ts : TState) (C : Config σ) (active : List (Fin σ.k))
-    (hview : ∀ C i f, m.view ts (g.app C) i f = m.view ts C i f) :
-    m.decideAll act0 ts (g.app C) active = m.decideAll act0 ts C active := by
-  simp [Model.decideAll, Model.options, Model.frames, Decision.idle, hview]
+/-- If each agent's decisions on the mapped configuration include the mapped decisions, so do
+their products. -/
+theorem decideAll_app (g : CfgMap σ) (ts : TState σ.S) (C : Config σ)
+    (hopt : ∀ i w d, (w, d) ∈ m.options act0 ts C i → (w, g.dec d) ∈ m.options act0 ts (g.app C) i) :
+    ∀ (active : List (Fin σ.k)) (init : Fin σ.k → Decision σ) w ds,
+      (w, ds) ∈ active.foldlM (fun ds i => do
+          let d ← m.options act0 ts C i
+          pure fun j => if j = i then d else ds j) init →
+      (w, fun j => g.dec (ds j)) ∈ active.foldlM (fun ds i => do
+          let d ← m.options act0 ts (g.app C) i
+          pure fun j => if j = i then d else ds j) (fun j => g.dec (init j))
+  | [], init, w, ds, h => by
+    rw [List.foldlM_nil, ND.mem_pure] at h ⊢
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨rfl, rfl⟩
+  | i :: rest, init, w, ds, h => by
+    rw [List.foldlM_cons, ND.mem_bind] at h ⊢
+    obtain ⟨w₁, acc, w₂, hacc, hrest, rfl⟩ := h
+    rw [ND.mem_bind] at hacc
+    obtain ⟨w₃, d, w₄, hd, hp, rfl⟩ := hacc
+    rw [ND.mem_pure] at hp
+    obtain ⟨rfl, rfl⟩ := hp
+    refine ⟨w₃ ++ [], fun j => g.dec (if j = i then d else init j), w₂, ?_, ?_, rfl⟩
+    · rw [ND.mem_bind]
+      exact ⟨w₃, g.dec d, [], hopt i w₃ d hd, by rw [ND.mem_pure]; exact ⟨rfl, funext fun j => by split <;> rfl⟩, rfl⟩
+    · exact decideAll_app g ts C hopt rest _ w₂ ds hrest
 
-theorem moveAll_app (g : CfgMap σ) (ts : TState) (C : Config σ) (ds : Fin σ.k → Decision σ)
-    (htarget : ∀ p mv, Ring.target (g.pos p) mv = g.pos (Ring.target p mv))
-    (hcan : ∀ p mv, Ring.canMove ts (g.pos p) mv = Ring.canMove ts p mv) :
-    moveAll ts (g.app C) ds = g.app (moveAll ts C ds) := by
+omit [FlagSet σ.F] in
+theorem dec_idle (g : CfgMap σ) (C : Config σ) (j : Fin σ.k) :
+    g.dec (Decision.idle C.agents[j] act0) = Decision.idle (g.app C).agents[j] act0 := by
+  simp [CfgMap.dec, Decision.idle]
+
+theorem moveAll_app (g : CfgMap σ) (ts : TState σ.S) (C : Config σ) (ds : Fin σ.k → Decision σ)
+    (hinj : ∀ p q, g.pos p = g.pos q → p = q)
+    (hnbr : ∀ p, σ.S.neighbors (g.pos p) = (σ.S.neighbors p).map g.pos)
+    (hedge : ∀ p q, σ.S.edgePresent ts (g.pos p) (g.pos q) = σ.S.edgePresent ts p q) :
+    moveAll ts (g.app C) (fun j => g.dec (ds j)) = g.app (moveAll ts C ds) := by
+  have heq : ∀ p q, (g.pos p == g.pos q) = (p == q) := fun p q => by
+    by_cases h : p = q
+    · subst h; simp
+    · have : g.pos p ≠ g.pos q := fun e => h (hinj _ _ e)
+      rw [beq_eq_false_iff_ne.2 this, beq_eq_false_iff_ne.2 h]
+  have hcon : ∀ p q, (σ.S.neighbors (g.pos p)).contains (g.pos q) = (σ.S.neighbors p).contains q := fun p q => by
+    rw [hnbr]
+    induction σ.S.neighbors p with
+    | nil => rfl
+    | cons x xs ih => simp only [List.map_cons, List.contains_cons, ih, heq]
+  have hmove : ∀ (a : Agent σ) (d : Decision σ),
+      ((g.dec d).target != g.pos a.pos && (σ.S.neighbors (g.pos a.pos)).contains (g.dec d).target &&
+        σ.S.edgePresent ts (g.pos a.pos) (g.dec d).target) =
+      (d.target != a.pos && (σ.S.neighbors a.pos).contains d.target && σ.S.edgePresent ts a.pos d.target) := by
+    intro a d
+    simp only [CfgMap.dec, bne, heq, hcon, hedge]
   obtain ⟨agents, world⟩ := C
-  simp only [moveAll, CfgMap.app, Config.mk.injEq, and_true]
+  unfold moveAll CfgMap.app
+  congr 1
   apply Vector.ext
   intro i hi
-  simp only [Vector.getElem_ofFn, Fin.getElem_fin, Vector.getElem_map, htarget, hcan]
-  by_cases h1 : ((ds ⟨i, hi⟩).decided && FlagSet.acts agents[i].flags != Acts.never) = true <;>
-  by_cases h2 : ((ds ⟨i, hi⟩).move != Move.stay && Ring.canMove ts agents[i].pos (ds ⟨i, hi⟩).move) = true <;>
-  simp only [h1, h2, ite_true, ite_false, Bool.false_eq_true]
+  simp only [Vector.getElem_ofFn, Vector.getElem_map, Fin.getElem_fin]
+  rw [hmove]
+  by_cases h1 : ((ds ⟨i, hi⟩).decided && FlagSet.acts agents[i].flags != Acts.never) = true
+  · have h1' : ((g.dec (ds ⟨i, hi⟩)).decided && FlagSet.acts agents[i].flags != Acts.never) = true := h1
+    simp only [h1, h1', ite_true]
+    split <;> rfl
+  · have h1' : ¬((g.dec (ds ⟨i, hi⟩)).decided && FlagSet.acts agents[i].flags != Acts.never) = true := h1
+    simp only [h1, h1', ite_false, Bool.false_eq_true]
 
 /-- A round built from pieces that do not see `g` is equivariant under `g`, with the same witness. -/
 theorem step_app (g : CfgMap σ)
-    (htarget : ∀ p mv, Ring.target (g.pos p) mv = g.pos (Ring.target p mv))
-    (hcan : ∀ ts ∈ m.tstates, ∀ p mv, Ring.canMove ts (g.pos p) mv = Ring.canMove ts p mv)
-    (hview : ∀ ts C i f, m.view ts (g.app C) i f = m.view ts C i f)
+    (hinj : ∀ p q, g.pos p = g.pos q → p = q)
+    (hnbr : ∀ p, σ.S.neighbors (g.pos p) = (σ.S.neighbors p).map g.pos)
+    (hedge : ∀ ts ∈ m.tstates, ∀ p q, σ.S.edgePresent ts (g.pos p) (g.pos q) = σ.S.edgePresent ts p q)
+    (hopt : ∀ ts C i w d, (w, d) ∈ m.options act0 ts C i → (w, g.dec d) ∈ m.options act0 ts (g.app C) i)
     (hbl : ∀ c ∈ m.components, ∀ ts C, c.beforeLook ts (g.app C) = c.beforeLook ts C)
-    (hbm : ∀ c ∈ m.components, ∀ ts C ds, c.beforeMove ts (g.app C) ds = c.beforeMove ts C ds)
+    (hbm : ∀ c ∈ m.components, ∀ ts C ds, c.beforeMove ts (g.app C) (fun j => g.dec (ds j)) = c.beforeMove ts C ds)
     (ham : ∀ c ∈ m.components, ∀ ts C, c.afterMove ts (g.app C) = c.afterMove ts C)
     (hcomm : ∀ c ∈ m.components, ∀ ts C ds e,
       (ND.Can (c.beforeLook ts C) e ∨ ND.Can (c.beforeMove ts C ds) e ∨ ND.Can (c.afterMove ts C) e) → g.Commutes e)
@@ -125,25 +192,154 @@ theorem step_app (g : CfgMap σ)
       parallel (m.components.map fun c => c.beforeLook ts) C :=
     parallel_app g C _ (by intro hk hm; simp only [List.mem_map] at hm; obtain ⟨c, hc, rfl⟩ := hm; exact hbl c hc ts C)
   have e1C := CfgMap.apply_app g C e1 c1
-  have p2 : parallel (m.components.map fun c D => c.beforeMove ts D ds) (g.app (C.apply e1)) =
+  have p2 : parallel (m.components.map fun c D => c.beforeMove ts D (fun j => g.dec (ds j))) (g.app (C.apply e1)) =
       parallel (m.components.map fun c D => c.beforeMove ts D ds) (C.apply e1) :=
-    parallel_app g _ _ (by intro hk hm; simp only [List.mem_map] at hm; obtain ⟨c, hc, rfl⟩ := hm; exact hbm c hc ts _ ds)
+    parallel_map_app g _ _ _ m.components (fun c hc => hbm c hc ts _ ds)
   have e2C := CfgMap.apply_app g (C.apply e1) e2 c2
-  have mv := Model.moveAll_app g ts ((C.apply e1).apply e2) ds htarget (hcan ts (mem_chooseIfMany hts))
+  have mv := moveAll_app g ts ((C.apply e1).apply e2) ds hinj hnbr (hedge ts (mem_chooseIfMany hts))
   have p3 : parallel (m.components.map fun c => c.afterMove ts) (g.app (moveAll ts ((C.apply e1).apply e2) ds)) =
       parallel (m.components.map fun c => c.afterMove ts) (moveAll ts ((C.apply e1).apply e2) ds) :=
     parallel_app g _ _ (by intro hk hm; simp only [List.mem_map] at hm; obtain ⟨c, hc, rfl⟩ := hm; exact ham c hc ts _)
   have e3C := CfgMap.apply_app g (moveAll ts ((C.apply e1).apply e2) ds) e3 c3
+  have hds := m.decideAll_app act0 g ts (C.apply e1) (hopt ts (C.apply e1)) act _ w4 ds hd
   refine ⟨act, ?_⟩
   simp only [Model.roundA, ND.mem_bind, ND.mem_pure]
-  refine ⟨w1, ts, _, hts, ⟨w2, e1, _, ?_, ⟨w3, act, _, ?_, ⟨w4, ds, _, ?_, ⟨w5, e2, _, ?_,
+  refine ⟨w1, ts, _, hts, ⟨w2, e1, _, ?_, ⟨w3, act, _, ?_, ⟨w4, fun j => g.dec (ds j), _, ?_, ⟨w5, e2, _, ?_,
     ⟨w6, e3, _, ?_, ⟨rfl, ?_⟩, rfl⟩, rfl⟩, rfl⟩, rfl⟩, rfl⟩, rfl⟩
   · rw [p1]; exact h1
   · rw [e1C, m.activate_app]; exact ha
-  · rw [e1C, m.decideAll_app act0 g ts _ act (hview ts)]; exact hd
+  · rw [e1C]
+    have : (fun (j : Fin σ.k) => Decision.idle (g.app (C.apply e1)).agents[j] act0) =
+        fun (j : Fin σ.k) => g.dec (Decision.idle (C.apply e1).agents[j] act0) :=
+      funext fun j => (dec_idle act0 g _ j).symm
+    unfold Model.decideAll
+    rw [this]; exact hds
   · rw [e1C, p2]; exact h2
   · rw [e1C, e2C, mv, p3]; exact h3
   · rw [e1C, e2C, mv, e3C]
+
+/-! ## Port-based frames
+
+Under port-based frames, an automorphism of the space does not change an agent's presentations:
+its Look on the mapped configuration is its Look with the positions moved. So the decisions on
+the mapped configuration are the mapped decisions, if the sensors do not see the positions
+(`henv`) and the algorithm reads only the locations (`hstep`, which the generated steps satisfy:
+they read the Look through `here`, `neighbors` and its size). -/
+
+/-- A Look whose configuration and positions are moved by `g`. -/
+def _root_.Simulant.Look.app (g : CfgMap σ) (L : Look σ) : Look σ :=
+  { L with config := g.app L.config, order := L.order.map g.pos }
+
+omit [FlagSet σ.F] in
+theorem portPresentation_congr {V V' : Space.View σ.S} (perm : List Nat)
+    (hn : V'.vertices.length = V.vertices.length) (he : V'.edges = V.edges) :
+    σ.S.portPresentation V' perm = σ.S.portPresentation V perm := by
+  unfold Space.portPresentation
+  rw [hn, he]
+
+omit [FlagSet σ.F] in
+theorem presentations_app (g : CfgMap σ) (hg : σ.S.Auto g.pos) (hports : ∀ ord, m.frames ≠ .isomorphisms ord)
+    (a : Agent σ) : m.presentations { a with pos := g.pos a.pos } = m.presentations a := by
+  unfold Model.presentations
+  simp only
+  rw [Space.view_map hg]
+  cases h : m.frames with
+  | isomorphisms ord => exact absurd h (hports ord)
+  | perLook perms =>
+    simp only
+    exact List.map_congr_left fun p _ => portPresentation_congr p (by simp) rfl
+  | perRobot =>
+    simp only
+    exact congrArg (· :: []) (portPresentation_congr _ (by simp) rfl)
+
+omit [FlagSet σ.F] in
+theorem look_app (g : CfgMap σ) (hg : σ.S.Auto g.pos) (ts : TState σ.S) (C : Config σ) (i : Fin σ.k)
+    (p : Space.Presentation) : m.look ts (g.app C) i p = (m.look ts C i p).app g := by
+  unfold Model.look Look.app
+  simp only [CfgMap.app_agent]
+  rw [Space.view_map hg]
+  simp only [List.map_map]
+  congr 1
+  apply List.map_congr_left
+  intro v _
+  exact (List.getD_map' g.pos _ v _)
+
+omit [FlagSet σ.F] in
+theorem position_app (g : CfgMap σ) (L : Look σ) (l : Nat) : (L.app g).position l = g.pos (L.position l) := by
+  unfold Look.position Look.app
+  simp only [CfgMap.app_agent]
+  exact List.getD_map' g.pos _ l _
+
+omit [FlagSet σ.F] in
+/-- The agents at a location do not change when an injective map moves every position. -/
+theorem occupants_app (g : CfgMap σ) (hinj : ∀ p q, g.pos p = g.pos q → p = q) (L : Look σ) (l : Nat) :
+    (L.app g).occupants l = L.occupants l := by
+  unfold Look.occupants
+  rw [position_app]
+  congr 1
+  funext j
+  have : (L.app g).config = g.app L.config := rfl
+  rw [this, CfgMap.app_agent]
+  by_cases h : L.config.agents[j].pos = L.position l
+  · simp only [Fin.getElem_fin] at h ⊢
+    rw [h, beq_self_eq_true, beq_self_eq_true]
+  · have : g.pos L.config.agents[j].pos ≠ g.pos (L.position l) := fun e => h (hinj _ _ e)
+    simp only [beq_eq_false_iff_ne.2 this, beq_eq_false_iff_ne.2 h]
+
+omit [FlagSet σ.F] in
+/-- An injective map commutes with removing duplicates. -/
+theorem eraseDups_map {α β : Type} [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β] (f : α → β)
+    (hinj : ∀ a b, f a = f b → a = b) : ∀ (l : List α), (l.map f).eraseDups = l.eraseDups.map f
+  | [] => rfl
+  | a :: as => by
+    have hbeq : ∀ x, (f x == f a) = (x == a) := fun x => by
+      by_cases h : x = a
+      · subst h; simp
+      · have : f x ≠ f a := fun e => h (hinj _ _ e)
+        rw [beq_eq_false_iff_ne.2 this, beq_eq_false_iff_ne.2 h]
+    rw [List.map_cons, List.eraseDups_cons, List.eraseDups_cons, List.map_cons, List.filter_map]
+    have : ((fun b => !b == f a) ∘ f) = fun b => !b == a := funext fun x => by simp only [Function.comp_def, hbeq]
+    rw [this, eraseDups_map f hinj (as.filter fun b => !b == a)]
+termination_by l => l.length
+decreasing_by
+  simp only [List.length_cons]
+  have := List.length_filter_le (fun b => !b == a) as
+  omega
+
+/-- On a configuration moved by an automorphism, an agent can take its decisions moved. -/
+theorem options_app (g : CfgMap σ) (hg : σ.S.Auto g.pos) (hports : ∀ ord, m.frames ≠ .isomorphisms ord)
+    (henv : ∀ L, m.env (L.app g) = m.env L)
+    (hstep : ∀ mem pub L e, m.step mem pub (L.app g) e = m.step mem pub L e)
+    (ts : TState σ.S) (C : Config σ) (i : Fin σ.k) (w : Witness) (d : Decision σ)
+    (h : (w, d) ∈ m.options act0 ts C i) : (w, g.dec d) ∈ m.options act0 ts (g.app C) i := by
+  unfold Model.options at h ⊢
+  simp only [CfgMap.app_agent] at h ⊢
+  split at h
+  · rename_i hadv
+    rw [show FlagSet.acts C.agents[i].flags = Acts.adversary from hadv]
+    simp only
+    rw [ND.mem_bind] at h ⊢
+    obtain ⟨w₁, t, w₂, ht, hp, rfl⟩ := h
+    rw [ND.mem_pure] at hp
+    obtain ⟨rfl, rfl⟩ := hp
+    refine ⟨w₁, g.pos t, [], ?_, by rw [ND.mem_pure]; exact ⟨rfl, rfl⟩, rfl⟩
+    rw [hg.nbrs, ← List.map_cons, eraseDups_map g.pos hg.inj]
+    rw [ND.mem_choose] at ht ⊢
+    obtain ⟨j, hj, rfl⟩ := ht
+    exact ⟨j, by rw [List.zipIdx_map]; exact List.mem_map.2 ⟨(t, j), hj, rfl⟩, rfl⟩
+  · rw [presentations_app m g hg hports]
+    rw [ND.mem_bind] at h ⊢
+    obtain ⟨w₁, p, w₂, hp, h2, rfl⟩ := h
+    refine ⟨w₁, p, w₂, hp, ?_, rfl⟩
+    rw [ND.mem_bind] at h2 ⊢
+    obtain ⟨w₃, e, w₄, he, h3, rfl⟩ := h2
+    refine ⟨w₃, e, w₄, ?_, ?_, rfl⟩
+    · rw [look_app m g hg, henv]; exact he
+    · rw [ND.mem_pure] at h3 ⊢
+      obtain ⟨rfl, rfl⟩ := h3
+      refine ⟨rfl, ?_⟩
+      rw [look_app m g hg, hstep, position_app]
+      rfl
 
 end Model
 end Simulant

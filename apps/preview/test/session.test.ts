@@ -6,18 +6,18 @@ import { nodeHost } from '@bramas/simulant-lang/elab/node';
 import type { SimModule } from '@bramas/simulant-vite-plugin/module';
 import { update } from '../src/session';
 
-/** A module with one experiment whose ring sizes are `sizes`. */
+/** A module with one experiment whose cycle sizes are `sizes`. */
 function moduleWith(sizes: number[], name = 'e'): SimModule {
   const host = nodeHost();
   const source = `import "std/examples.sim"
 experiment ${name} where
-  model := blackHoleRing .initiallyPresent .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := [${sizes.join(', ')}]
-  param site : Node := [node 1, node 2]
+  param N : Nat in [${sizes.join(', ')}]
+  param site : Pos in [pos 1, pos 2]
   agents := 2
-  position i := node 0
+  position i := pos 0
 `;
   const out = compile(new Program({ ...host, read: p => p === '/mem/main.sim' ? source : host.read(p) }, '/mem/main.sim'));
   return { experiments: { [name]: out.experiments[name].experiment! }, failed: [], diagnostics: [], sources: {}, revision: sizes.join() };

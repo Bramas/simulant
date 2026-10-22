@@ -22,8 +22,10 @@ proofs in `lean/Proofs/`, which subsequent generation preserves.
 
 ## Library contents
 
-- `Simulant.lean` and `Simulant/`: configurations, nondeterminism, topologies,
-  rounds, executions, fairness, temporal goals and supporting lemmas.
+- `Simulant.lean` and `Simulant/`: configurations, nondeterminism, graph spaces,
+  views and their presentations, rounds, executions, fairness, temporal goals
+  and supporting lemmas; `Simulant/Spaces.lean` gives the library's cycle and
+  line with closed forms.
 - `Simulant/Library/`: generated component definitions.
 - `Simulant/LibraryLemmas/`: hand-written component lemmas.
 - `lakefile.toml` and `lean-toolchain`: build configuration and compiler version.

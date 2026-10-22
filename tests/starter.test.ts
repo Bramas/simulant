@@ -21,7 +21,7 @@ test('the starter preset reaches the claim, and the custom renderer shows it', (
   const snapshot = project.execute(model).get(preset.path!);
   // Agents are in the configuration's canonical order, not by identifier.
   const byId = [...snapshot.agents].sort((a: any, b: any) => a.id - b.id);
-  assert.deepEqual(byId.map((a: any) => [a.pos, a.present, a.pub.bh]), [[2, false, null], [1, true, 'cw']]);
+  assert.deepEqual(byId.map((a: any) => [a.pos, a.present, a.pub.bh]), [[2, false, null], [1, true, 0]]);
   const texts: string[] = [];
   const ctx = new Proxy({} as Record<string, unknown>, {
     get: (t, k: string) => k in t ? t[k] : k === 'fillText' ? (s: string) => texts.push(s) : () => {},

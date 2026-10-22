@@ -79,7 +79,11 @@ export type SDecl = { span: Span; doc?: string; attrs: SAttribute[] } & (
   | { d: 'inductive'; name: string; ctors: string[] }
   | { d: 'structure'; name: string; fields: SFieldType[] }
   | { d: 'def'; name: string; params: SBinder[]; type?: SType; body?: SExpr; items?: SWhereItem[] }
-  | { d: 'sensor'; name: string; params: SBinder[]; type: SType; body: SExpr }
+  /**
+   * `sensor s (L : Look) (l : Loc) : T := e`, or with a Look-level part:
+   * `sensor s (L : Look) where x := e … at (l : Loc) : T := e`.
+   */
+  | { d: 'sensor'; name: string; params: SBinder[]; type: SType; body: SExpr; look?: { name: string; value: SExpr; span: Span }[]; at?: SBinder }
   | { d: 'task'; name: string; params: SBinder[]; type: SType; body: SExpr }
   | { d: 'goal'; name: string; goal: 'eventually' | 'eventuallyAlways' | 'safety' }
   | { d: 'algorithm'; name: string; uses: string[]; items: SWhereItem[] }

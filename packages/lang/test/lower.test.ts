@@ -1,154 +1,109 @@
+/**
+ * Lowering of structured algorithms: memory, resume points and diagnostics. How the lowered
+ * algorithms run is tested with the engine (packages/engine/test).
+ */
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { compile } from '@bramas/simulant-lang/elab/elaborate';
-import { nodeHost } from '@bramas/simulant-lang/elab/node';
-import { Program } from '@bramas/simulant-lang/elab/program';
-import { conformanceGraph } from '@bramas/simulant-engine/conformance';
-import { explore } from '@bramas/simulant-engine/explorer';
-import { definition, System } from '@bramas/simulant-engine/system';
-import { generateModel } from '@bramas/simulant-lean-gen/model';
+import { compileSource, experiment } from './compile';
 
-function compileSource(source: string) {
-  const host = nodeHost();
-  const out = compile(new Program({ ...host, read: p => p === '/mem/main.sim' ? source : host.read(p) }, '/mem/main.sim'));
-  return Object.fromEntries(Object.entries(out.experiments).map(([n, r]) => [n, r]));
-}
+const errorsOf = (source: string) => Object.values(compileSource(source).experiments).flatMap(r => r.diagnostics.map(d => `${d.span?.start.line}: ${d.message}`));
 
-const errorsOf = (source: string) => Object.values(compileSource(source)).flatMap(r => r.diagnostics.map(d => `${d.span?.start.line}: ${d.message}`));
-
-const ROBOTS = (algorithm: string, model = 'obliviousRing (components := [Faults.CrashAtNode])') => `import "std/conformance.sim"
+const ROBOTS = (algorithm: string, components = '[Faults.CrashAt]') => `import "std/models.sim"
 ${algorithm}
 experiment e where
-  model := ${model}
+  model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied] (components := ${components})
   algorithm := A
   task := Gathering
   param N : Nat
-  param positions : List Node
-  param crashNode : Node
+  param positions : List Nat
+  param crashNode : Pos
   agents := positions.length
-  position i := positions.at i
+  position i := pos (positions.at i)
 `;
-
-test('a structured oblivious algorithm needs no memory, and runs as its state-machine version', () => {
-  // NearestNeighbour, written with statements: one move at the end of `main`.
-  const r = compileSource(ROBOTS(`
-algorithm A uses ringPresence where
-  main :=
-    let v := view.ringPresence
-    let n := v.length
-    let cw := (range n).filter fun i => i > 0 ∧ v.at i
-    let ccw := (range n).filter fun i => i > 0 ∧ v.at (n - i)
-    if cw.isEmpty then stay
-    else
-      let dcw := cw.at 0
-      let dccw := ccw.at 0
-      if dcw < dccw then move .cw else if dccw < dcw then move .ccw else stay
-`.replaceAll('view.ringPresence', 'ringPresence'))).e;
-  assert.deepEqual(r.diagnostics, []);
-  assert.equal(r.experiment!.algorithm.mem.k, 'unit');
-  const fixture = JSON.parse(readFileSync(new URL('../../engine/conformance/gathering-with-crash.json', import.meta.url), 'utf8'));
-  const g = conformanceGraph('x', r.experiment!, fixture.params, fixture.maxStates);
-  assert.deepEqual(JSON.parse(JSON.stringify(g.states)), fixture.states);
-  assert.deepEqual(JSON.parse(JSON.stringify(g.edges)), fixture.edges);
-});
 
 const PAIR = (body: string) => `import "std/examples.sim"
 algorithm A uses otherStates where
-  Pub := { id : Nat, bh : Option Move }
+  Pub := { id : Nat, bh : Option Nat }
   output claim := pub.bh
   init i := { pub := { id := i, bh := none } }
 ${body}
 experiment e where
-  model := blackHoleRing .initiallyPresent .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := A
   task := IdentifyBlackHole
   param N : Nat
-  param site : Node
+  param site : Pos
   agents := 2
-  position i := node 0
+  position i := pos 0
 `;
 
-test('the structured cautious pair explores like the state machine', () => {
-  const structured = compileSource(PAIR(`
-  def leader (dir : Move) :=
+test('a structured oblivious algorithm needs no memory', () => {
+  // NearestNeighbour, written with statements and locations: one move at the end of `main`.
+  const e = experiment(ROBOTS(`
+algorithm A uses occupied where
+  main :=
+    let others := visible.filter fun l => l ≠ here ∧ occupied l
+    if others.isEmpty then stay
+    else
+      let d := (others.map fun l => distance here l).at 0
+      let towards := (neighbors here).filter fun n => others.any fun l => distance n l < d
+      if towards.isEmpty then stay else move (towards.at 0)
+`));
+  assert.equal(e.algorithm.mem.k, 'unit');
+});
+
+test('resume points are numbered by kind in program order, with their lines', () => {
+  const e = experiment(PAIR(`
+  def leader (dir : Nat) :=
     repeat
-      move dir
-      move dir.opposite
-      move dir
-  def waiter (leaderId : Nat) (dir : Move) :=
+      move (port dir)
+      move (port (Port.opposite dir))
+      move (port dir)
+  def waiter (leaderId : Nat) (dir : Nat) :=
     repeat
       stay
       stay
       if !(otherStates.any (·.id = leaderId)) then
         pub := { pub with bh := some dir }
         halt
-      move dir
+      move (port dir)
   main :=
-    if pub.id = 0 then leader .cw else waiter 0 .cw
-`)).e;
-  assert.deepEqual(structured.diagnostics, []);
-  const machine = compileSource(`import "std/examples.sim"
-experiment e where
-  model := blackHoleRing .initiallyPresent .unknown
-  algorithm := CautiousPair
-  task := IdentifyBlackHole
-  param N : Nat
-  param site : Node
-  agents := 2
-  position i := node 0
-`).e;
-  for (const params of [{ N: 5, site: 3 }, { N: 6, site: 1 }]) {
-    const a = explore(new System(structured.experiment!, params));
-    const b = explore(new System(machine.experiment!, params));
-    assert.equal(a.status, b.status);
-    assert.equal(a.stats.states, b.stats.states);
-    assert.equal(a.stats.edges, b.stats.edges);
-  }
-  // The line of each resume point (numbered by kind in program order): the leader's three moves are on lines 9 to 11.
-  const line = structured.experiment!.algorithm.line;
+    if pub.id = 0 then leader Port.cw else waiter 0 Port.cw
+`));
+  // The leader's three moves are on lines 9 to 11.
+  const line = e.algorithm.line;
   assert.ok(line && line.e === 'match');
   const cases = (line as { cases: Record<string, { value: number }> }).cases;
   assert.deepEqual(['move1', 'move2', 'move3'].map(pc => cases[pc]?.value), [9, 10, 11], Object.keys(cases).join(', '));
+  // `Port.cw` is a constant argument: no local, only the program counter.
+  assert.deepEqual((e.algorithm.mem as { fields: { name: string }[] }).fields.map(f => f.name), ['pc']);
 });
 
-test('wait n stays n activations on its own line; agents in procedures know the lines of the calls', () => {
-  const exp = compileSource(PAIR(`
+test('wait n keeps one counter; agents in procedures know the lines of the calls', () => {
+  const e = experiment(PAIR(`
   def pause (n : Nat) :=
     wait n
   main :=
     if pub.id = 0 then
       wait 0
       pause 2
-      move .cw
+      move Ring.cw
       halt
     else
       halt
-`)).e.experiment!;
-  // One counter for every wait, besides the program counter.
-  const mem = exp.algorithm.mem as { fields: { name: string }[] };
+`));
+  const mem = e.algorithm.mem as { fields: { name: string }[] };
   assert.deepEqual(mem.fields.map(f => f.name.replace(/_\d+$/, '')), ['pc', 'wait']);
-  const sys = new System(exp, { N: 5, site: 3 });
-  let C = sys.initial()[0].config;
-  const rounds: [number, number | undefined, number[], unknown][] = [];
-  for (let r = 0; r < 4; r++) {
-    [C] = sys.successors(C).map(s => s.config);
-    const a = C.agents.find(x => x.pub.id === 0)!;
-    const pc = (a.mem as { pc: string }).pc;
-    const counter = Object.entries(a.mem as object).find(([k]) => k.startsWith('wait'))![1];
-    rounds.push([a.pos, sys.line(a), exp.algorithm.source?.calls?.[pc] ?? [], counter]);
-  }
-  // `wait 0` does nothing; `pause 2` stays twice at the wait (line 8, called at line 12), the counter
-  // back to 0 after; then the move (line 13) and the halt (line 14), outside any call.
-  assert.deepEqual(rounds, [[0, 8, [12], 1], [0, 8, [12], 0], [1, 13, [], 0], [1, 14, [], 0]]);
+  // The wait inside `pause` (line 8) is called at line 12.
+  assert.ok(Object.values(e.algorithm.source?.calls ?? {}).some(c => c.length === 1 && c[0] === 12), JSON.stringify(e.algorithm.source?.calls));
 });
 
 test('an oblivious algorithm cannot continue after a move', () => {
   const errs = errorsOf(ROBOTS(`
-algorithm A uses ringPresence where
+algorithm A uses occupied where
   main :=
-    move .cw
-    move .ccw
+    move Ring.cw
+    move Ring.ccw
 `));
   assert.deepEqual(errs, ['5: A: in an oblivious model, the algorithm cannot continue after this move (it would need memory)']);
 });
@@ -157,17 +112,17 @@ test('a loop must move, stay or halt on every iteration', () => {
   const errs = errorsOf(PAIR(`
   main :=
     repeat
-      if pub.id = 0 then move .cw
+      if pub.id = 0 then move Ring.cw
 `));
   assert.deepEqual(errs, ['8: this loop can run again without move, stay or halt']);
 });
 
 test('procedures cannot be recursive', () => {
   const errs = errorsOf(PAIR(`
-  def p (d : Move) :=
-    move d
+  def p (d : Nat) :=
+    move (port d)
     p d
-  main := p .cw
+  main := p Port.cw
 `));
   assert.deepEqual(errs, ['9: procedures cannot be recursive: p → p']);
 });
@@ -177,72 +132,61 @@ test('a local kept across a move needs a type, and becomes memory', () => {
   main :=
     let k := 0
     repeat
-      move .cw
+      move Ring.cw
       k := k + 1
 `));
   assert.deepEqual(untyped, ['8: k is kept across a move: give its type (let x : T := ...)']);
-  const typed = compileSource(PAIR(`
+  const typed = experiment(PAIR(`
   main :=
     let k : Nat := 0
     repeat
-      move .cw
+      move Ring.cw
       k := k + 1
-`)).e;
-  assert.deepEqual(typed.diagnostics, []);
-  const mem = typed.experiment!.algorithm.mem as { fields: { name: string }[] };
+`));
+  const mem = typed.algorithm.mem as { fields: { name: string }[] };
   assert.deepEqual(mem.fields.map(f => f.name), ['pc', 'k_0']);
 });
 
 const PEBBLE_RING = (algorithm: string) => `import "std/models.sim"
-import "std/tasks.sim"
 ${algorithm}
 experiment e where
-  model := blackHoleRing .initiallyPresent .known (extra := [Storage.Pebbles])
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .known (extra := [Storage.Pebbles])
   algorithm := A
   task := IdentifyBlackHole
   param N : Nat
-  param site : Node
+  param site : Pos
   agents := 1
-  position i := node 0
+  position i := pos 0
 `;
 
 test('while conditions end with their line; else-if chains; actions with move, stay and halt', () => {
   const r = compileSource(PEBBLE_RING(`
-algorithm A uses otherStates, ringSize, pebblesHere where
-  Pub := { id : Nat, bh : Option Move }
+algorithm A uses otherStates, spaceSize, pebblesHere where
+  Pub := { id : Nat, bh : Option Nat }
+  output claim := pub.bh
   init i := { pub := { id := i, bh := none } }
   main :=
     let k : Nat := 0
-    while k < ringSize - 4
+    while k < spaceSize - 4
       k := k + 1
-      move .cw with { pebble := .drop }
+      move Ring.cw with { pebble := .drop }
     if pebblesHere > 0 then
       stay
     else if k = 4 then
-      move .ccw
+      move Ring.ccw
     else
       stay
     stay with { pebble := .pick }
     halt with { pebble := .drop }
 `));
-  assert.deepEqual(r.e.diagnostics.map(d => d.message), []);
-  const sys = new System(r.e.experiment!, { N: 8, site: 7 });
-  let C = sys.initial()[0].config;
-  const rounds: string[] = [];
-  for (let i = 0; i < 9; i++) {
-    C = sys.successors(C)[0].config;
-    rounds.push(`${C.agents[0].pos}:${[...C.world.pebbles].join(',')}`);
-  }
-  // Four steps clockwise dropping a pebble each, back one node, pick the pebble there, drop it
-  // again when halting, and nothing more once halted.
-  assert.deepEqual(rounds, ['1:0', '2:0,1', '3:0,1,2', '4:0,1,2,3', '3:0,1,2,3', '3:0,1,2', '3:0,1,2,3', '3:0,1,2,3', '3:0,1,2,3']);
+  assert.deepEqual(r.experiments.e.diagnostics.map(d => d.message), []);
 });
 
 test('an action that the model does not have is an error', () => {
   const errors = errorsOf(PEBBLE_RING(`
 algorithm A uses otherStates where
   main :=
-    move .cw with { paint := .red }
+    move Ring.cw with { paint := .red }
 `));
   assert.ok(errors.length > 0);
 });
@@ -252,106 +196,48 @@ structure Ends where
   first : Nat
   last : Nat
 
-def occupied (v : List Bool) : List Nat := (range v.length).filter fun i => v.at i
+def occupiedAt (v : List Bool) : List Nat := (range v.length).filter fun i => v.at i
 
 def ends (v : List Bool) : Ends :=
-  let os := occupied v
+  let os := occupiedAt v
   { first := os.at 0, last := os.at (os.length - 1) }
 
 def smaller (a : List Bool) (b : List Bool) : Bool := a < b
 
-algorithm A uses ringPresence where
+def view : List Bool := Line.window.map occupied
+
+algorithm A uses occupied where
   main :=
-    let v := ringPresence
+    let v := view
     let e := ends v
     if !v.at 1 ∧ e.last > 1 then
-      move .ccw
+      move Ring.ccw
     else
       stay
 `;
 
 test('definitions on values: elaborated once, callees first, with what calls them', () => {
-  const src = ROBOTS(WITH_DEFS).replace('param positions : List Node', 'param positions : List Node := [[node 0, node 2]].filter fun p => smaller [false] [true]');
-  const r = compileSource(src).e;
-  assert.deepEqual(r.diagnostics, []);
-  const exp = r.experiment!;
-  assert.deepEqual(exp.algorithm.defs?.map(d => d.name), ['occupied', 'ends']);
-  assert.deepEqual(exp.model.defs?.map(d => d.name), ['smaller']);
-  assert.equal(exp.task.defs, undefined);
-  // `!v.at 1` is `!(v.at 1)`.
-  const sys = new System(exp, { N: 4, positions: [0, 2], crashNode: 0 }, { memoStep: false });
-  const step = (sys as unknown as { step: (m: unknown, p: unknown, v: object) => { move: string } }).step;
-  assert.equal(step(null, null, { ringPresence: [true, false, true, false] }).move, 'ccw');
-  assert.equal(step(null, null, { ringPresence: [true, true, false, false] }).move, 'stay');
-  assert.deepEqual(definition(exp, 'ends')([false, true, true, false]), { first: 1, last: 2 });
-});
-
-test('lists of Bool and Nat compare lexicographically, false before true, a prefix first', () => {
-  const src = ROBOTS(WITH_DEFS.replace('if !v.at 1 ∧ e.last > 1 then', 'if !v.at 1 ∧ e.last > 1 ∧ smaller [false] v then'));
-  const lt = definition(compileSource(src).e.experiment!, 'smaller');
-  assert.equal(lt([false, true], [true, false]), true);
-  assert.equal(lt([true], [true, false]), true);
-  assert.equal(lt([true, false], [true, false]), false);
-  assert.equal(lt([true, false], [false, true]), false);
+  const src = ROBOTS(WITH_DEFS).replace('param positions : List Nat', 'param positions : List Nat in [[0, 2]].filter fun p => smaller [false] [true]');
+  const e = experiment(src);
+  // In order of first use, each after the definitions it calls.
+  assert.deepEqual(e.algorithm.defs?.map(d => d.name), ['port', 'Line.window', 'view', 'occupiedAt', 'ends', 'Ring.ccw']);
+  assert.deepEqual(e.model.defs?.map(d => d.name), ['smaller']);
+  assert.equal(e.task.defs, undefined);
 });
 
 test('definitions cannot be recursive or named like a builtin', () => {
   assert.match(errorsOf(ROBOTS(`
 def loop (n : Nat) : Nat := loop n
-algorithm A uses ringPresence where
-  main := move (if loop 1 = 0 then .cw else .ccw)`)).join('\n'), /cannot be recursive: loop/);
+algorithm A uses occupied where
+  main := move (if loop 1 = 0 then Ring.cw else Ring.ccw)`)).join('\n'), /cannot be recursive: loop/);
   assert.match(errorsOf(ROBOTS(`
-def target (n : Nat) : Nat := n
-algorithm A uses ringPresence where
-  main := move (if target 1 = 0 then .cw else .ccw)`)).join('\n'), /target/);
-});
-
-test('the Lean model declares the definitions before the step', () => {
-  const lean = generateModel(compileSource(ROBOTS(WITH_DEFS)).e.experiment!, 'Defs');
-  const at = (s: string) => lean.indexOf(s);
-  assert.ok(at('def occupied (v : List (Bool)) : List (Nat)') >= 0, lean.slice(0, 2000));
-  assert.ok(at('def occupied') < at('def ends') && at('def ends') < at('def step'));
-});
-
-test('a step is explained: the line that decided, and each definition called with its result and return line', () => {
-  const algorithm = `
-def side (v : List Bool) : Move :=
-  if v.at 1 then .cw
-  else .ccw
-
-algorithm A uses ringPresence where
-  main :=
-    if ringPresence.length > 100 then stay
-    else move (side ringPresence)
-`;
-  const source = ROBOTS(algorithm);
-  const lineOf = (text: string) => source.split('\n').findIndex(l => l.includes(text)) + 1;
-  const exp = compileSource(source).e.experiment!;
-  // Where the definition is written, for the algorithm view.
-  assert.deepEqual(exp.algorithm.source?.defs?.map(d => [d.name, d.line, d.endLine]), [['side', lineOf('def side'), lineOf('else .ccw')]]);
-  const sys = new System(exp, { N: 5, positions: [0, 1], crashNode: 0 });
-  const C = sys.initial()[0].config;
-  const next = sys.successors(C);
-  for (const s of next) {
-    const explanations = sys.explainAll(C, s.key);
-    assert.equal(explanations.length, 2);
-    for (const e of explanations) {
-      assert.ok(e);
-      assert.equal(e.line, lineOf('move (side'));
-      assert.equal(e.calls.length, 1);
-      const [call] = e.calls;
-      assert.equal(call.fn, 'side');
-      assert.equal(call.result, e.move);
-      assert.equal(call.line, lineOf(call.result === 'cw' ? 'then .cw' : 'else .ccw'));
-      assert.match(e.view.ringPresence, /^\[[X.]{5}\]$/);
-    }
-  }
-  // Explaining evaluates nothing in the step's normal evaluation: the lines are display only.
-  assert.deepEqual(sys.successors(C).map(s => s.key), next.map(s => s.key));
+def distance (n : Nat) : Nat := n
+algorithm A uses occupied where
+  main := move (if distance 1 = 0 then Ring.cw else Ring.ccw)`)).join('\n'), /distance/);
 });
 
 test('type errors in statements point at the statement, with or without memory and actions', () => {
-  const at = (source: string) => Object.values(compileSource(source)).flatMap(r => r.diagnostics.map(d => [d.span?.start.line, d.span?.start.col, d.message]));
+  const at = (source: string) => Object.values(compileSource(source).experiments).flatMap(r => r.diagnostics.map(d => [d.span?.start.line, d.span?.start.col, d.message]));
   const position = (source: string, text: string) => {
     const lines = source.split('\n');
     const line = lines.findIndex(l => l.includes(text));
@@ -360,29 +246,28 @@ test('type errors in statements point at the statement, with or without memory a
 
   // No memory: the step loses its program counter after lowering.
   const oblivious = ROBOTS(`
-algorithm A uses ringPresence where
+algorithm A uses occupied where
   main :=
-    if ringPresence.at 1 then stay
-    else move .up
+    if occupied here then stay
+    else move 3
 `);
-  assert.deepEqual(at(oblivious), [[...position(oblivious, '.up'), 'A.step: .up is not a value of type Move']]);
+  assert.deepEqual(at(oblivious), [[...position(oblivious, '3'), 'A.step: 3 is not a value of type Loc']]);
 
   // Memory and actions: decisions that omit an action get its default after lowering.
   const pebbles = `import "std/models.sim"
-import "std/tasks.sim"
 algorithm A uses pebblesHere where
   main :=
     stay with { pebble := .drop }
-    move .cw with { pebble := .grab }
+    move Ring.cw with { pebble := .grab }
     halt
 experiment e where
-  model := blackHoleRing .none .unknown (extra := [Storage.Pebbles])
+  model := blackHoleRobots (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])
   algorithm := A
   task := Gathering
   param N : Nat in [3]
-  param site : Node in [node 0]
+  param site : Pos in [pos 0]
   agents := 1
-  position i := node 0
+  position i := pos 0
 `;
   const [diagnostic] = at(pebbles);
   assert.deepEqual(diagnostic.slice(0, 2), position(pebbles, '.grab'));

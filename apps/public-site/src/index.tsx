@@ -18,7 +18,7 @@ const features = [
   },
   {
     title: 'Composable models',
-    text: 'Black holes, crashes, pebbles, dynamic rings: add a component and keep the algorithm.',
+    text: 'Cycles, lines, stars, dynamic graphs; black holes, crashes, pebbles: change the model and keep the algorithm.',
     icon: icon(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M17.5 14v7M14 17.5h7" /></>),
   },
   {
@@ -84,18 +84,18 @@ const policies = {
 type Policy = keyof typeof policies;
 
 const composeExample = `experiment cautiousPairCrash where
-  model := blackHoleRing .mayEmerge .known
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
     (extra := [Faults.CrashStop 1, Storage.Pebbles])
   algorithm := CautiousPair
   task := IdentifyBlackHole`;
 
 const leanExample = `theorem reachable_site
-    (N : Nat) [NeZero N] (site : Fin N)
+    (N : Nat) [NeZero N] (site : (space N).Pos)
     (C : Config (sig N 2))
     (h : (model N 2).Reachable act0 (init N site) C) :
     C.world.BlackHole.site = site`;
 
-const components = ['Hazards.BlackHole', 'Faults.CrashStop', 'Faults.CrashAtNode', 'Storage.Pebbles', 'Monitors.Visited', 'DynamicRing k', 'fsync · ssync'];
+const components = ['Graphs.Cycle', 'Graphs.Line', 'Graphs.Dynamic', 'Hazards.BlackHole', 'Faults.CrashStop', 'Storage.Lights', 'Storage.Pebbles', 'fsync · ssync'];
 
 const start = `git clone https://github.com/bramas/simulant.git && cd simulant
 pnpm install
@@ -112,7 +112,7 @@ function PolicyDemo() {
       <div class="demo-code">
         <pre class="code"><code>
           <span class="tok-keyword">experiment</span> cautiousPair <span class="tok-keyword">where</span>{'\n'}
-          {'  '}<span class="tok-keyword">model</span> <span class="tok-punctuation">:=</span> blackHoleRing{'\n    '}
+          {'  '}<span class="tok-keyword">model</span> <span class="tok-punctuation">:=</span> blackHoleRobots (Graphs.Cycle N){'\n    '}
           <span class="policy-switch" role="radiogroup" aria-label="Hole policy">
             <For each={Object.keys(policies) as Policy[]}>
               {(name) => (
@@ -129,8 +129,8 @@ function PolicyDemo() {
           </span>{' '}.unknown{'\n'}
           {highlight(`  algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := (range 9).filter (· ≥ 3)
-  param site : Node := ((range N).filter (· ≥ 1)).map node
+  param N : Nat in (range 9).filter (· ≥ 3)
+  param site : Pos in ((range N).filter (· ≥ 1)).map pos
   agents := 2`)}
         </code></pre>
       </div>

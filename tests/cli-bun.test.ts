@@ -27,15 +27,14 @@ export const projects = { idle: simProject(sim, 'idle') };
 `);
   await writeFile(join(directory, 'main.sim'), `
 import "std/models.sim"
-import "std/tasks.sim"
-algorithm Idle uses ringPresence where
+algorithm Idle uses occupied where
   main := stay
 experiment idle where
-  model := obliviousRing
+  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
-  param N : Nat := [3, 4]
-  param positions : List Node := [[node 0], [node 1], [node 0, node 1]]
+  param N : Nat in [3, 4]
+  param positions : List Pos in [[pos 0], [pos 1], [pos 0, pos 1]]
   agents := positions.length
   position i := positions.at i
 `);

@@ -1,55 +1,43 @@
 /**
- * The default renderer of rings (plan, Section 6.5): nodes, agents with their
- * flags, and the markers of library components (the black hole's site,
- * pebbles), in the colors of `options.theme` when the page gives them. It
- * returns the layout it used, so that custom renderers can add overlays and
- * hit tests on the same geometry:
+ * The default renderer of cycles (plan, Section 6.5): nodes, agents with their flags, and the
+ * markers of library components (the black hole's site, pebbles), in the colors of
+ * `options.theme` when the page gives them. It returns the layout it used, so that custom
+ * renderers can add overlays and hit tests on the same geometry:
  *
  *   const layout = drawRing(ctx, snapshot, model, options);
  *   const { x, y } = layout.nodePosition(snapshot.world.site);
  */
 import type { Snapshot } from '../sim/snapshot';
 import type { Layout, ModelInfo, Point, RenderOptions } from '../sim/types';
+import { drawAgentDiscs, drawComponentMarks, markColors, stackIndices } from './marks';
 
-const PALETTE = ['#d32f2f', '#388e3c', '#1976d2', '#7b1fa2', '#f57c00', '#0097a7', '#5d4037', '#c2185b'];
+export { agentColor } from './marks';
 
-export function agentColor(id: number): string {
-  return PALETTE[id % PALETTE.length];
-}
-
-/** The geometry of a ring, without drawing. */
+/** The geometry of a cycle, without drawing: vertex n of N at angle 2πn/N, clockwise from the top. */
 export function ringLayout(snapshot: Snapshot, options: RenderOptions = {}): Layout {
   const { centerX = 150, centerY = 150, radius = 100, agentRadius = 7 } = options;
   const N = snapshot.size;
   const angle = (n: number) => -Math.PI / 2 + 2 * Math.PI * n / N;
   const at = (n: number, r: number): Point => ({ x: centerX + r * Math.cos(angle(n)), y: centerY + r * Math.sin(angle(n)) });
-  const stacked = new Map<number, number>();
-  const agents = snapshot.agents.map(a => {
-    const k = stacked.get(a.pos) ?? 0;
-    stacked.set(a.pos, k + 1);
-    return {
-      position: at(a.pos, radius + (agentRadius * 1.1) * (1 + 2 * k)),
-      isCrashed: !a.correct,
-      agentId: a.id,
-      nodeIndex: a.pos,
-    };
-  });
+  const stack = stackIndices(snapshot);
+  const agents = snapshot.agents.map((a, i) => ({
+    position: at(a.pos, radius + (agentRadius * 1.1) * (1 + 2 * stack[i])),
+    isCrashed: !a.correct,
+    agentId: a.id,
+    nodeIndex: a.pos,
+  }));
   return { center: { x: centerX, y: centerY }, radius, nodePosition: n => at(n, radius), agents };
 }
 
 export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _model: ModelInfo, options: RenderOptions = {}): Layout {
   const layout = ringLayout(snapshot, options);
   const { radius, center } = layout;
-  const { nodeRadius = 4, agentRadius = 7, showNodeLabels = true, theme } = options;
-  const colors = {
-    line: theme?.line ?? '#666',
-    node: theme?.muted ?? '#666',
-    label: theme?.muted ?? '#666',
-    background: theme?.background ?? '#fff',
-    hole: theme?.danger ?? '#d32f2f',
-    pebble: theme?.dark ? '#bcaaa4' : '#795548',
+  const { nodeRadius = 4, agentRadius = 7, showNodeLabels = true } = options;
+  const colors = markColors(options);
+  const inside = (n: number, f: number) => {
+    const p = layout.nodePosition(n);
+    return { x: center.x + (p.x - center.x) * f, y: center.y + (p.y - center.y) * f };
   };
-  const N = snapshot.size;
   ctx.save();
   try {
     ctx.strokeStyle = colors.line;
@@ -57,14 +45,14 @@ export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
     ctx.beginPath();
     ctx.arc(center.x, center.y, radius, 0, 2 * Math.PI);
     ctx.stroke();
-    for (let n = 0; n < N; n++) {
+    for (let n = 0; n < snapshot.size; n++) {
       const p = layout.nodePosition(n);
       ctx.fillStyle = colors.node;
       ctx.beginPath();
       ctx.arc(p.x, p.y, nodeRadius, 0, 2 * Math.PI);
       ctx.fill();
       if (showNodeLabels) {
-        const q = { x: center.x + (p.x - center.x) * 0.8, y: center.y + (p.y - center.y) * 0.8 };
+        const q = inside(n, 0.8);
         ctx.fillStyle = colors.label;
         ctx.font = '12px system-ui, sans-serif';
         ctx.textAlign = 'center';
@@ -72,49 +60,8 @@ export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
         ctx.fillText(`u${n}`, q.x, q.y);
       }
     }
-    // The black hole: a red cross on its site, dashed while inactive.
-    const site = snapshot.world.site;
-    if (typeof site === 'number') {
-      const p = layout.nodePosition(site);
-      const s = nodeRadius + 5;
-      ctx.strokeStyle = colors.hole;
-      ctx.lineWidth = 2;
-      ctx.setLineDash(snapshot.world.active ? [] : [3, 3]);
-      ctx.beginPath();
-      ctx.moveTo(p.x - s, p.y - s); ctx.lineTo(p.x + s, p.y + s);
-      ctx.moveTo(p.x - s, p.y + s); ctx.lineTo(p.x + s, p.y - s);
-      ctx.stroke();
-      ctx.setLineDash([]);
-    }
-    // Pebbles: small squares inside the ring.
-    const pebbles = snapshot.world.pebbles;
-    if (Array.isArray(pebbles)) {
-      const count = new Map<number, number>();
-      for (const n of pebbles) count.set(n, (count.get(n) ?? 0) + 1);
-      for (const [n, c] of count) {
-        const p = layout.nodePosition(n);
-        const q = { x: center.x + (p.x - center.x) * 0.9, y: center.y + (p.y - center.y) * 0.9 };
-        ctx.fillStyle = colors.pebble;
-        for (let i = 0; i < c; i++) ctx.fillRect(q.x - 3 + 4 * i, q.y - 3, 3, 3);
-      }
-    }
-    snapshot.agents.forEach((a, i) => {
-      const { position: p } = layout.agents[i];
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, agentRadius, 0, 2 * Math.PI);
-      if (!a.present) {
-        // Hidden (dead): a hollow grey circle.
-        ctx.strokeStyle = colors.node;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      } else {
-        ctx.fillStyle = a.correct ? agentColor(a.id) : '#9e9e9e';
-        ctx.fill();
-        ctx.strokeStyle = colors.background;
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-      }
-    });
+    drawComponentMarks(ctx, snapshot, layout.nodePosition, n => inside(n, 0.9), colors, nodeRadius);
+    drawAgentDiscs(ctx, snapshot, layout.agents.map(a => a.position), colors, agentRadius);
   } finally {
     ctx.restore();
   }

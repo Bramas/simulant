@@ -1,13 +1,14 @@
 /**
- * The Simulant intermediate representation (plan, Sections 3 and 6.1).
+ * The Simulant intermediate representation (docs/ir.md, docs/core-redesign.md).
  *
- * Everything here is plain JSON data: the builder (and later the parser)
- * produce it, the engine interprets it, and the Lean generator translates it.
- * Topologies and rounds are not written in the IR: they belong to the
- * semantic core, and the IR only names them.
+ * Everything here is plain JSON data: the builder and the frontend produce it, the engine
+ * interprets it, and the Lean generator translates it. The two kinds of space (graphs and
+ * Euclidean spaces), observations, frames and rounds belong to the semantic core: the IR names
+ * them and gives their parameters; library spaces such as cycles and lines are graph spaces
+ * whose vertices and neighbors are IR expressions.
  */
 
-export const IR_VERSION = 1;
+export const IR_VERSION = 2;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,9 +19,9 @@ export type Type =
   | { k: 'nat' }
   | { k: 'int' }
   | { k: 'string' }                          // labels only
-  | { k: 'node' }                            // a node of the topology
-  | { k: 'move' }                            // stay | cw | ccw
-  | { k: 'frame' }                           // an agent's frame (on a ring: mirrored or not)
+  | { k: 'pos' }                             // a position of the space: opaque outside experiments and spaces
+  | { k: 'loc' }                             // a location of the current Look: valid for one activation
+  | { k: 'look' }                            // what a sensor observes
   | { k: 'agent' }                           // an agent of the configuration in scope
   | { k: 'config' }                          // the configuration in scope
   | { k: 'effect' }                          // what a hook returns
@@ -37,8 +38,8 @@ export type Type =
 
 export type Field = { name: string; type: Type };
 
-/** JSON encoding of literal values: numbers, booleans, strings (enum
- * constructors, moves), `null` (unit, `none`), arrays, and objects (records). */
+/** JSON encoding of literal values: numbers, booleans, strings (enum constructors), `null`
+ * (unit, `none`), arrays, and objects (records). A position is encoded as its vertex. */
 export type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,7 @@ type ExprNode =
   | { e: 'var'; name: string }
   | { e: 'let'; name: string; value: Expr; body: Expr }
   | { e: 'if'; cond: Expr; then: Expr; else: Expr }
-  /** Case analysis on an enum, a move or a verdict. */
+  /** Case analysis on an enum or a verdict. */
   | { e: 'match'; on: Expr; cases: Record<string, Expr>; else?: Expr }
   /** A lambda, only as an argument of a builtin; parameter types are inferred from it. */
   | { e: 'fn'; params: { name: string; type?: Type }[]; body: Expr }
@@ -71,13 +72,66 @@ type ExprNode =
    * witnesses; `label` describes the chosen element.
    */
   | { e: 'choose'; site: string; from: Expr; such?: Expr; label?: Expr }
-  /** A value supplied by the experiment. Only allowed in initialisation. */
+  /** A value supplied by the experiment. Only in initial values, domains and model arguments. */
   | { e: 'param'; name: string }
-  /** What a hook does: new values of its component's world fields, and flags to raise. */
-  | { e: 'effect'; world?: Record<string, Expr>; raise?: Record<string, Expr> };
+  /**
+   * What a hook does: new values of its component's world fields, flags to raise, and new
+   * values of its own agent fields (`agents`: a function from an agent to a record of them).
+   */
+  | { e: 'effect'; world?: Record<string, Expr>; raise?: Record<string, Expr>; agents?: Expr }
+  /**
+   * A sensor read by the algorithm in its current Look: a Look-level sensor without `loc`, a
+   * per-location sensor at the location `loc`. One sensor environment per Look: repeated reads agree.
+   */
+  | { e: 'sense'; sensor: string; loc?: Expr };
 
-/** A named function. Definitions are not recursive. */
+/** A named function. Definitions are not recursive. A definition that reads the Look
+ * (`here`, `visible`, `neighbors`, `distance`, a sensor) is algorithm-local: the checker infers it. */
 export type Def = { name: string; params: Field[]; ret: Type; body: Expr };
+
+// ---------------------------------------------------------------------------
+// Spaces, observations, frames
+
+/** Which automorphisms of a space the explorer quotients by. */
+export type Automorphisms =
+  /** Computed from the finite graph. */
+  | { kind: 'computed' }
+  /** The dihedral group of the cycle `Nat` mod `n`: rotations, and reflections swapping ports 0 and 1. */
+  | { kind: 'dihedral'; n: Expr }
+  /** Translations and the reflection of `Int` vertices (the line); reflections swap ports 0 and 1. */
+  | { kind: 'translationsAndReflection' };
+
+export type Space =
+  /**
+   * A graph: vertices of type `vertex`, and an ordered neighbor list for each vertex (its port
+   * numbering; a vertex may appear twice: parallel edges). `vertices` is omitted for an infinite
+   * vertex set, whose neighborhoods are finite. `params` are the space's parameters; `args`
+   * their values, expressions over experiment parameters, evaluated per setting.
+   */
+  | {
+    kind: 'graph'; name: string;
+    params?: Field[]; args?: Record<string, Expr>;
+    vertex: Type;
+    vertices?: Expr;
+    neighbors: { vertex: string; body: Expr };
+    automorphisms: Automorphisms;
+  }
+  /** A graph where the adversary removes up to `missing` edges at the start of every round. */
+  | { kind: 'dynamic'; base: Space; missing: Expr }
+  /** A Euclidean space (interface only in Phase 0: the engine does not run it). */
+  | { kind: 'euclidean'; dim: number };
+
+/** The visible domain of an agent: every position, or the r-hop view. */
+export type Observation = { kind: 'full' } | { kind: 'radius'; r: Expr };
+
+/** The morphisms through which agents see their view, and when they are chosen. */
+export type Frames =
+  /** Isomorphisms of the visible domain fixing the observer, chosen at each Look. */
+  | { kind: 'isomorphisms' }
+  /** The space's ports as they are (chirality, port-labelled graphs). */
+  | { kind: 'identity' }
+  /** The ports, through a permutation chosen at each Look or once per robot. */
+  | { kind: 'portPermutations'; when: 'perLook' | 'perRobot'; among: 'all' | 'symmetries' };
 
 // ---------------------------------------------------------------------------
 // Model pieces
@@ -91,14 +145,16 @@ export type Flag = {
 };
 
 /**
- * A sensor: a function of the configuration `C`, the observing agent `me`
- * and its frame `frame`. The sensors of a model are exactly what its
- * algorithms can know.
+ * A sensor: what an agent learns from its Look `L`. A per-location sensor also receives a
+ * location `l`. `look` holds its Look-level part: bindings evaluated once per Look, which may
+ * contain choices; the per-location body is deterministic. A sensor's result contains no `Pos`,
+ * `Agent` or `Loc`.
  */
-export type Sensor = { name: string; type: Type; body: Expr; equivariance?: Equivariance };
-
-/** Which automorphisms of the topology a piece commutes with (Section 3.11). */
-export type Equivariance = { rotations: boolean; reflections: boolean };
+export type Sensor = {
+  name: string; type: Type; perLocation: boolean;
+  look?: { name: string; value: Expr }[];
+  body: Expr;
+};
 
 /** An action other than a move: a field of every decision, with a default. */
 export type Action = { name: string; type: Type; default: Json };
@@ -124,30 +180,21 @@ export type Component = {
   beforeMove?: Expr;
   afterMove?: Expr;
   defs?: Def[];
-  equivariance?: Equivariance;
+  /** A claim: the component commutes with the automorphisms that the model's frames keep. */
+  equivariant?: boolean;
 };
-
-/** Topologies are part of the semantic core; the IR names one and its parameters. */
-export type Topology =
-  | { kind: 'ring'; size: Expr }
-  /** A ring where the adversary removes up to `k` edges at the start of every round. */
-  | { kind: 'dynamicRing'; size: Expr; k: number };
-
-export type FrameModel =
-  | { kind: 'common' }
-  | { kind: 'dynamicReflection' }
-  /** The frame is stored in an agent field of type `frame`, owned by a component. */
-  | { kind: 'persistent'; field: string };
 
 export type Model = {
   name: string;
-  topology: Topology;
+  space: Space;
+  observation: Observation;
+  frames: Frames;
   sensors: Sensor[];
   memory: 'persistent' | 'oblivious';
-  frame: FrameModel;
   /** `ssync`: a nonempty eligible subset; `sequential`: one eligible agent. Both require scheduler fairness. */
   round: 'fsync' | 'ssync' | 'sequential';
-  movement: 'rigid';
+  /** `alongEdges`: to `here` or a neighbor; a missing dynamic edge leaves the agent in place. */
+  movement: 'alongEdges';
   components: Component[];
   symmetries: 'derived' | 'none';
   defs?: Def[];
@@ -157,9 +204,9 @@ export type Model = {
 // Algorithms, tasks, experiments
 
 /**
- * An algorithm as an explicit state machine. `step` sees `mem`, `pub` and
- * `view` (a record with one field per sensor in `uses`), and returns a
- * record `{ move, pub, mem, ...actions }`. Moves are local to the agent's frame.
+ * An algorithm as an explicit state machine. `step` sees `mem` and `pub`, reads its Look through
+ * `here`, `visible`, `neighbors`, `distance` and `sense`, and returns a record
+ * `{ move, pub, mem, ...actions }` whose `move` is a location of that Look.
  */
 export type Algorithm = {
   name: string;
@@ -194,7 +241,7 @@ export type Goal =
   | 'safety';
 
 /** A verdict on configurations (`C` in scope) and a goal over executions. */
-export type Task = { name: string; verdict: Expr; goal: Goal; equivariance?: Equivariance; defs?: Def[] };
+export type Task = { name: string; verdict: Expr; goal: Goal; equivariant?: boolean; defs?: Def[] };
 
 /** A parameter's domain: an optional exact finite list and/or a Boolean refinement.
  * Both constraints apply when present. Earlier parameters are in scope in the
@@ -203,7 +250,7 @@ export type Param = { name: string; type: Type; domain?: Expr; accepts?: Expr };
 
 /** Where a declaration is written (display only). */
 export type DeclSource = {
-  kind: 'experiment' | 'model' | 'component' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition';
+  kind: 'experiment' | 'model' | 'component' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition' | 'space';
   name: string; file: string; line: number; endLine: number;
 };
 

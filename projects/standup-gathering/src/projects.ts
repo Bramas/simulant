@@ -8,12 +8,12 @@ import * as colors from '../sim/two-colors.sim';
 import { draw } from './renderer';
 import { crashPreset, faultFreePreset } from './presets';
 
-type Settings = { positions: string; phi: number; N: number; crashNode: number };
+type Settings = { positions: string; phi: number; crashNode: number };
 
 function lineProject(module: SimSources, experiment: string, extraVisibility: number, examples: number[][]) {
   const base = simProject(module, experiment, {
     draw,
-    defaults: { N: 64, positions: [0, 2, 4] },
+    defaults: { positions: [0, 2, 4] },
     checkSettings: function* () {
       for (const positions of examples) {
         for (let crashNode = positions[0]; crashNode <= positions[positions.length - 1] + 1; crashNode++) {
@@ -28,8 +28,8 @@ function lineProject(module: SimSources, experiment: string, extraVisibility: nu
   const normalize = (given: Record<string, unknown> = {}): Settings => {
     const raw = given.positions ?? base.editorSchema!.fields.find(f => f.key === 'positions')!.defaultValue;
     const positions: unknown = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!Array.isArray(positions) || positions.length < 2 || !positions.every(p => Number.isSafeInteger(p) && p >= 0)) {
-      throw new Error('positions must be a JSON array of at least two nonnegative integer coordinates.');
+    if (!Array.isArray(positions) || positions.length < 2 || !positions.every(p => Number.isSafeInteger(p))) {
+      throw new Error('positions must be a JSON array of at least two integer coordinates.');
     }
     const ps = [...positions as number[]].sort((a, b) => a - b);
     const phi = Number(given.phi ?? requiredVisibility(ps));
@@ -37,14 +37,10 @@ function lineProject(module: SimSources, experiment: string, extraVisibility: nu
       throw new Error('Visibility φ must be a nonnegative integer.');
     }
     const crashNode = Number(given.crashNode ?? ps[0]);
-    if (!Number.isSafeInteger(crashNode) || crashNode < 0) {
-      throw new Error('The crash node must be a nonnegative integer coordinate.');
+    if (!Number.isSafeInteger(crashNode)) {
+      throw new Error('The crash node must be an integer coordinate.');
     }
-    return {
-      positions: JSON.stringify(ps), phi, crashNode,
-      // Keep radius-phi views on both sides of the initial hull clear of wraparound.
-      N: Math.max(64, ps[ps.length - 1] + 2 * phi + 3, crashNode + phi + 2),
-    };
+    return { positions: JSON.stringify(ps), phi, crashNode };
   };
   return {
     ...base,
@@ -67,7 +63,7 @@ function lineProject(module: SimSources, experiment: string, extraVisibility: nu
     checkFirstBranch: (settings, options) => base.checkFirstBranch!(normalize(settings ?? {}), options),
     stateGraph: (settings, options) => base.stateGraph!(normalize(settings ?? {}), options),
     get editorSchema() {
-      return { fields: base.editorSchema!.fields.filter(f => f.key !== 'N').map(f => ({
+      return { fields: base.editorSchema!.fields.map(f => ({
         ...f, label: ({ positions: 'Initial robot coordinates (JSON)', phi: 'Visibility φ', crashNode: 'Crash node' } as Record<string, string>)[f.key] ?? f.label,
       })) };
     },
@@ -75,8 +71,7 @@ function lineProject(module: SimSources, experiment: string, extraVisibility: nu
       const description = base.describe!();
       return {
         ...description,
-        summary: ['Line (padded finite encoding)', ...description.summary.filter(s => !s.toLowerCase().includes('ring'))],
-        caveats: [...description.caveats, 'The infinite line is encoded by an empty padded ring. The adapter computes N to keep radius-φ observations and movement inside the initial hull independent of wraparound. The where predicates describe the general initial domain; check-all explores only the finite settings supplied by project.ts and does not prove the unbounded theorem.'],
+        caveats: [...description.caveats, 'The where predicates describe the general initial domain; check-all explores only the finite settings supplied by project.ts and does not prove the unbounded theorem.'],
       };
     },
   } satisfies ProjectType<any, any>;

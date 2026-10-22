@@ -1,48 +1,49 @@
-/-! Algorithm 0 of the black-hole-search paper (Small Rings): on a ring of 2 nodes, the agents
+/-! Algorithm 0 of the black-hole-search paper (Small Rings): on a cycle of 2 nodes, the agents
 find out from who they meet, and identify the hole there; otherwise a₁, a₂ and a₃ run
-Algorithm 4, and a₄ waits. Migrated from `src/simulations/algo0.ts` (plan, Phase 7), whose
-behaviour it follows (its Algorithm 4 differs slightly from
-`sim/algo4.sim`: a₁ and a₃ have already moved, and a₂ does not wait first). -/
+Algorithm 4, and a₄ waits. Its Algorithm 4 differs slightly from `algo4`: a₁ and a₃ have
+already moved, and a₂ does not wait first.
+
+The 2-node setting is `Graphs.Cycle 2`, whose two ports at each vertex both lead to the other
+vertex. -/
 
 import "std/models.sim"
-import "std/tasks.sim"
 
 algorithm SmallRings uses otherStates where
-  Pub := { id : Nat, foundN : Bool, bhDir : Option Move, bhSteps : Nat }
-  output claimDir := pub.bhDir
+  Pub := { id : Nat, foundN : Bool, bhPort : Option Nat, bhSteps : Nat }
+  output claimPort := pub.bhPort
   output claimSteps := pub.bhSteps
-  init i := { pub := { id := i, foundN := false, bhDir := none, bhSteps := 0 } }
+  init i := { pub := { id := i, foundN := false, bhPort := none, bhSteps := 0 } }
 
-  def lead (dir : Move) :=
+  def lead (dir : Nat) :=
     repeat
-      move dir
-      move dir.opposite
-      move dir
+      move (port dir)
+      move (port (Port.opposite dir))
+      move (port dir)
 
-  def follow (leader : Nat) (dir : Move) :=
+  def follow (leader : Nat) (dir : Nat) :=
     repeat
       stay
       stay
       if !(otherStates.any (·.id = leader)) then
-        pub := { pub with bhDir := some dir, bhSteps := 1 }
+        pub := { pub with bhPort := some dir, bhSteps := 1 }
         halt
-      move dir
+      move (port dir)
 
   /-- Algorithm 4 as agent a₁. -/
   def asA1 :=
     let rl : Nat := 1
     repeat
       if !otherStates.isEmpty then
-        lead .ccw
-      move .ccw
+        lead Port.ccw
+      move Ring.ccw
       wait rl - 1
       if !otherStates.isEmpty then
         pub := { pub with foundN := true }
       wait rl - 1
-      move .cw
+      move Ring.cw
       stay
       if otherStates.isEmpty then
-        pub := { pub with bhDir := some .cw, bhSteps := 1 }
+        pub := { pub with bhPort := some Port.cw, bhSteps := 1 }
         halt
       stay
       stay
@@ -54,17 +55,17 @@ algorithm SmallRings uses otherStates where
     let rl : Nat := 1
     repeat
       wait 2 * rl
-      move .ccw
+      move Ring.ccw
       if otherStates.isEmpty then
-        pub := { pub with bhDir := some .ccw, bhSteps := 2 }
-        move .cw
+        pub := { pub with bhPort := some Port.ccw, bhSteps := 2 }
+        move Ring.cw
         halt
       if otherStates.any (·.foundN) then
         pub := { pub with foundN := true }
-      move .cw
+      move Ring.cw
       if otherStates.isEmpty then
-        move .ccw
-        follow 0 .ccw
+        move Ring.ccw
+        follow 0 Port.ccw
       stay
       if !pub.foundN then
         rl := rl + 1
@@ -77,7 +78,7 @@ algorithm SmallRings uses otherStates where
       k := 0
       while k + 1 < rl
         k := k + 1
-        move .cw
+        move Ring.cw
       stay
       if !otherStates.isEmpty then
         pub := { pub with foundN := true }
@@ -85,32 +86,33 @@ algorithm SmallRings uses otherStates where
       k := 0
       while k + 1 < rl
         k := k + 1
-        move .ccw
-      move .ccw
+        move Ring.ccw
+      move Ring.ccw
       stay
       if otherStates.isEmpty then
-        pub := { pub with bhDir := some .ccw, bhSteps := 1 }
+        pub := { pub with bhPort := some Port.ccw, bhSteps := 1 }
         halt
-      if otherStates.any (·.bhDir.isSome) then
-        -- Adopt the claim of an agent here (it is on the same node, so it holds for me too); if
-        -- several differ, the counterclockwise one first, then the farthest, whatever their order.
-        let ccw := otherStates.any (·.bhDir = some .ccw)
-        let far := otherStates.any (fun o => o.bhDir = some .ccw ∧ o.bhSteps = 2)
-        pub := { pub with bhDir := some (if ccw then Move.ccw else Move.cw), bhSteps := if far then 2 else 1 }
+      if otherStates.any (·.bhPort.isSome) then
+        -- Adopt the claim of an agent here (it is on the same node and ports are common, so it
+        -- holds for me too); if several differ, the counterclockwise one first, then the
+        -- farthest, whatever their order.
+        let ccw := otherStates.any (·.bhPort = some Port.ccw)
+        let far := otherStates.any (fun o => o.bhPort = some Port.ccw ∧ o.bhSteps = 2)
+        pub := { pub with bhPort := some (if ccw then Port.ccw else Port.cw), bhSteps := if far then 2 else 1 }
         halt
-      move .cw
+      move Ring.cw
       if !pub.foundN then
         rl := rl + 1
 
   main :=
     let collocated : Nat := 0
     if pub.id = 0 then
-      move .ccw
-      -- Meeting a₃ alone: the ring has 2 nodes.
+      move Ring.ccw
+      -- Meeting a₃ alone: the cycle has 2 nodes.
       if otherStates.length = 1 then
         pub := { pub with foundN := true }
         repeat
-          move .ccw
+          move Ring.ccw
       stay
       asA1
     else if pub.id = 1 then
@@ -123,19 +125,19 @@ algorithm SmallRings uses otherStates where
           stay
           if otherStates.length = collocated then
             -- On 2 nodes, the hole is the other node.
-            pub := { pub with bhDir := some .cw, bhSteps := 1 }
+            pub := { pub with bhPort := some Port.cw, bhSteps := 1 }
             halt
           stay
       asA2
     else if pub.id = 2 then
-      move .cw
+      move Ring.cw
       if otherStates.length = 1 then
         pub := { pub with foundN := true }
         stay
         repeat
           stay
           if otherStates.isEmpty then
-            pub := { pub with bhDir := some .cw, bhSteps := 1 }
+            pub := { pub with bhPort := some Port.cw, bhSteps := 1 }
             halt
           stay
       stay
@@ -143,15 +145,15 @@ algorithm SmallRings uses otherStates where
     else
       halt
 
-/-- The settings of the paper's checks: rings of 2 to 4 nodes, the hole anywhere. -/
+/-- The settings of the paper's checks: cycles of 2 to 4 nodes, the hole anywhere. -/
 experiment algo0 where
-  model := blackHoleRing .mayEmerge .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := SmallRings
   task := IdentifyEmergingBlackHoleAt
-  param N : Nat := (range 5).filter (· ≥ 2)
-  param site : Node := (range N).map node
+  param N : Nat in (range 5).filter (· ≥ 2)
+  param site : Pos in positions
   agents := 4
-  position i := node 0
+  position i := pos 0
   -- When an agent disappears before a₁ and a₃ meet, their exploration limit grows forever:
   -- the state space is infinite, and checks explore at most this many states.
   limits := { states := 100000 }

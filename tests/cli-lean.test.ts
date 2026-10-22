@@ -28,17 +28,16 @@ async function localProject(t: { after: (callback: () => Promise<void>) => void 
   t.after(() => rm(directory, { recursive: true, force: true }));
   await writeFile(join(directory, 'package.json'), JSON.stringify({ type: 'module', exports: { './projects': './projects.ts' } }));
   await writeFile(join(directory, 'main.sim'), `import "std/models.sim"
-import "std/tasks.sim"
-algorithm Idle uses ringPresence where
+algorithm Idle uses occupied where
   main :=
     stay
 experiment sample where
-  model := obliviousRing
+  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
-  param N : Nat := [3]
+  param N : Nat in [3]
   agents := 1
-  position i := node 0
+  position i := pos 0
 `);
   await writeFile(join(directory, 'projects.ts'), `import { simProject } from '@bramas/simulant-ui/sim/project';
 import * as sim from './main.sim';

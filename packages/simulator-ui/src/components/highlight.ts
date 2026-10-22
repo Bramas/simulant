@@ -14,7 +14,8 @@ const CONSTANTS = new Set(['some', 'none', 'true', 'false']);
 /** Builtin functions, and methods (`otherStates.any ...`). */
 const FUNCTIONS = new Set([
   'any', 'all', 'count', 'filter', 'map', 'sum', 'length', 'isEmpty', 'isSome', 'isNone', 'getD', 'contains', 'dedup', 'diff',
-  'toList', 'toMultiset', 'subsetsUpTo', 'opposite', 'card', 'at', 'show', 'min', 'max', 'range', 'node', 'target', 'advance',
+  'toList', 'toMultiset', 'subsetsUpTo', 'card', 'at', 'show', 'min', 'max', 'range', 'toNat', 'pos', 'positions',
+  'here', 'visible', 'neighbors', 'distance', 'resolve', 'follow',
 ]);
 
 export type Kind = 'keyword' | 'action' | 'function' | 'comment' | 'constant' | 'number' | 'type' | 'string';

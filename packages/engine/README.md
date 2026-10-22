@@ -30,10 +30,14 @@ console.log(result.status, result.reason);
 ```
 
 `System` from `@bramas/simulant-engine/system` provides `initial()`,
-`successors(config)`, `verdict(config)` and step explanations. `parameterValues`
-enumerates declared settings; `parameterDomainViolations` checks domain
-membership for a concrete setting without enumerating their Cartesian product.
-`checkSettings` can share state graphs among settings of the same ring size.
+`successors(config)`, `verdict(config)`, `decisionsOf(config, agent)`,
+`observations(config, agent)` (an agent's sensor values, as text) and step
+explanations; `space.ts` builds graph spaces, views and their presentations under
+the declared frames. `parameterValues` enumerates declared settings;
+`parameterDomainViolations` checks domain membership for a concrete setting
+without enumerating their Cartesian product. `checkSettings` shares state graphs
+among settings with the same instantiated model (the values of the space's
+parameters and of the observation radius).
 
 Checks return `success`, `failure`, or `incomplete` when an exploration limit
 prevents a conclusion. Successful bounded checks do not prove correctness for

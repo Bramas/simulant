@@ -1,11 +1,12 @@
 /**
- * Elaboration of `.sim` declarations to IR (plan, Section 3).
+ * Elaboration of `.sim` declarations to IR (docs/sim-language.md, docs/core-redesign.md).
  *
  * Two levels:
- * - definitions whose type is a model piece (`Component`, `Model`, `Sensor`,
- *   `Topology`, `FrameModel`, `Round`, `Memory`, or lists of them) are
- *   evaluated at compile time, with their arguments: model families are
- *   functions;
+ * - definitions whose type is a model piece (`Component`, `Model`, `Sensor`, `Space`,
+ *   `Observation`, `Frames`, `Round`, `Memory`, or lists of them) are evaluated at compile
+ *   time, with their arguments: model families are functions. Experiment parameters in their
+ *   arguments (`Graphs.Cycle N`, `Observe.radius (param phi)`) stay symbolic: they are IR
+ *   expressions, evaluated per setting;
  * - expressions inside hooks, sensors, tasks, algorithms, initial values and
  *   parameter domains are translated to IR expressions. A component's
  *   parameters stay symbolic in its expressions.
@@ -16,8 +17,8 @@
 import { BUILTINS } from '../builtins';
 import { check, type Diagnostic as CheckDiagnostic } from '../check';
 import type {
-  Action, Algorithm, Component, DeclSource, Def, Equivariance, Experiment, Expr, Field, Flag, FrameModel, Goal, Json, Model, Param,
-  Sensor, Task, Topology, Type,
+  Action, Algorithm, Automorphisms, Component, DeclSource, Def, Experiment, Expr, Field, Flag, Frames, Goal, Json, Model, Observation,
+  Param, Sensor, Space, Task, Type,
 } from '../ir';
 import { IR_VERSION } from '../ir';
 import type { SArg, SDecl, SExpr, SRecordItem, SType, SWhereItem } from '../parse/ast';
@@ -50,13 +51,23 @@ type MV =
   | { m: 'component'; ir: Component }
   | { m: 'model'; ir: Model }
   | { m: 'sensor'; ir: Sensor }
-  | { m: 'topology'; ir: Topology }
-  | { m: 'frame'; ir: FrameModel };
+  | { m: 'space'; ir: Space }
+  | { m: 'observation'; ir: Observation }
+  | { m: 'frames'; ir: Frames }
+  | { m: 'automorphisms'; ir: Automorphisms }
+  /** An object-level expression over experiment parameters (`N`, `param phi`), evaluated per setting. */
+  | { m: 'expr'; e: Expr };
 
-const ROUND = T.enum('Round', ['fsync', 'ssync', 'sequential']) as Type & { k: 'enum' };
-const MEMORY = T.enum('Memory', ['persistent', 'oblivious']) as Type & { k: 'enum' };
-const SYMMETRIES = T.enum('Symmetries', ['derived', 'none']) as Type & { k: 'enum' };
-const META_TYPES = new Set(['Component', 'Model', 'Sensor', 'Topology', 'FrameModel', 'Round', 'Memory', 'Symmetries']);
+const metaEnum = (name: string, ctors: string[]) => T.enum(name, ctors) as Type & { k: 'enum' };
+const ROUND = metaEnum('Round', ['fsync', 'ssync', 'sequential']);
+const MEMORY = metaEnum('Memory', ['persistent', 'oblivious']);
+const SYMMETRIES = metaEnum('Symmetries', ['derived', 'none']);
+const MOVEMENT = metaEnum('Movement', ['alongEdges']);
+const PERSISTENCE = metaEnum('Persistence', ['perLook', 'perRobot']);
+const PORT_PERMUTATIONS = metaEnum('PortPermutations', ['all', 'symmetries']);
+const AUTOMORPHISMS = metaEnum('Automorphisms', ['computed', 'translationsAndReflection']);
+const META_ENUMS = [ROUND, MEMORY, SYMMETRIES, MOVEMENT, PERSISTENCE, PORT_PERMUTATIONS, AUTOMORPHISMS];
+const META_TYPES = new Set(['Component', 'Model', 'Sensor', 'Space', 'Observation', 'Frames', ...META_ENUMS.map(e => e.name)]);
 
 function isMetaType(t: SType | undefined): boolean {
   if (!t || t.t !== 'name') return false;
@@ -70,9 +81,11 @@ function isObjectDef(d: SDecl | undefined): d is Extract<SDecl, { d: 'def' }> {
 
 const COLLECTION_METHODS_WITH_FN = new Set(['filter', 'map', 'any', 'all', 'count']);
 const BUILTIN_FUNCTIONS = new Set([
-  'present', 'correct', 'decisionOf', 'target', 'advance', 'edgePresent', 'offset', 'toGlobal', 'node', 'range', 'subsets',
-  'subsetsUpTo', 'ofFn', 'show', 'min', 'max', 'some', 'opposite', 'toInt',
+  'present', 'correct', 'decisionOf', 'pos', 'neighbors', 'distance', 'range', 'subsets', 'subsetsUpTo', 'ofFn', 'show', 'min',
+  'max', 'some', 'toInt', 'toNat',
 ]);
+/** Builtins written as names, without arguments. */
+const BUILTIN_NAMES = new Set(['here', 'visible', 'positions']);
 /** Builtins whose arguments at these positions are functions. */
 const FUNCTION_ARGS: Record<string, number[]> = { filter: [1], map: [1], any: [1], all: [1], count: [1], ofFn: [1] };
 
@@ -110,7 +123,7 @@ function declKind(d: SDecl): DeclSource['kind'] | undefined {
     case 'experiment': case 'algorithm': case 'task': case 'sensor': return d.d;
     case 'def': {
       const t = d.type?.t === 'name' ? d.type.name : undefined;
-      return t === 'Component' ? 'component' : t === 'Model' ? 'model' : t === 'Sensor' ? 'sensor' : 'definition';
+      return t === 'Component' ? 'component' : t === 'Model' ? 'model' : t === 'Sensor' ? 'sensor' : t === 'Space' ? 'space' : 'definition';
     }
   }
   return undefined;
@@ -130,6 +143,8 @@ export class Elaborator {
   private calledDefs?: Set<string>;
   /** The declarations the experiment being built uses, for `Experiment.source` (display only). */
   private uses?: Map<string, DeclSource>;
+  /** The names algorithms read sensors by: a sensor's own name, or the one it implements. */
+  private readonly sensorNames = new Set<string>();
 
   constructor(readonly program: Program) {
     this.diagnostics.push(...program.diagnostics);
@@ -143,6 +158,11 @@ export class Elaborator {
       this.globals.set(d.name, d);
       if (d.d === 'inductive') this.enums.set(d.name, T.enum(d.name, d.ctors) as Type & { k: 'enum' });
       if (d.d === 'structure') this.structures.set(d.name, d);
+      if (d.d === 'sensor') {
+        this.sensorNames.add(d.name.split('.').pop()!);
+        const implemented = d.attrs.find(a => a.name === 'implements')?.args[0];
+        if (implemented) this.sensorNames.add(implemented);
+      }
     }
   }
 
@@ -171,11 +191,14 @@ export class Elaborator {
       case 'Bool': return T.bool;
       case 'String': return T.string;
       case 'Unit': return T.unit;
-      case 'Node': return T.node;
+      case 'Pos': return T.pos;
+      case 'Loc': return T.loc;
+      case 'Look': return T.look;
       case 'Agent': return T.agent;
-      case 'Move': return T.move;
-      case 'Frame': return T.frame;
       case 'Config': return T.config;
+      case 'Node': return fail('Node is gone: positions have type Pos (docs/core-redesign.md)', t.span);
+      case 'Move': return fail('Move is gone: an algorithm moves to a location (move l), and stores a port index (Nat)', t.span);
+      case 'Frame': return fail('Frame is gone: frames are declared by the model (Frames.isomorphisms, Frames.identity, ...)', t.span);
       case 'Verdict': return T.verdict;
       case 'Pub': return T.pub;
       case 'Option': return T.option(arg());
@@ -191,10 +214,7 @@ export class Elaborator {
 
   private enumType(t: SType | undefined): (Type & { k: 'enum' }) | undefined {
     if (!t || t.t !== 'name') return undefined;
-    if (t.name === 'Round') return ROUND;
-    if (t.name === 'Memory') return MEMORY;
-    if (t.name === 'Symmetries') return SYMMETRIES;
-    return this.enums.get(t.name);
+    return META_ENUMS.find(e => e.name === t.name) ?? this.enums.get(t.name);
   }
 
   // -------------------------------------------------------------------------
@@ -236,6 +256,8 @@ export class Elaborator {
         return this.bool(this.meval(e.cond, env), e.cond.span) ? this.meval(e.then, env, expected) : this.meval(e.else, env, expected);
       case 'ascribe':
         return this.meval(e.e, env, e.type);
+      case 'param':
+        return { m: 'expr', e: this.mark({ e: 'param', name: e.name }, e.span) };
       case 'name':
         if (e.name === 'none' && expected?.t === 'name' && expected.name === 'Option') return { m: 'option' };
         return env.get(e.name) ?? this.metaCall(e.name, [], e.span, env);
@@ -256,27 +278,46 @@ export class Elaborator {
   }
 
   private uniqueEnum(ctor: string, span: Span): Type & { k: 'enum' } {
-    const all = [...this.enums.values(), ROUND, MEMORY, SYMMETRIES].filter(t => t.ctors.includes(ctor));
+    const all = [...this.enums.values(), ...META_ENUMS].filter(t => t.ctors.includes(ctor));
     if (all.length === 1) return all[0];
     return fail(all.length ? `ambiguous constructor .${ctor}: ${all.map(t => t.name).join(' or ')}` : `unknown constructor .${ctor}`, span);
   }
 
   /** Calls a definition, a sensor, or a builtin of the model level. */
   private metaCall(name: string, args: SArg[], span: Span, env: Map<string, MV>): MV {
+    const arg = (i: number, n: string): SExpr | undefined => args.find(a => a.name === n)?.value ?? args.filter(a => !a.name)[i]?.value;
+    const required = (i: number, n: string): SExpr => arg(i, n) ?? fail(`${name}: missing argument ${n}`, span);
+    const nat = (x: SExpr) => this.exprOf(this.meval(x, env), x.span, T.nat);
     switch (name) {
-      case 'Ring': return { m: 'topology', ir: { kind: 'ring', size: { e: 'param', name: 'N' } } };
-      case 'DynamicRing': {
-        const k = args.length ? this.meval(args[0].value, env) : { m: 'nat', v: 1 } as MV;
-        if (k.m !== 'nat') fail('DynamicRing takes a number of edges', span);
-        return { m: 'topology', ir: { kind: 'dynamicRing', size: { e: 'param', name: 'N' }, k: (k as { v: number }).v } };
+      case 'Graphs.Dynamic': {
+        const base = this.meval(required(0, 'base'), env);
+        if (base.m !== 'space') fail('Graphs.Dynamic takes a space and a number of missing edges', span);
+        return { m: 'space', ir: { kind: 'dynamic', base: (base as { ir: Space }).ir, missing: nat(required(1, 'missing')) } };
       }
-      case 'Frames.common': return { m: 'frame', ir: { kind: 'common' } };
-      case 'Frames.dynamicReflection': return { m: 'frame', ir: { kind: 'dynamicReflection' } };
-      case 'Frames.persistent': {
-        const f = args[0]?.value;
-        if (!f || f.t !== 'name') fail('Frames.persistent takes the name of an agent field of type Frame', span);
-        return { m: 'frame', ir: { kind: 'persistent', field: (f as { name: string }).name } };
+      case 'Euclidean.Plane': return { m: 'space', ir: { kind: 'euclidean', dim: 2 } };
+      case 'Observe.full': return { m: 'observation', ir: { kind: 'full' } };
+      case 'Observe.radius': return { m: 'observation', ir: { kind: 'radius', r: nat(required(0, 'r')) } };
+      case 'Frames.isomorphisms': return { m: 'frames', ir: { kind: 'isomorphisms' } };
+      case 'Frames.identity': return { m: 'frames', ir: { kind: 'identity' } };
+      case 'Frames.portPermutations': {
+        const ctor = (x: SExpr | undefined, t: Type & { k: 'enum' }, d: string) => {
+          if (!x) return d;
+          const v = this.meval(x, env, { t: 'name', name: t.name, args: [], span: x.span });
+          return v.m === 'enum' && v.type === t ? v.ctor : fail(`expected a ${t.name}`, x.span);
+        };
+        return {
+          m: 'frames',
+          ir: {
+            kind: 'portPermutations',
+            when: ctor(required(0, 'when'), PERSISTENCE, 'perLook') as 'perLook' | 'perRobot',
+            among: ctor(arg(1, 'among'), PORT_PERMUTATIONS, 'all') as 'all' | 'symmetries',
+          },
+        };
       }
+      case 'Cycle.dihedral': return { m: 'automorphisms', ir: { kind: 'dihedral', n: nat(required(0, 'n')) } };
+      case 'Ring': case 'DynamicRing': return fail(`${name} is gone: use Graphs.Cycle N (or Graphs.Dynamic (Graphs.Cycle N) k)`, span);
+      case 'Frames.common': case 'Frames.dynamicReflection': case 'Frames.persistent':
+        return fail(`${name} is gone: use Frames.identity, Frames.isomorphisms or Frames.portPermutations .perRobot`, span);
     }
     const decl = this.globals.get(name) ?? fail(`unknown name ${name}`, span);
     this.use(decl);
@@ -287,7 +328,15 @@ export class Elaborator {
     if (decl.body) return this.meval(decl.body, bound, decl.type);
     if (t.name === 'Component') return { m: 'component', ir: this.component(decl, bound) };
     if (t.name === 'Model') return { m: 'model', ir: this.model(decl, bound) };
+    if (t.name === 'Space') return { m: 'space', ir: this.space(decl, bound) };
     return fail(`a ${t.name} is defined by a value (:=), not a where block`, decl.span);
+  }
+
+  /** A model-level value as an object-level expression: a literal, or a symbolic parameter expression. */
+  private exprOf(v: MV, span: Span, type: Type): Expr {
+    if (v.m === 'expr') return v.e;
+    if (v.m === 'enum') return this.lit(v.type, v.ctor, span);
+    return this.lit(type, this.json(v, span), span);
   }
 
   private bindArgs(params: { name: string; type: SType; default?: SExpr; span: Span }[], args: SArg[], env: Map<string, MV>, span: Span) {
@@ -317,9 +366,11 @@ export class Elaborator {
     }
   }
 
-  private equivariance(d: SDecl): Equivariance | undefined {
+  /** `@[equivariant]`: a claim relative to the automorphisms that the model's frames keep. */
+  private equivariant(d: SDecl): true | undefined {
     const a = d.attrs.find(a => a.name === 'equivariant');
-    return a && { rotations: a.args.includes('rotations'), reflections: a.args.includes('reflections') };
+    if (a?.args.length) fail('write @[equivariant]: the claim is relative to the automorphisms that the frames keep', d.span);
+    return a ? true : undefined;
   }
 
   // -------------------------------------------------------------------------
@@ -394,7 +445,7 @@ export class Elaborator {
       beforeLook: hook('beforeLook'),
       beforeMove: hook('beforeMove'),
       afterMove: hook('afterMove'),
-      equivariance: this.equivariance(decl),
+      equivariant: this.equivariant(decl),
     };
     for (const i of decl.items!) {
       const known = ['World', 'Agent', 'flags', 'actions', 'sensors', 'init', 'beforeLook', 'beforeMove', 'afterMove'];
@@ -405,57 +456,117 @@ export class Elaborator {
   }
 
   /**
-   * A sensor: binders of type `Config`, `Agent` and `Frame` are the observed
-   * configuration, the observer and its frame; the others are parameters of
-   * the family, fixed by `args`.
+   * A sensor: binders of type `Look` and `Loc` are the observer's Look and the location queried;
+   * the others are parameters of the family, fixed by `args`. A Look-level part (`where x := e`)
+   * is evaluated once per Look and may contain choices.
    */
   private sensor(decl: Extract<SDecl, { d: 'sensor' }>, args: Map<string, MV>, component?: { owner: string; scope: Map<string, string> }): Sensor {
     const scope = new Map(component?.scope ?? []);
     const constants = new Map<string, Expr>();
+    let perLocation = false;
     for (const p of decl.params) {
       const runtime = runtimeBinder(p.type);
-      if (runtime) scope.set(p.name, runtime);
-      else {
+      if (p.type.t === 'name' && ['Config', 'Agent', 'Frame'].includes(p.type.name)) {
+        fail(`a sensor receives its Look: sensor ${decl.name} (L : Look) [(l : Loc)] : T := ... (${p.type.name} is not available)`, p.span);
+      } else if (runtime) {
+        scope.set(p.name, runtime);
+        if (runtime === 'l') perLocation = true;
+      } else {
         const v = args.get(p.name) ?? fail(`missing argument ${p.name} of sensor ${decl.name}`, decl.span);
         constants.set(p.name, { e: 'lit', type: this.type(p.type), value: this.json(v, decl.span) });
       }
     }
+    if (![...scope.values()].includes('L')) fail(`a sensor receives its Look: sensor ${decl.name} (L : Look) ...`, decl.span);
+    if (decl.attrs.some(a => a.name === 'equivariant')) fail('sensors read only their Look: they need no @[equivariant] claim', decl.span);
     const implemented = decl.attrs.find(a => a.name === 'implements')?.args[0];
     const name = implemented ?? decl.name.split('.').pop()!;
     const owner = component?.owner ?? decl.name.split('.').pop()!;
+    const look: { name: string; value: Expr }[] = [];
+    for (const b of decl.look ?? []) {
+      look.push({ name: b.name, value: this.tr(b.value, { scope: new Map(scope), params: new Set(), owner, constants, letName: b.name }) });
+      scope.set(b.name, b.name);
+    }
+    if (decl.at) {
+      if (decl.at.type.t !== 'name' || decl.at.type.name !== 'Loc') fail('at takes a location: at (l : Loc)', decl.at.span);
+      scope.set(decl.at.name, 'l');
+      perLocation = true;
+    }
     const body = this.tr(decl.body, { scope, params: new Set(), owner, constants });
-    return dropUndefined({ name, type: this.type(decl.type), body, equivariance: this.equivariance(decl) });
+    return dropUndefined({ name, type: this.type(decl.type), perLocation, look: look.length ? look : undefined, body });
+  }
+
+  /** A graph space: `Vertex := T`, `vertices := e` (omitted: infinite), `neighbors v := e`, `automorphisms := ...`. */
+  private space(decl: Extract<SDecl, { d: 'def' }>, args: Map<string, MV>): Space {
+    const items = new Map(decl.items!.map(i => [i.name, i]));
+    for (const i of decl.items!) {
+      const known = ['Vertex', 'vertices', 'neighbors', 'automorphisms'];
+      if (!known.includes(i.name)) fail(`unknown space field ${i.name} (expected one of ${known.join(', ')})`, i.span);
+    }
+    const params: Field[] = decl.params.map(p => ({ name: p.name, type: this.type(p.type) }));
+    const scope = new Map(params.map(p => [p.name, p.name]));
+    const ctx = (extra: [string, string][] = []): OCtx => ({ scope: new Map([...scope, ...extra]), params: new Set(), owner: decl.name });
+    const vertexItem = items.get('Vertex') ?? fail('a space needs `Vertex := T`', decl.span);
+    if (vertexItem.value.t !== 'typeValue') fail('Vertex is a type', vertexItem.span);
+    const vertex = this.type((vertexItem.value as { type: SType }).type);
+    const neighbors = items.get('neighbors') ?? fail('a space needs `neighbors v := [...]`', decl.span);
+    if (neighbors.args.length !== 1) fail('neighbors takes a vertex: neighbors v := [...]', neighbors.span);
+    const vertices = items.get('vertices');
+    const auto = items.get('automorphisms');
+    let automorphisms: Automorphisms = { kind: 'computed' };
+    if (auto) {
+      const env = new Map<string, MV>([...params.map(p => [p.name, { m: 'expr', e: { e: 'var', name: p.name } } as MV] as const)]);
+      const v = this.meval(auto.value, env, { t: 'name', name: 'Automorphisms', args: [], span: auto.span });
+      automorphisms = v.m === 'automorphisms' ? v.ir
+        : v.m === 'enum' && v.type === AUTOMORPHISMS ? { kind: v.ctor as 'computed' | 'translationsAndReflection' }
+        : fail('expected .computed, .translationsAndReflection or Cycle.dihedral n', auto.span);
+    }
+    const argExprs = Object.fromEntries(params.map(p => [p.name, this.exprOf(args.get(p.name)!, decl.span, p.type)]));
+    return dropUndefined({
+      kind: 'graph' as const,
+      name: decl.name,
+      params: params.length ? params : undefined,
+      args: params.length ? argExprs : undefined,
+      vertex,
+      vertices: vertices && this.tr(vertices.value, ctx()),
+      neighbors: { vertex: neighbors.args[0], body: this.tr(neighbors.value, ctx([[neighbors.args[0], neighbors.args[0]]])) },
+      automorphisms,
+    });
   }
 
   private model(decl: Extract<SDecl, { d: 'def' }>, env: Map<string, MV>): Model {
+    const meta = (n: string) => ({ t: 'name', name: n, args: [], span: decl.span }) as SType;
+    const expected: Record<string, SType> = {
+      memory: meta('Memory'), round: meta('Round'), symmetries: meta('Symmetries'), movement: meta('Movement'),
+    };
     const v = (n: string) => {
       const i = decl.items!.find(i => i.name === n);
-      return i && this.meval(i.value, env, ({
-        topology: { t: 'name', name: 'Topology', args: [], span: i.span },
-        memory: { t: 'name', name: 'Memory', args: [], span: i.span },
-        round: { t: 'name', name: 'Round', args: [], span: i.span },
-        symmetries: { t: 'name', name: 'Symmetries', args: [], span: i.span },
-      } as Record<string, SType>)[n]);
+      return i && this.meval(i.value, env, expected[n]);
     };
+    const known = ['space', 'observation', 'frames', 'sensors', 'memory', 'movement', 'round', 'components', 'symmetries'];
     for (const i of decl.items!) {
-      const known = ['topology', 'sensors', 'memory', 'frame', 'round', 'components', 'symmetries'];
+      if (i.name === 'topology' || i.name === 'frame') fail(`${i.name} is gone: a model has space, observation and frames`, i.span);
       if (!known.includes(i.name)) fail(`unknown model field ${i.name} (expected one of ${known.join(', ')})`, i.span);
     }
     const list = (x: MV | undefined, m: string, span: Span) => !x ? [] : x.m === 'list'
       ? x.items.map(i => i.m === m ? (i as { ir: unknown }).ir : fail(`expected a list of ${m}s`, span))
       : fail(`expected a list of ${m}s`, span);
-    const topology = v('topology');
+    const piece = <M extends MV['m']>(n: string, m: M): Extract<MV, { m: M }> => {
+      const x = v(n) ?? fail(`a model needs \`${n} := ...\``, decl.span);
+      return x.m === m ? x as Extract<MV, { m: M }> : fail(`${n}: expected ${m === 'observation' ? 'an' : 'a'} ${m}`, decl.span);
+    };
+    const ctor = (n: string, d: string) => (v(n) as { ctor?: string } | undefined)?.ctor ?? d;
     const args = [...env.values()].filter(x => x.m === 'enum' || x.m === 'nat').map(x => x.m === 'enum' ? x.ctor : (x as { v: number }).v);
     return dropUndefined({
       name: `${decl.name}${args.length ? `(${args.join(', ')})` : ''}`,
-      topology: topology ? (topology.m === 'topology' ? topology.ir : fail('expected a topology', decl.span)) : { kind: 'ring', size: { e: 'param', name: 'N' } },
+      space: piece('space', 'space').ir,
+      observation: piece('observation', 'observation').ir,
+      frames: piece('frames', 'frames').ir,
       sensors: list(v('sensors'), 'sensor', decl.span) as Sensor[],
-      memory: (v('memory') as { ctor?: string } | undefined)?.ctor as Model['memory'] ?? 'persistent',
-      frame: (v('frame') as { ir?: FrameModel } | undefined)?.ir ?? { kind: 'common' },
-      round: (v('round') as { ctor?: string } | undefined)?.ctor as Model['round'] ?? 'fsync',
-      movement: 'rigid',
+      memory: ctor('memory', 'persistent') as Model['memory'],
+      movement: ctor('movement', 'alongEdges') as Model['movement'],
+      round: ctor('round', 'fsync') as Model['round'],
       components: list(v('components'), 'component', decl.span) as Component[],
-      symmetries: (v('symmetries') as { ctor?: string } | undefined)?.ctor as Model['symmetries'] ?? 'derived',
+      symmetries: ctor('symmetries', 'derived') as Model['symmetries'],
     });
   }
 
@@ -479,8 +590,9 @@ export class Elaborator {
       const f = fields.find(f => f.t === 'field' && f.name === n) as { value?: SExpr } | undefined;
       return f?.value ? this.tr(f.value, { scope: new Map([[iName, 'i']]), params: new Set(), owner }) : this.hole(null, init.span);
     };
-    const step = item('step') ?? fail('an algorithm needs `step mem pub view := ...`', decl.span);
-    const [m, p, v] = [step.args[0] ?? 'mem', step.args[1] ?? 'pub', step.args[2] ?? 'view'];
+    const step = item('step') ?? fail('an algorithm needs `step mem pub := ...`', decl.span);
+    if (step.args.length > 2) fail('step takes the memory and the public state: step mem pub := ... (sensors are read by name)', step.span);
+    const [m, p] = [step.args[0] ?? 'mem', step.args[1] ?? 'pub'];
     const line = item('line');
     for (const i of decl.items) {
       const known = ['Pub', 'Mem', 'init', 'step', 'line'];
@@ -493,7 +605,7 @@ export class Elaborator {
       pub: typeOf('Pub'),
       mem,
       init: { pub: initOf('pub'), mem: mem.k === 'unit' && !fields.some(f => f.t === 'field' && f.name === 'mem') ? this.lit(T.unit, null, init.span) : initOf('mem') },
-      step: this.tr(step.value, { scope: new Map([[m, 'mem'], [p, 'pub'], [v, 'view']]), params: new Set(), owner, decision: { pub: 'pub', mem: 'mem' } }),
+      step: this.tr(step.value, { scope: new Map([[m, 'mem'], [p, 'pub']]), params: new Set(), owner, decision: { pub: 'pub', mem: 'mem' } }),
       line: line && this.tr(line.value, { scope: new Map([[line.args[0] ?? 'mem', 'mem']]), params: new Set(), owner }),
       source: { file: decl.span.file, line: decl.span.start.line, endLine: decl.span.end.line },
     });
@@ -524,7 +636,7 @@ export class Elaborator {
       const f = (init.value as { items: SRecordItem[] }).items.find(x => x.t === 'field' && x.name === 'pub') as { value?: SExpr } | undefined;
       if (f?.value) initPub = this.tr(f.value, { scope: new Map([[init.args[0] ?? 'i', 'i']]), params: new Set(), owner });
     }
-    const lowered = lower(decl.name, procs, main.body, decl.uses, memory === 'oblivious', {
+    const lowered = lower(decl.name, procs, main.body, memory === 'oblivious', {
       tr: (e, scope, constants) => this.tr(e, { scope, params: new Set(), owner, constants }),
       type: t => this.type(t),
       fail: (msg, span) => fail(msg, span),
@@ -551,7 +663,7 @@ export class Elaborator {
       name: decl.name,
       goal: this.goals.get(decl.name)?.goal ?? 'eventually',
       verdict: this.tr(decl.body, { scope: new Map([[C, 'C']]), params: new Set(), owner: decl.name, outputs }),
-      equivariance: this.equivariance(decl),
+      equivariant: this.equivariant(decl),
     });
   }
 
@@ -605,7 +717,9 @@ export class Elaborator {
   private experimentOf(decl: Extract<SDecl, { d: 'experiment' }>, uses: Map<string, DeclSource>): Experiment {
     const item = (n: string) => decl.items.find(i => i.name === n && !i.param);
     const required = (n: string) => item(n) ?? fail(`an experiment needs \`${n} := ...\``, decl.span);
-    const modelValue = this.meval(required('model').value, new Map(), { t: 'name', name: 'Model', args: [], span: decl.span });
+    // Parameters named in the model (`Graphs.Cycle N`) stay symbolic: they are evaluated per setting.
+    const symbolic = new Map<string, MV>(decl.items.filter(i => i.param).map(i => [i.name, { m: 'expr', e: this.mark({ e: 'param', name: i.name }, i.span) }]));
+    const modelValue = this.meval(required('model').value, symbolic, { t: 'name', name: 'Model', args: [], span: decl.span });
     const ref = (n: string, kind: 'algorithm' | 'task') => {
       const v = required(n).value;
       const d = v.t === 'name' ? this.globals.get(v.name) : undefined;
@@ -790,7 +904,7 @@ export class Elaborator {
     const tail = { effects: ctx.effects, decision: ctx.decision };
     const inner: OCtx = { ...ctx, effects: undefined, decision: undefined };
     switch (e.t) {
-      case 'num': return this.lit(T.nat, e.value, span);
+      case 'num': return this.hole(e.value, span);
       case 'str': return this.lit(T.string, e.value, span);
       case 'bool': return this.lit(T.bool, e.value, span);
       case 'ctor': return this.hole(e.name, span);
@@ -897,19 +1011,27 @@ export class Elaborator {
       // An effect: `{ world := { C.world with f := v }, raise flag := agents or predicate }`.
       const world: Record<string, Expr> = {};
       const raise: Record<string, Expr> = {};
+      let agentsUpdate: Expr | undefined;
       for (const it of e.items) {
         if (it.t === 'raise') {
           const v = it.value;
           raise[it.flag] = this.tr(v, inner);
+        } else if (it.name === 'agents') {
+          // New values of the component's own agent fields: `agents := fun a => { field := value }`.
+          if (!it.value) fail('agents := fun a => { field := value, ... }', it.span);
+          agentsUpdate = this.lambda(it.value!, inner);
         } else if (it.name === 'world') {
           const w = it.value;
           if (!w || w.t !== 'record' || !w.base) fail('world := { C.world with f := v, ... }', it.span);
           Object.assign(world, fieldsOf((w as { items: SRecordItem[] }).items, inner));
         } else {
-          fail(`an effect has \`world :=\` and \`raise flag :=\`, not ${it.name}`, it.span);
+          fail(`an effect has \`world :=\`, \`raise flag :=\` and \`agents :=\`, not ${it.name}`, it.span);
         }
       }
-      return this.mark({ e: 'effect', ...(Object.keys(world).length ? { world } : {}), ...(Object.keys(raise).length ? { raise } : {}) }, span);
+      return this.mark({
+        e: 'effect', ...(Object.keys(world).length ? { world } : {}), ...(Object.keys(raise).length ? { raise } : {}),
+        ...(agentsUpdate ? { agents: agentsUpdate } : {}),
+      }, span);
     }
     if (e.base) return this.mark({ e: 'with', on: this.tr(e.base, inner), fields: fieldsOf(e.items, inner) }, span);
     const fields = fieldsOf(e.items, inner);
@@ -938,14 +1060,27 @@ export class Elaborator {
         return e;
       }
     }
+    // `visible.length`, `otherStates.isEmpty`, `Line.window.length`: a builtin name, a sensor or a
+    // definition without parameters, followed by projections.
+    for (let n = parts.length - 1; n >= 1; n--) {
+      const head = parts.slice(0, n).join('.');
+      const g = this.globals.get(head);
+      if (BUILTIN_NAMES.has(head) || this.sensorNames.has(head) || (isObjectDef(g) && !g.params.length)) {
+        let e = this.name(head, span, ctx);
+        for (const f of parts.slice(n)) e = this.projection(e, f, [], span, ctx);
+        return e;
+      }
+    }
     if (full === 'none') return this.hole(null, span);
-    if (full === 'frames') return this.call('frames', [], span);
+    if (BUILTIN_NAMES.has(full)) return this.call(full, [], span);
+    // A sensor read by an algorithm, once per Look (a per-location sensor is applied to a location).
+    if (this.sensorNames.has(full)) return this.mark({ e: 'sense', sensor: full }, span);
     if (parts.length >= 2) {
       const enumName = parts.slice(0, -1).join('.');
-      const t = enumName === 'Move' ? T.move : enumName === 'Verdict' ? T.verdict : this.enums.get(enumName);
+      const t = enumName === 'Verdict' ? T.verdict : this.enums.get(enumName);
       if (t) {
         const ctor = parts[parts.length - 1];
-        const ctors = t.k === 'enum' ? t.ctors : t.k === 'move' ? ['stay', 'cw', 'ccw'] : ['success', 'failure', 'inProgress'];
+        const ctors = t.k === 'enum' ? t.ctors : ['success', 'failure', 'inProgress'];
         if (!ctors.includes(ctor)) fail(`${ctor} is not a constructor of ${enumName}`, span);
         return this.lit(t, ctor, span);
       }
@@ -968,11 +1103,24 @@ export class Elaborator {
       case 'length': case 'card': noArgs(); return this.call('length', [on], span);
       case 'isEmpty': case 'sum': case 'isSome': case 'isNone': case 'toMultiset': case 'toList': case 'dedup':
         noArgs(); return this.call(field, [on], span);
-      case 'opposite': noArgs(); return this.call('opposite', [on], span);
-      case 'size': case 'nodes': case 'agents':
+      case 'toNat': noArgs(); return this.call('toNat', [on], span);
+      case 'agents':
         // On the configuration (always `C` in IR): builtins.
         if (on.e === 'var' && on.name === 'C') { noArgs(); return this.call(field, [on], span); }
         break;
+      case 'positions':
+        if (on.e === 'var' && on.name === 'C') { noArgs(); return this.call('positions', [], span); }
+        break;
+      case 'size': case 'nodes':
+        if (on.e === 'var' && on.name === 'C') fail(`C.${field} is gone: use C.positions (finite spaces)`, span);
+        break;
+      case 'resolve': case 'follow': case 'occupants': case 'position': case 'edgePresent': {
+        // `C.resolve a i`, `C.follow a i k`; in sensors, `L.occupants l`, `L.position l`, `L.edgePresent a b`.
+        const arity = ({ resolve: 2, follow: 3, occupants: 1, position: 1, edgePresent: 2 } as Record<string, number>)[field];
+        if (!args.length) break;
+        if (rest.length !== arity) fail(`${field} takes ${arity} argument(s)`, span);
+        return this.call(field, [on, ...rest], span);
+      }
       case 'filter': case 'map': case 'any': case 'all': case 'count': case 'getD': case 'diff': case 'at':
         if (rest.length !== 1) fail(`${field} takes one argument`, span);
         return this.call(field, [on, ...rest], span);
@@ -1002,6 +1150,10 @@ export class Elaborator {
         const recv = this.name(parts.slice(0, -1).join('.'), e.fn.span, ctx);
         return this.projection(recv, parts[parts.length - 1], e.args, span, ctx);
       }
+      if (this.sensorNames.has(name) && ctx.scope.get(name) === undefined) {
+        if (e.args.length !== 1) fail(`${name} is read at one location: ${name} l`, span);
+        return this.mark({ e: 'sense', sensor: name, loc: this.tr(e.args[0].value, ctx) }, span);
+      }
       if (BUILTIN_FUNCTIONS.has(name)) {
         const fnArgs = FUNCTION_ARGS[name] ?? [];
         const args = e.args.map((a, i) => fnArgs.includes(i) ? this.lambda(a.value, ctx) : this.tr(a.value, ctx));
@@ -1022,9 +1174,10 @@ export class Elaborator {
   }
 }
 
+/** Binders bound by the semantics: the configuration of a task, the Look and location of a sensor. */
 function runtimeBinder(t: SType): string | undefined {
   if (t.t !== 'name') return undefined;
-  return ({ Config: 'C', Agent: 'me', Frame: 'frame' } as Record<string, string>)[t.name];
+  return ({ Config: 'C', Look: 'L', Loc: 'l' } as Record<string, string>)[t.name];
 }
 
 function flatten(e: SExpr, op: string): SExpr[] {

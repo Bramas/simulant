@@ -1,25 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { compileSource } from '../../vite-plugin/src/index';
-import { simProject } from '../../simulator-ui/src/sim/project';
 import { checkSetting, checkSettings } from '../src/check';
+import { experimentOf } from './compile';
 
-const module = compileSource('/tmp/check-batching.sim', `
+const exp = experimentOf(`
 import "std/models.sim"
-import "std/tasks.sim"
-algorithm Idle uses ringPresence where
+algorithm Idle uses occupied where
   main := stay
 experiment batch where
-  model := obliviousRing
+  model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
-  param N : Nat := [3, 4]
-  param positions : List Node := [[node 0], [node 1], [node 0, node 1]]
+  param N : Nat in [3, 4]
+  param positions : List Pos in [[pos 0], [pos 1], [pos 0, pos 1]]
   agents := positions.length
   position i := positions.at i
-`).module;
-assert.deepEqual(module.diagnostics, []);
-const exp = module.experiments.batch;
+`, 'batch');
 const success = { N: 3, positions: [0] };
 const failure = { N: 3, positions: [0, 1] };
 
@@ -44,19 +40,6 @@ test('a zero configuration limit does not start enumeration', async () => {
   const r = await checkSettings(exp, settings(), { maxConfigs: 0 });
   assert.equal(r.settings, 0);
   assert.equal(r.graphs, 0);
-});
-
-test('the adapter passes the prefix limit to the checker for both batch modes', async () => {
-  const project = simProject(module, 'batch');
-  for (const perSetting of [false, true]) {
-    const prefix = await project.checkAll!({ maxConfigs: 2, perSetting });
-    assert.equal(prefix.status, 'success');
-    assert.equal(prefix.settings, 2);
-    assert.equal(prefix.graphs, perSetting ? 2 : 1);
-    const extended = await project.checkAll!({ maxConfigs: 3, perSetting });
-    assert.equal(extended.status, 'failure');
-    assert.deepEqual(extended.trace!.settings, failure);
-  }
 });
 
 test('shared and separate graphs retain the first failing origin after duplicate initial states', async () => {

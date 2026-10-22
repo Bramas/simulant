@@ -12,7 +12,8 @@ import type { EditorField, EditorSchema } from '@bramas/simulant-core/types/edit
 import type { AlgorithmSource, CheckOptions, ModelDescription, ProjectType, ProjectUpdate } from '@bramas/simulant-core/types/project';
 import { formatDiagnostic, type SimDiagnostic, type SimLean } from '@bramas/simulant-vite-plugin/module';
 import { isRenderer } from '../renderers/define';
-import { agentColor, drawRing, ringLayout } from '../renderers/ring';
+import { agentColor } from '../renderers/marks';
+import { drawSpace, spaceLayout } from '../renderers/space';
 import { describeExperiment } from './describe';
 import { simExecution } from './execution';
 import { Snapshot } from './snapshot';
@@ -32,7 +33,7 @@ export type SimSources = {
 };
 
 export type SimProjectOptions = {
-  /** A custom renderer; by default, `drawRing`. Returning its layout gives hit testing. */
+  /** A custom renderer; by default, `drawSpace` (cycle, line or graph). Returning its layout gives hit testing. */
   draw?: DrawFunction;
   /** How the algorithm view names agents (default `a<id>`). */
   agentName?: (id: number) => string;
@@ -62,7 +63,7 @@ export function renameSettings(settings: any, aliases: Record<string, string> = 
 /** Settings from the editor (or a URL) to parameter values of the right types. */
 function coerce(value: unknown, t: Type): unknown {
   switch (t.k) {
-    case 'nat': case 'int': case 'node': return typeof value === 'string' ? Number(value) : value;
+    case 'nat': case 'int': case 'pos': return typeof value === 'string' ? Number(value) : value;
     case 'bool': return value === true || value === 'true';
     case 'list': case 'multiset': case 'record': case 'option': return typeof value === 'string' ? JSON.parse(value) : value;
     default: return value;
@@ -78,8 +79,9 @@ function fits(value: unknown, t: Type): boolean {
     return false;
   }
   switch (t.k) {
-    case 'nat': case 'node': return Number.isInteger(v) && (v as number) >= 0;
-    case 'int': return Number.isInteger(v);
+    case 'nat': return Number.isInteger(v) && (v as number) >= 0;
+    // A position is its vertex: a number on cycles, lines and stars.
+    case 'int': case 'pos': return Number.isInteger(v);
     case 'bool': return typeof value === 'boolean' || value === 'true' || value === 'false';
     case 'enum': return t.ctors.includes(v as string);
     case 'string': return typeof v === 'string';
@@ -119,7 +121,7 @@ export function adjustSettings(exp: Experiment, settings: Record<string, unknown
 
 function field(name: string, t: Type, value: unknown): EditorField {
   switch (t.k) {
-    case 'nat': case 'int': case 'node': return { type: 'number', key: name, label: name, defaultValue: Number(value ?? 0), ...(t.k === 'int' ? {} : { min: 0 }) };
+    case 'nat': case 'int': case 'pos': return { type: 'number', key: name, label: name, defaultValue: Number(value ?? 0), ...(t.k === 'nat' ? { min: 0 } : {}) };
     case 'bool': return { type: 'boolean', key: name, label: name, defaultValue: !!value };
     case 'enum': return { type: 'select', key: name, label: name, defaultValue: String(value ?? t.ctors[0]), options: t.ctors.map(c => ({ value: c, label: c })) };
     default: return { type: 'text', key: name, label: `${name} (JSON)`, defaultValue: JSON.stringify(value ?? null) };
@@ -147,7 +149,7 @@ export function algorithmSource(exp: Experiment, sources: Record<string, string>
 }
 
 export function simProject(module: SimSources, experiment: string, opts: SimProjectOptions = {}): ProjectType<any, any> {
-  const draw = opts.draw ?? drawRing;
+  const draw = opts.draw ?? drawSpace;
   const defaultsOf = (exp: Experiment) => Object.fromEntries(exp.params
     .filter(p => opts.defaults && p.name in opts.defaults)
     .map(p => [p.name, coerce(opts.defaults![p.name], p.type)]));
@@ -267,7 +269,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
     return {
       system, params,
       info: {
-        experiment, algorithm: exp.algorithm.name, size: system.topo.size, params,
+        experiment, algorithm: exp.algorithm.name, size: system.space.vertices?.length ?? 0, space: system.space.name, params,
         components: exp.model.components.map(c => c.name),
       },
     };
@@ -319,12 +321,14 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
       }
     },
     getAgentsRenderInfo: (snapshot: Snapshot, _model: SimModel, centerX: number, centerY: number, radius: number) =>
-      opts.draw ? layouts.get(snapshot)?.agents ?? [] : ringLayout(snapshot, { centerX, centerY, radius }).agents,
+      opts.draw ? layouts.get(snapshot)?.agents ?? [] : spaceLayout(snapshot, { centerX, centerY, radius }).agents,
+    // Each vertex of a finite space in order (`.` when empty); the occupied positions of an infinite one.
     debugConfig: (snapshot: Snapshot) => {
-      const nodes = Array.from({ length: snapshot.size }, (_, n) => {
-        const here = snapshot.get(n).agents.map(a => `${a.id}${a.correct ? '' : '!'}`);
-        return here.length ? here.join(',') : '.';
-      });
+      const here = (v: unknown) => snapshot.get(v).agents.map(a => `${a.id}${a.correct ? '' : '!'}`).join(',');
+      const { vertices } = snapshot.system.space;
+      const nodes = vertices
+        ? vertices.map(v => here(v) || '.')
+        : [...new Set(snapshot.agents.map(a => a.pos as number))].sort((a, b) => a - b).map(v => `${v}:${here(v)}`);
       return `${nodes.join('|')} ${JSON.stringify(snapshot.world)}`;
     },
     // The current UI stops at `success` and `failure`. Only under the goal `eventually` is a

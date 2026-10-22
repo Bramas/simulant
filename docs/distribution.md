@@ -60,7 +60,7 @@ original TypeScript. The UI retains Solid JSX for Vite's Solid plugin.
 
 ## Preparing and validating archives
 
-Prepare the next version from the repository root:
+Prepare the next version from the repository root. Changes that break projects are described in the [release notes](release-notes.md); the next release is breaking, so it is a minor version while the packages are `0.x`.
 
 ```sh
 pnpm release:version patch --dry-run

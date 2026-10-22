@@ -1,53 +1,51 @@
 /-! Algorithm 4 of the black-hole-search paper (Three-Agent EBS Solution with quadratic
 complexity): a₁ and a₃ explore further and further on both sides of a₂ (the limit `rl`), until
-they meet, which tells them the ring size. Migrated from `src/simulations/algo4.ts` (plan,
-Phase 7), whose behaviour it follows: the limit stops growing once an agent learns the size
-(`foundN`), and a claim is a direction and a distance (`bhDir`, `bhSteps`): a₂ may locate the
-hole two nodes away. -/
+they meet, which tells them the size of the cycle. The limit stops growing once an agent
+learns the size (`foundN`), and a claim is a port and a distance (`bhPort`, `bhSteps`): a₂ may
+locate the hole two nodes away. -/
 
 import "std/models.sim"
-import "std/tasks.sim"
 
 algorithm ThreeAgentQuadratic uses otherStates where
-  Pub := { id : Nat, foundN : Bool, bhDir : Option Move, bhSteps : Nat }
-  output claimDir := pub.bhDir
+  Pub := { id : Nat, foundN : Bool, bhPort : Option Nat, bhSteps : Nat }
+  output claimPort := pub.bhPort
   output claimSteps := pub.bhSteps
-  init i := { pub := { id := i, foundN := false, bhDir := none, bhSteps := 0 } }
+  init i := { pub := { id := i, foundN := false, bhPort := none, bhSteps := 0 } }
 
   /-- The leader's side of the cautious walk. -/
-  def lead (dir : Move) :=
+  def lead (dir : Nat) :=
     repeat
-      move dir
-      move dir.opposite
-      move dir
+      move (port dir)
+      move (port (Port.opposite dir))
+      move (port dir)
 
   /-- The follower's side: wait for the leader to come back, or declare the hole. -/
-  def follow (leader : Nat) (dir : Move) :=
+  def follow (leader : Nat) (dir : Nat) :=
     repeat
       stay
       stay
       if !(otherStates.any (·.id = leader)) then
-        pub := { pub with bhDir := some dir, bhSteps := 1 }
+        pub := { pub with bhPort := some dir, bhSteps := 1 }
         halt
-      move dir
+      move (port dir)
 
   main :=
     let rl : Nat := 1
     let k : Nat := 0
     if pub.id = 0 then
-      move .ccw
+      move Ring.ccw
       repeat
         if !otherStates.isEmpty then
-          lead .ccw
-        move .ccw
+          lead Port.ccw
+        move Ring.ccw
         wait rl - 1
         if !otherStates.isEmpty then
           pub := { pub with foundN := true }
         wait rl - 1
-        move .cw
+        move Ring.cw
         stay
         if otherStates.isEmpty then
-          pub := { pub with bhDir := some .cw, bhSteps := 1 }
+          pub := { pub with bhPort := some Port.cw, bhSteps := 1 }
           halt
         stay
         stay
@@ -57,28 +55,28 @@ algorithm ThreeAgentQuadratic uses otherStates where
       stay
       repeat
         wait 2 * rl
-        move .ccw
+        move Ring.ccw
         if otherStates.isEmpty then
           -- After the next move, the hole is two nodes counterclockwise.
-          pub := { pub with bhDir := some .ccw, bhSteps := 2 }
-          move .cw
+          pub := { pub with bhPort := some Port.ccw, bhSteps := 2 }
+          move Ring.cw
           halt
         if otherStates.any (·.foundN) then
           pub := { pub with foundN := true }
-        move .cw
+        move Ring.cw
         if otherStates.isEmpty then
-          move .ccw
-          follow 0 .ccw
+          move Ring.ccw
+          follow 0 Port.ccw
         stay
         if !pub.foundN then
           rl := rl + 1
     else
-      move .cw
+      move Ring.cw
       repeat
         k := 0
         while k + 1 < rl
           k := k + 1
-          move .cw
+          move Ring.cw
         stay
         if !otherStates.isEmpty then
           pub := { pub with foundN := true }
@@ -86,28 +84,29 @@ algorithm ThreeAgentQuadratic uses otherStates where
         k := 0
         while k < rl
           k := k + 1
-          move .ccw
+          move Ring.ccw
         stay
         if otherStates.isEmpty then
-          pub := { pub with bhDir := some .ccw, bhSteps := 1 }
+          pub := { pub with bhPort := some Port.ccw, bhSteps := 1 }
           halt
-        if otherStates.any (·.bhDir.isSome) then
-          -- Adopt the claim of an agent here (it is on the same node, so it holds for me too); if
-          -- several differ, the counterclockwise one first, then the farthest, whatever their order.
-          let ccw := otherStates.any (·.bhDir = some .ccw)
-          let far := otherStates.any (fun o => o.bhDir = some .ccw ∧ o.bhSteps = 2)
-          pub := { pub with bhDir := some (if ccw then Move.ccw else Move.cw), bhSteps := if far then 2 else 1 }
+        if otherStates.any (·.bhPort.isSome) then
+          -- Adopt the claim of an agent here (it is on the same node and ports are common, so it
+          -- holds for me too); if several differ, the counterclockwise one first, then the
+          -- farthest, whatever their order.
+          let ccw := otherStates.any (·.bhPort = some Port.ccw)
+          let far := otherStates.any (fun o => o.bhPort = some Port.ccw ∧ o.bhSteps = 2)
+          pub := { pub with bhPort := some (if ccw then Port.ccw else Port.cw), bhSteps := if far then 2 else 1 }
           halt
-        move .cw
+        move Ring.cw
         if !pub.foundN then
           rl := rl + 1
 
-/-- The settings of the paper's checks: rings of 5 to 12 nodes, the hole anywhere. -/
+/-- The settings of the paper's checks: cycles of 5 to 12 nodes, the hole anywhere. -/
 experiment algo4 where
-  model := blackHoleRing .mayEmerge .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := ThreeAgentQuadratic
   task := IdentifyEmergingBlackHoleAt
-  param N : Nat := (range 13).filter (· ≥ 5)
-  param site : Node := (range N).map node
+  param N : Nat in (range 13).filter (· ≥ 5)
+  param site : Pos in positions
   agents := 3
-  position i := node 0
+  position i := pos 0

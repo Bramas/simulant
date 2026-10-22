@@ -15,7 +15,8 @@ export const draw = defineRenderer<Snapshot>('starter/cautiousPair', (ctx, snaps
   for (const agent of snapshot.agents) {
     if (agent.pub.bh === null) continue;
     const { x, y } = layout.agents[agent.index].position;
-    ctx.fillText(agent.pub.bh === 'cw' ? 'hole: cw' : 'hole: ccw', x, y - 12);
+    // The claim is a port: port 0 is clockwise (the agents share the cycle's orientation).
+    ctx.fillText(agent.pub.bh === 0 ? 'hole: cw' : 'hole: ccw', x, y - 12);
   }
   return layout;
 });

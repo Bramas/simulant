@@ -149,7 +149,7 @@ test('Chromium browser acceptance', { timeout: 180_000 }, async t => {
     const beforeError = errors.length;
     await page.getByLabel('N', { exact: true }).fill('1');
     await warning.waitFor();
-    assert.match(await warning.innerText(), /a ring needs at least 2 nodes/);
+    assert.match(await warning.innerText(), /vertex 0 is its own neighbor/);
     assert.equal(await page.getByRole('alert').count(), 1);
     assert.equal(await page.locator('.sim-settings-warning').count(), 0);
     assert.equal(await page.getByRole('button', { name: 'Next step', exact: true }).isDisabled(), true);
@@ -361,7 +361,7 @@ test('stand-up main algorithms open rule guards and highlight their actions', { 
     await page.waitForFunction(() => document.querySelector('.sim-round-value')?.textContent === '1');
     const highlighted = page.locator('.algorithm-body .algorithm-line.highlighted');
     await highlighted.first().waitFor();
-    for (const line of await highlighted.allTextContents()) assert.match(line, /move \.|stay/);
+    for (const line of await highlighted.allTextContents()) assert.match(line, /move |stay/);
   }
   assert.deepEqual(errors, []);
 });

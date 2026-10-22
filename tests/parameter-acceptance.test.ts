@@ -5,19 +5,17 @@ import { parameterDefaults, parameterDomainViolations, parameterValues } from '@
 
 const source = `
 import "std/models.sim"
-import "std/tasks.sim"
 algorithm Idle where
-  init i := {}
-  step mem pub view := { move := .stay }
+  main := stay
 experiment generalDomain where
-  model := obliviousRing
+  model := robots (Graphs.Cycle N) (Observe.radius phi) Frames.identity [occupied]
   algorithm := Idle
   task := Gathering
   param N : Nat where N ≥ 3
   param positions : List Nat where positions.length ≥ 2 ∧ positions.dedup.length % 2 = 1
   param phi : Nat where phi ≥ 1 ∧ phi < N
   agents := positions.length
-  position i := node (positions.at i)
+  position i := pos (positions.at i)
 `;
 const file = new URL('../parameter-acceptance.sim', import.meta.url).pathname;
 const out = compileSource(file, source).module;
@@ -47,15 +45,10 @@ test('finite domains stay exact with where refinements; enumeration and warnings
   ]);
   assert.deepEqual(parameterDomainViolations(finite, { N: 20, positions: [1, 4, 8], phi: 12 }), ['N', 'positions', 'phi']);
   for (const setting of parameterValues(finite)) assert.deepEqual(parameterDomainViolations(finite, setting), []);
-  // The original spelling is still an exact finite domain, including when refined.
-  const legacy = compileSource(file, finiteSource.replaceAll(' in ', ' := ')).module;
-  assert.deepEqual(legacy.diagnostics, []);
-  assert.deepEqual([...parameterValues(legacy.experiments.generalDomain)], [...parameterValues(finite)]);
-  assert.deepEqual(parameterDomainViolations(legacy.experiments.generalDomain, { N: 20, positions: [1, 4, 8], phi: 12 }), ['N', 'positions', 'phi']);
 });
 
-test('the current size is available to topology-aware domain predicates', () => {
-  const module = compileSource(file, finiteSource.replace('N ≥ 3', 'N ≥ 3 ∧ node N = node 0')).module;
+test('the space of the current setting is available to domain predicates', () => {
+  const module = compileSource(file, finiteSource.replace('N ≥ 3', 'N ≥ 3 ∧ pos (N - 1) ≠ pos 0')).module;
   assert.deepEqual(module.diagnostics, []);
   assert.equal([...parameterValues(module.experiments.generalDomain)].length, 4);
 });
@@ -77,13 +70,13 @@ test('complex or unsatisfied predicates fall back to editable typed values', () 
   assert.deepEqual(parameterDefaults(hard), { N: 0, positions: [], phi: 0 });
 });
 
-test('default searches only use nodes of the selected topology', () => {
-  const nodeSource = source.replace('param positions : List Nat', 'param site : Node where site ≠ node 0\n  param positions : List Nat');
+test('default searches only use positions of the selected space', () => {
+  const nodeSource = source.replace('param positions : List Nat', 'param site : Pos where site ≠ pos 0\n  param positions : List Nat');
   const module = compileSource(file, nodeSource).module;
   assert.deepEqual(module.diagnostics, []);
   assert.deepEqual(parameterDefaults(module.experiments.generalDomain, { positions: [0, 0] }), { N: 3, site: 1, positions: [0, 0], phi: 1 });
-  const emptyNodeDomain = compileSource(file, nodeSource.replace('site ≠ node 0', 'site ≠ node 0 ∧ site ≠ node 1 ∧ site ≠ node 2')).module.experiments.generalDomain;
-  // The fixed three-node topology has no matching node, so use the editable fallback.
+  const emptyNodeDomain = compileSource(file, nodeSource.replace('site ≠ pos 0', 'site ≠ pos 0 ∧ site ≠ pos 1 ∧ site ≠ pos 2')).module.experiments.generalDomain;
+  // The three-vertex cycle has no matching position, so use the editable fallback.
   assert.equal(parameterDefaults(emptyNodeDomain, { N: 3, positions: [0, 0] }).site, 0);
 });
 

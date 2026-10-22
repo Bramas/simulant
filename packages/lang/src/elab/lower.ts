@@ -1,7 +1,7 @@
 /**
  * Lowering of structured algorithms to state machines (plan, Section 3.8).
  *
- * `move d`, `stay` and `halt` end the activation. Every one of them is a
+ * `move l` (to a location of the Look), `stay` (to `here`) and `halt` end the activation. Every one of them is a
  * resume point: the program counter records where the agent resumes, and
  * the step function, for each value of the program counter, runs the code
  * from there to the next `move`, `stay` or `halt`. Procedures are inlined
@@ -68,19 +68,21 @@ type Frame = { rest: IStmt[]; loop?: IStmt };
 function isConstant(e: SExpr): boolean {
   switch (e.t) {
     case 'num': case 'str': case 'bool': case 'ctor': case 'unit': return true;
-    case 'name': return /^[A-Z]\w*\.\w+$/.test(e.name);        // Move.cw
+    case 'name': return /^[A-Z]\w*\.\w+$/.test(e.name);        // HolePolicy.none, Port.cw
     case 'list': return e.items.every(isConstant);
     case 'unop': return e.op === '-' && e.e.t === 'num';
     default: return false;
   }
 }
 
+/** `stay`: a move to the agent's own location (a fresh node: spans are found by identity). */
+const HERE = (): Expr => ({ e: 'call', fn: 'here', args: [] });
+
 export function lower(
-  name: string, procs: Map<string, Procedure>, main: SStmt[], sensors: string[], oblivious: boolean, host: LowerHost,
+  name: string, procs: Map<string, Procedure>, main: SStmt[], oblivious: boolean, host: LowerHost,
 ): Lowered {
   const locals = new Map<string, { type?: Type; span: Span }>();
   let fresh = 0;
-  const sensorConsts = new Map<string, Expr>(sensors.map(s => [s, { e: 'get', on: { e: 'var', name: 'view' }, field: s } as Expr]));
 
   // 1. Inlining
   let waitLocal: string | undefined;
@@ -132,7 +134,7 @@ export function lower(
         p.params.forEach((param, i) => {
           const arg = s.args[i];
           if (isConstant(arg)) {
-            callee.consts.set(param.name, host.tr(arg, new Map(), sensorConsts));
+            callee.consts.set(param.name, host.tr(arg, new Map(), new Map()));
           } else {
             const local = `${param.name}_${fresh++}`;
             locals.set(local, { type: host.type(param.type), span: param.span });
@@ -210,12 +212,12 @@ export function lower(
     }
     return scope;
   };
-  const tr = (e: SExpr, env: Env, st: State) => host.tr(e, scopeOf(env, st), new Map([...sensorConsts, ...env.consts]));
+  const tr = (e: SExpr, env: Env, st: State) => host.tr(e, scopeOf(env, st), env.consts);
 
   const run = (cont: Frame[], st: State, seen: Set<IStmt>): Expr => {
     if (!cont.length) {
       // End of `main`: nothing more this activation; start again at the next one.
-      return decision({ e: 'lit', type: T.move, value: 'stay' }, 'start', st, program[0]?.span ?? main[0]?.span, {}, [], null);
+      return decision(HERE(), 'start', st, program[0]?.span ?? main[0]?.span, {}, [], null);
     }
     const [frame, ...outer] = cont;
     if (!frame.rest.length) return run(frame.loop ? [{ rest: [frame.loop] }, ...outer] : outer, st, seen);
@@ -223,7 +225,7 @@ export function lower(
     const next: Frame[] = [{ rest, loop: frame.loop }, ...outer];
     switch (s.k) {
       case 'move': case 'stay': {
-        const move = s.k === 'move' ? tr(s.dir, s.env, st) : { e: 'lit', type: T.move, value: 'stay' } as Expr;
+        const move = s.k === 'move' ? tr(s.dir, s.env, st) : HERE();
         let pc = 'start';
         if (!ended(next)) {
           let r = resumes.get(s);
@@ -241,7 +243,7 @@ export function lower(
         if (oblivious) host.fail(`${name}: in an oblivious model, an algorithm cannot halt (it would need memory)`, s.span);
         let pc = halts.get(s);
         if (!pc) { pc = pcName('halt', s.span.start.line); halts.set(s, pc); }
-        return decision({ e: 'lit', type: T.move, value: 'stay' }, pc, st, s.span, actionsOf(s, st));
+        return decision(HERE(), pc, st, s.span, actionsOf(s, st));
       }
       case 'set': {
         const value = tr(s.value, s.env, st);
@@ -322,7 +324,7 @@ export function lower(
     ({ e: 'let', name: `${l.name}_m`, value: { e: 'get', on: { e: 'var', name: 'mem' }, field: l.name }, body: acc }), body);
   const cases: Record<string, Expr> = { start: withLocals(run([{ rest: program }], atResume(), new Set())) };
   for (let i = 0; i < order.length; i++) cases[order[i].pc] = withLocals(run(order[i].cont, atResume(), new Set()));
-  for (const [s, pc] of halts) cases[pc] = withLocals(decision({ e: 'lit', type: T.move, value: 'stay' }, pc, atResume(), s.span));
+  for (const [s, pc] of halts) cases[pc] = withLocals(decision(HERE(), pc, atResume(), s.span));
 
   const pcs = Object.keys(cases);
   const lines: Record<string, number> = { start: (program[0] ?? main[0])?.span.start.line ?? 1 };
@@ -403,13 +405,13 @@ function mapExprs(e: Expr, f: (x: Expr) => Expr): Expr {
 function defaultValue(t: Type, host: LowerHost, span: Span): Json {
   switch (t.k) {
     case 'nat': case 'int': return 0;
-    case 'bool': case 'frame': return false;
+    case 'bool': return false;
     case 'string': return '';
     case 'unit': case 'option': return null;
     case 'list': case 'multiset': return [];
-    case 'move': return 'stay';
     case 'enum': return t.ctors[0];
     case 'record': return Object.fromEntries(t.fields.map(f => [f.name, defaultValue(f.type, host, span)]));
+    case 'loc': return host.fail('a location is valid for one activation and cannot be kept across a move: keep a port index (Nat) instead', span);
     default: return host.fail(`a local of type ${t.k} cannot be kept in memory`, span);
   }
 }

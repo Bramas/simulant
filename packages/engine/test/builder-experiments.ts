@@ -4,57 +4,70 @@
  * graphs, which checks that the builder's standard library and the `.sim`
  * one agree.
  */
-import { algorithm, experiment, ite, lit, model, move, node, param, range, subsets, unit, some } from '@bramas/simulant-lang/builder';
-import type { Algorithm, Experiment, Model, Task } from '@bramas/simulant-lang/ir';
+import { dynamic, experiment, frames, full, param, pos, radius } from '@bramas/simulant-lang/builder';
+import type { Algorithm, Experiment, Model, Task, Type } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
 import {
-  blackHoleRing, colorView, DynamicRing, Exploration, Faults, Gathering, Monitors, obliviousRing, otherStatesLossy, Ring, ringCount, Storage, Vision,
+  blackHoleRobots, colors, count, Cycle, Dispersion, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
+  robots, Star, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
-  AlwaysClockwise, cautiousPairExperiment, EveryoneActivated, MarkActivated, NearestNeighbour, Observe, PebbleTest,
+  AlwaysClockwise, cautiousPairExperiment, CycleLight, Disperse, EveryoneActivated, MarkActivated, NearestNeighbour, Observe,
+  PebbleTest, ToHub,
 } from '../../stdlib/test/helpers/examples';
 
-function robots(m: Model, algorithm: Algorithm, task: Task): Experiment {
+/** Agents at the positions of the parameter `positions` (a list of positions). */
+function placed(m: Model, algorithm: Algorithm, task: Task, extra: { name: string; type: Type }[] = []): Experiment {
   return experiment({
     name: `${algorithm.name} on ${m.name}`, model: m, algorithm, task,
-    params: [
-      { name: 'N', type: T.nat },
-      { name: 'positions', type: T.list(T.node), domain: subsets(range(param('N')).map(n => node(n))) },
-      { name: 'crashNode', type: T.node, domain: lit(T.list(T.node), [0]) },
-    ],
+    params: [{ name: 'N', type: T.nat }, { name: 'positions', type: T.list(T.pos) }, ...extra],
     agents: { count: param('positions').length(), pos: i => param('positions').at(i) },
   });
 }
 
+const onCycle = (round: Model['round']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [], round });
+const exploring = (f: Model['frames'], space = Cycle()) =>
+  robots({ space, observation: radius(1), frames: f, views: [count], components: [Monitors.Visited()] });
+const three = (name: string, m: Model, accepts?: boolean) => experiment({
+  name, model: m, algorithm: MarkActivated, task: EveryoneActivated,
+  params: [{ name: 'N', type: T.nat, ...(accepts ? { accepts: param('N').ge(3) } : {}) }], agents: { count: 3, pos: i => pos(i) },
+});
+
 /** By fixture file. */
 export const builderExperiments: Record<string, Experiment> = {
-  'black-hole-emerging': cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown' })),
-  'black-hole-crash-stop': cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
-  'black-hole-lossy': cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),
+  'black-hole-emerging': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
+  'black-hole-crash-stop': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
+  'black-hole-lossy': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),
+  'two-node-cycle': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
   pebbles: experiment({
-    name: 'pebbles', model: blackHoleRing({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
-    params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.node }], agents: { count: 2, pos: () => node(0) },
+    name: 'pebbles', model: blackHoleRobots({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
+    params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.pos }], agents: { count: 2, pos: () => pos(0) },
   }),
-  'gathering-with-crash': robots(obliviousRing({ components: [Faults.CrashAtNode()] }), NearestNeighbour, Gathering),
-  'dynamic-ring': robots(obliviousRing({ topology: DynamicRing(1), sensor: ringCount, frame: { kind: 'common' }, components: [Monitors.Visited()] }), AlwaysClockwise, Exploration),
-  ssync: experiment({
-    name: 'ssync', model: model({ name: 'ssync', topology: Ring(), sensors: [], round: 'ssync' }), algorithm: MarkActivated, task: EveryoneActivated,
-    params: [{ name: 'N', type: T.nat }], agents: { count: 3, pos: i => node(i) },
-  }),
-  'parameter-acceptance': experiment({
-    name: 'parameterAcceptance', model: model({ name: 'sequential', topology: Ring(), sensors: [], round: 'sequential' }), algorithm: MarkActivated, task: EveryoneActivated,
-    params: [{ name: 'N', type: T.nat, accepts: param('N').ge(3) }], agents: { count: 3, pos: i => node(i) },
-  }),
+  'gathering-with-crash': placed(
+    robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, views: [occupied], components: [Faults.CrashAt()] }),
+    NearestNeighbour, Gathering, [{ name: 'crashNode', type: T.pos }]),
+  'dynamic-ring': placed(exploring(frames.identity, dynamic(Cycle(), 1)), AlwaysClockwise, Exploration),
+  'own-orientation': placed(exploring(frames.portPermutations('perRobot')), AlwaysClockwise, Exploration),
+  'port-permutations': placed(exploring(frames.portPermutations('perLook', 'symmetries')), AlwaysClockwise, Exploration),
+  ssync: three('ssync', onCycle('ssync')),
+  sequential: three('sequential', onCycle('sequential')),
+  'parameter-acceptance': three('parameterAcceptance', onCycle('sequential'), true),
   lights: experiment({
-    name: 'lights', model: obliviousRing({ sensor: colorView, components: [Vision.Radius(), Storage.Lights(3), Faults.CrashAtNode()] }),
-    algorithm: algorithm({ name: 'CycleLight', pub: T.unit, uses: ['colorView'], init: { pub: () => unit() }, step: ({ view }) => ({
-      move: move('cw'), light: some(view.colorView.at(view.colorView.length().div(2)).sum().add(1).mod(3)),
-    }) }), task: Observe,
-    params: [{ name: 'N', type: T.nat }, { name: 'positions', type: T.list(T.node) }, { name: 'phi', type: T.nat }, { name: 'crashNode', type: T.node }],
-    agents: { count: param('positions').length(), pos: i => param('positions').at(i) },
+    name: 'lights',
+    model: robots({ space: Line(), observation: radius(param('phi')), frames: frames.isomorphisms, views: [colors], components: [Storage.Lights(3), Faults.CrashAt()] }),
+    algorithm: CycleLight, task: Observe,
+    params: [{ name: 'positions', type: T.list(T.int) }, { name: 'phi', type: T.nat }, { name: 'crashNode', type: T.pos }],
+    agents: { count: param('positions').length(), pos: i => pos(param('positions').at(i)) },
   }),
-  sequential: experiment({
-    name: 'sequential', model: model({ name: 'sequential', topology: Ring(), sensors: [], round: 'sequential' }), algorithm: MarkActivated, task: EveryoneActivated,
-    params: [{ name: 'N', type: T.nat }], agents: { count: 3, pos: i => node(i) },
+  'star-gathering': experiment({
+    name: 'starGathering', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, views: [occupied] }),
+    algorithm: ToHub, task: Gathering,
+    params: [{ name: 'k', type: T.nat }, { name: 'start', type: T.list(T.nat) }],
+    agents: { count: param('start').length(), pos: i => pos(param('start').at(i)) },
+  }),
+  'star-dispersion': experiment({
+    name: 'starDispersion', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, views: [count] }),
+    algorithm: Disperse, task: Dispersion,
+    params: [{ name: 'k', type: T.nat }], agents: { count: 3, pos: () => pos(0) },
   }),
 };

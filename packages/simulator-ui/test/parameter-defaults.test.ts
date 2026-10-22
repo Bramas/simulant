@@ -6,18 +6,16 @@ import type { ProjectUpdate } from '../../core/src/types/project';
 
 const source = `
 import "std/models.sim"
-import "std/tasks.sim"
 algorithm Idle where
-  init i := {}
-  step mem pub view := { move := .stay }
+  main := stay
 experiment domains where
-  model := obliviousRing
+  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]
   algorithm := Idle
   task := Gathering
   param N : Nat where N ≥ 3
   param site : Nat where site ≥ 1 ∧ site < N
   agents := 2
-  position i := node 0
+  position i := pos 0
 `;
 const file = new URL('../../../parameter-defaults.sim', import.meta.url).pathname;
 const compile = (text = source) => {

@@ -1,11 +1,11 @@
 /**
- * The skeleton acceptance test of plan Phase 1: one model of each reference
- * family, built from shared library components, run by the engine.
+ * The acceptance test of the engine: models of each reference family, built from shared library
+ * components with the TypeScript builder, run by the engine.
  */
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import {
-  agents, algorithm, experiment, ite, lit, model, move, node, ofFn, offset, param, range, sensor, size, subsets, unit,
+  agents, dynamic, experiment, frames, full, ite, lit, param, pos, positions, radius, range, subsets, task, verdict,
 } from '@bramas/simulant-lang/builder';
 import type { Algorithm, Experiment, Model, Task } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
@@ -13,8 +13,7 @@ import { Explorer, explore, type Result } from '@bramas/simulant-engine/explorer
 import { equivarianceViolations, Symmetry } from '@bramas/simulant-engine/symmetry';
 import { parameterValues, System } from '@bramas/simulant-engine/system';
 import {
-  blackHoleRing, DynamicRing, Exploration, Faults, Gathering, Hazards,
-  Monitors, obliviousRing, otherStatesLossy, Ring, ringCount, Storage,
+  blackHoleRobots, count, Cycle, Exploration, Faults, Gathering, Hazards, Monitors, occupied, otherStatesLossy, robots, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
   AlwaysClockwise, cautiousPairExperiment, EveryoneActivated, MarkActivated, NearestNeighbour, Observe, PebbleTest,
@@ -22,14 +21,14 @@ import {
 
 const labels = (r: Result) => (r.counterexample?.steps ?? []).flatMap(s => s.witness.map(w => w.label));
 
-/** Robots at `param positions` (every set of at least one node), rings of size 3 to `maxN`. */
-function robots(m: Model, algorithm: Algorithm, task: Task, maxN = 5): Experiment {
+/** Robots at `param positions` (every set of at least one vertex), cycles of size 3 to `maxN`. */
+function placed(m: Model, algorithm: Algorithm, task: Task, maxN = 5): Experiment {
   return experiment({
     name: `${algorithm.name} on ${m.name}`, model: m, algorithm, task,
     params: [
       { name: 'N', type: T.nat, domain: range(maxN + 1).filter(n => n.ge(3)) },
-      { name: 'positions', type: T.list(T.node), domain: subsets(range(param('N')).map(n => node(n))).filter(s => s.length().ge(1)) },
-      { name: 'crashNode', type: T.node, domain: lit(T.list(T.node), [0]) },
+      { name: 'positions', type: T.list(T.pos), domain: subsets(range(param('N')).map(n => pos(n))).filter(s => s.length().ge(1)) },
+      { name: 'crashNode', type: T.pos, domain: lit(T.list(T.pos), [0]) },
     ],
     agents: { count: param('positions').length(), pos: i => param('positions').at(i) },
   });
@@ -39,30 +38,35 @@ function checkAll(exp: Experiment, opts = {}) {
   return [...parameterValues(exp)].map(params => ({ params, result: explore(new System(exp, params), opts) }));
 }
 
-describe('black-hole search: local view, persistent memory, common chirality', () => {
+const finiteGroup = (sys: System) => {
+  const g = sys.space.group();
+  if (g.kind !== 'finite') throw new Error('expected a finite group');
+  return g.elements;
+};
+
+describe('black-hole search: radius-1 views, persistent memory, chirality', () => {
   test('a hole present from the start is identified by the cautious pair', () => {
-    for (const { params, result } of checkAll(cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown' })))) {
+    for (const { params, result } of checkAll(cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' })))) {
       assert.equal(result.status, 'success', JSON.stringify(params));
     }
   });
 
   test('an emerging hole defeats it, and the hole activates in the counterexample', () => {
-    const result = explore(new System(cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown' })), { N: 5, site: 2 }));
+    const result = explore(new System(cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })), { N: 5, site: 2 }));
     assert.equal(result.status, 'failure');
     assert.ok(labels(result).includes('activates'));
   });
 
   test('a hole that never activates is a repeatable cycle that fails "eventually always success"', () => {
-    // Without the hole ever appearing, the waiter never declares it: a lasso on which the task never succeeds.
-    const result = explore(new System(cautiousPairExperiment(blackHoleRing({ policy: 'none', size: 'unknown' })), { N: 5, site: 2 }));
+    const result = explore(new System(cautiousPairExperiment(blackHoleRobots({ policy: 'none', size: 'unknown' })), { N: 5, site: 2 }));
     assert.equal(result.status, 'failure');
     assert.equal(result.counterexample?.kind, 'lasso');
   });
 
   test('crash-stop with no budget is the fault-free model; with a budget of 1 it defeats the pair', () => {
-    const base = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown' }));
-    const none = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(0)] }));
-    const one = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(1)] }));
+    const base = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
+    const none = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(0)] }));
+    const one = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(1)] }));
     const params = { N: 5, site: 3 };
     const r0 = explore(new System(base, params));
     const r1 = explore(new System(none, params));
@@ -74,9 +78,9 @@ describe('black-hole search: local view, persistent memory, common chirality', (
   });
 
   test('a lossy view with k = 0 is the exact view; with k = 1 the waiter can miss the leader', () => {
-    const exact = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown' }));
-    const lossy0 = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(0) }));
-    const lossy1 = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) }));
+    const exact = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
+    const lossy0 = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(0) }));
+    const lossy1 = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) }));
     const params = { N: 5, site: 3 };
     assert.equal(explore(new System(lossy0, params)).stats.states, explore(new System(exact, params)).stats.states);
     const r = explore(new System(lossy1, params));
@@ -84,18 +88,18 @@ describe('black-hole search: local view, persistent memory, common chirality', (
     assert.ok(labels(r).some(l => l.includes('hides')));
   });
 
-  test('knowing the ring size adds a sensor and changes nothing for an algorithm that does not use it', () => {
-    const unknown = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown' }));
-    const known = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'known' }));
+  test('knowing the size of the space adds a sensor and changes nothing for an algorithm that does not use it', () => {
+    const unknown = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
+    const known = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'known' }));
     assert.equal(explore(new System(known, { N: 6, site: 4 })).stats.states, explore(new System(unknown, { N: 6, site: 4 })).stats.states);
   });
 
   test('pebbles: an action read in beforeMove; two agents cannot pick up the same pebble', () => {
-    const m = blackHoleRing({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] });
+    const m = blackHoleRobots({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] });
     const exp = experiment({
       name: 'pebbles', model: m, algorithm: PebbleTest, task: Observe,
-      params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.node }],
-      agents: { count: 2, pos: () => node(0) },
+      params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.pos }],
+      agents: { count: 2, pos: () => pos(0) },
     });
     const sys = new System(exp, { N: 4, site: 2 });
     const [C0] = sys.initial().map(s => s.config);
@@ -106,15 +110,15 @@ describe('black-hole search: local view, persistent memory, common chirality', (
   });
 });
 
-describe('oblivious robots: full-ring presence, dynamic reflection, crash at a node', () => {
-  const exp = robots(obliviousRing({ components: [Faults.CrashAtNode()] }), NearestNeighbour, Gathering);
+describe('oblivious robots: full view, isomorphisms at each Look, crash at a position', () => {
+  const exp = placed(robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, views: [occupied], components: [Faults.CrashAt()] }), NearestNeighbour, Gathering);
 
-  test('the model is oblivious and the derived group has rotations and reflections', () => {
+  test('the derived group has the rotations and reflections of the cycle', () => {
     const sys = new System(exp, { N: 5, positions: [0, 2], crashNode: 0 });
-    assert.equal(new Symmetry(sys).group.length, 10);
+    assert.equal(new Symmetry(sys).size, 10);
   });
 
-  test('two robots at distance two gather; robots at the crash node may crash', () => {
+  test('two robots at distance two gather; robots at the crash position may crash', () => {
     const r = explore(new System(exp, { N: 5, positions: [0, 2], crashNode: 0 }));
     assert.equal(r.status, 'success', r.reason);
     const sys = new System(exp, { N: 5, positions: [0, 1], crashNode: 0 });
@@ -130,14 +134,14 @@ describe('oblivious robots: full-ring presence, dynamic reflection, crash at a n
     }
   });
 
-  test('symmetry reduction merges the rotated configurations of an instance', () => {
-    // Robots that keep moving clockwise only visit rotations of their initial configuration.
-    const rotating = robots(obliviousRing({ sensor: ringCount, frame: { kind: 'common' } }), AlwaysClockwise, Gathering);
+  test('with chirality, symmetry reduction merges the rotated configurations only', () => {
+    // Robots that keep moving through their port 0 only visit rotations of their initial configuration.
+    const rotating = placed(robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [count] }), AlwaysClockwise, Gathering);
     const params = { N: 5, positions: [0, 2], crashNode: 0 };
     const a = explore(new System(rotating, params));
     const b = explore(new System(rotating, params), { symmetry: false });
     assert.equal(a.status, b.status);
-    assert.equal(a.stats.group, 5); // rotations only: common chirality
+    assert.equal(a.stats.group, 5);
     assert.deepEqual([a.stats.states, b.stats.states], [1, 5]);
   });
 
@@ -147,82 +151,67 @@ describe('oblivious robots: full-ring presence, dynamic reflection, crash at a n
       const explorer = new Explorer(sys, { symmetry: false });
       explorer.run();
       const configs = explorer.states.map(s => s.config).slice(0, 30);
-      assert.deepEqual(equivarianceViolations(sys, configs, sys.topo.automorphisms()), []);
+      assert.deepEqual(equivarianceViolations(sys, configs, finiteGroup(sys)), []);
     }
   });
 
   test('a wrong equivariance claim is caught by the bounded test', () => {
-    // A view in the global orientation, wrongly claimed reflection-equivariant.
-    const globalView = sensor('ringPresence', T.list(T.bool), ({ C, me }) =>
-      ofFn(size(C), i => agents(C).any(b => b.pos.eq(offset(me.pos, lit(T.frame, false), i)))), { rotations: true, reflections: true });
-    const followCw = algorithm({
-      name: 'FollowCw', uses: ['ringPresence'], pub: T.unit, init: { pub: () => unit() },
-      step: ({ view }) => ({ move: ite(view.ringPresence.at(1), move('cw'), move('stay')) }),
+    // A task that depends on the order of the vertices, wrongly claimed equivariant.
+    const first = task({
+      name: 'FirstOccupied', goal: 'eventually', equivariant: true,
+      verdict: C => ite(agents(C).any(a => a.pos.eq(positions().at(0))), verdict('success'), verdict('inProgress')),
     });
-    const bad = robots(obliviousRing({ sensor: globalView }), followCw, Gathering);
-    const sys = new System(bad, { N: 5, positions: [0, 1], crashNode: 0 });
-    assert.equal(new Symmetry(sys).group.length, 10); // the claim is believed...
-    assert.notDeepEqual(equivarianceViolations(sys, sys.initial().map(s => s.config), new Symmetry(sys).group), []); // ...and refuted
+    const bad = placed(robots({ space: Cycle(), observation: full, frames: frames.isomorphisms, views: [occupied] }), NearestNeighbour, first);
+    const sys = new System(bad, { N: 5, positions: [1, 2], crashNode: 0 });
+    assert.equal(new Symmetry(sys).size, 10); // the claim is believed...
+    assert.notDeepEqual(equivarianceViolations(sys, sys.initial().map(s => s.config), finiteGroup(sys)), []); // ...and refuted
   });
 });
 
-describe('robots on a dynamic ring: the adversary removes an edge each round', () => {
-  const m = obliviousRing({ topology: DynamicRing(1), sensor: ringCount, frame: { kind: 'common' }, components: [Monitors.Visited()] });
+describe('robots on a dynamic cycle: the adversary removes an edge each round', () => {
+  const visiting = (space = Cycle()) => robots({ space, observation: radius(1), frames: frames.identity, views: [count], components: [Monitors.Visited()] });
 
-  test('a robot that always moves clockwise explores a static ring but not a dynamic one', () => {
-    const staticExp = robots(obliviousRing({ sensor: m.sensors[0], frame: { kind: 'common' }, components: [Monitors.Visited()] }), AlwaysClockwise, Exploration);
-    assert.equal(explore(new System(staticExp, { N: 4, positions: [0], crashNode: 0 })).status, 'success');
-    const dyn = robots(m, AlwaysClockwise, Exploration);
-    const r = explore(new System(dyn, { N: 4, positions: [0], crashNode: 0 }));
+  test('a robot that always moves through port 0 explores a static cycle but not a dynamic one', () => {
+    assert.equal(explore(new System(placed(visiting(), AlwaysClockwise, Exploration), { N: 4, positions: [0], crashNode: 0 })).status, 'success');
+    const r = explore(new System(placed(visiting(dynamic(Cycle(), 1)), AlwaysClockwise, Exploration), { N: 4, positions: [0], crashNode: 0 }));
     assert.equal(r.status, 'failure');
     assert.equal(r.counterexample?.kind, 'lasso');
     assert.ok(labels(r).some(l => l.startsWith('missing')), labels(r).join(', '));
   });
 
-  test('the topology state is not kept: successors that differ only by the missing edge merge', () => {
-    const sys = new System(robots(m, AlwaysClockwise, Exploration), { N: 4, positions: [0, 2], crashNode: 0 });
-    // 5 topology states (no edge missing, or one of 4), but the two robots either move or not.
+  test('the space state is not kept: successors that differ only by the missing edge merge', () => {
+    const sys = new System(placed(visiting(dynamic(Cycle(), 1)), AlwaysClockwise, Exploration), { N: 4, positions: [0, 2], crashNode: 0 });
+    // 5 space states (no edge missing, or one of 4), but the two robots either move or not.
     assert.equal(sys.successors(sys.initial()[0].config).length, 3);
   });
-});
 
-describe('the black-hole ring over a dynamic ring', () => {
-  test('reuses the black-hole component unchanged', () => {
-    const dyn = blackHoleRing({ policy: 'mayEmerge', size: 'unknown', topology: DynamicRing(1) });
-    const stat = blackHoleRing({ policy: 'mayEmerge', size: 'unknown' });
-    assert.deepEqual(dyn.components, stat.components);
+  test('the black-hole family over a dynamic cycle reuses the black-hole component unchanged', () => {
+    const dyn = blackHoleRobots({ policy: 'mayEmerge', size: 'unknown', space: dynamic(Cycle(), 1) });
     assert.deepEqual(dyn.components[0], Hazards.BlackHole('mayEmerge'));
-    assert.deepEqual(dyn.topology, DynamicRing(1));
-    assert.deepEqual(stat.topology, Ring());
-  });
-
-  test('runs, with missing edges in its witnesses', () => {
-    const r = explore(new System(cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown', topology: DynamicRing(1) })), { N: 4, site: 2 }));
-    assert.equal(r.status, 'failure');
-    const sys = new System(cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown', topology: DynamicRing(1) })), { N: 4, site: 2 });
+    const sys = new System(cautiousPairExperiment(dyn), { N: 4, site: 2 });
+    assert.equal(explore(sys).status, 'failure');
     const witnesses = sys.successors(sys.initial()[0].config).flatMap(s => s.witness.map(w => w.label));
     assert.ok(witnesses.some(l => l.startsWith('missing')), witnesses.join(', '));
   });
 });
 
 describe('executions: synchronous rounds check every cycle, SSYNC only scheduler-fair ones', () => {
-  const ring = (round: 'fsync' | 'ssync') => model({ name: round, topology: Ring(), sensors: [], round });
   const exp = (round: 'fsync' | 'ssync') => experiment({
-    name: `mark ${round}`, model: ring(round), algorithm: MarkActivated, task: EveryoneActivated,
-    params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => node(i) },
+    name: `mark ${round}`, model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [], round }),
+    algorithm: MarkActivated, task: EveryoneActivated,
+    params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => pos(i) },
   });
 
   test('a repeatable cycle that violates the task fails under FSYNC', () => {
-    // Two robots that always move clockwise never gather: a lasso, although nothing forces the cycle.
-    const m = obliviousRing({ sensor: ringCount, frame: { kind: 'common' } });
-    const r = explore(new System(robots(m, AlwaysClockwise, Gathering), { N: 4, positions: [0, 2], crashNode: 0 }));
+    // Two robots that always move through port 0 never gather: a lasso, although nothing forces the cycle.
+    const m = robots({ space: Cycle(), observation: radius(1), frames: frames.identity, views: [count] });
+    const r = explore(new System(placed(m, AlwaysClockwise, Gathering), { N: 4, positions: [0, 2], crashNode: 0 }));
     assert.equal(r.status, 'failure');
     assert.equal(r.counterexample?.kind, 'lasso');
   });
 
   test('under SSYNC, never activating an agent is a cycle, but not a fair one', () => {
-    const fsync = explore(new System(exp('fsync'), { N: 3 }));
-    assert.equal(fsync.status, 'success');
+    assert.equal(explore(new System(exp('fsync'), { N: 3 })).status, 'success');
     const explorer = new Explorer(new System(exp('ssync'), { N: 3 }));
     const r = explorer.run();
     assert.equal(r.status, 'success', r.reason);
@@ -231,4 +220,3 @@ describe('executions: synchronous rounds check every cycle, SSYNC only scheduler
     assert.ok(unfair?.succ?.includes(unfair.id));
   });
 });
-

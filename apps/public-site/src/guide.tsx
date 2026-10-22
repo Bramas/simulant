@@ -66,18 +66,20 @@ function Guide() {
             <Code code={ex.firstFile} />
             <p>
               Agent 1 cannot see the hole: it only reads <code>otherStates</code>, the public states of the other agents on its node.
-              When agent 0 does not come back, agent 1 concludes that the hole is clockwise and says so in its public state,
-              which the task <code>IdentifyBlackHole</code> reads.
+              When agent 0 does not come back, agent 1 concludes that the hole is behind its clockwise port and says so in its
+              output <code>claim</code>, which the task <code>IdentifyBlackHole</code> reads. <code>Ring.cw</code> is the agent's
+              neighbor behind port 0; with a common sense of direction (<code>Frames.identity</code>, as in this model), port 0 is
+              clockwise for every agent.
             </p>
           </Section>
 
           <Section id="experiments" title="Experiments">
             <p>An experiment is what the simulator runs and the explorer checks. Its fields:</p>
             <Table head={['Field', 'Meaning']} rows={[
-              ['model := …', 'The model: topology, sensors, memory, orientation, round and components.'],
+              ['model := …', 'The model: space, observation, frames, sensors, memory, round and components.'],
               ['algorithm := …', 'The algorithm every agent runs.'],
               ['task := …', 'The task, with its goal.'],
-              ['param x : T in …', 'A parameter and its domain. The ring size is always N; components read others, such as site.'],
+              ['param x : T in …', 'A parameter and its domain. The model reads some (the size N of a cycle, a radius phi); components read others, such as site.'],
               ['agents := …', 'The number of agents (an expression of the parameters).'],
               ['position i := …', 'Where agent i starts.'],
               ['limits := { … }', 'Optional exploration bounds: depth, states.'],
@@ -94,21 +96,25 @@ function Guide() {
             </p>
             <Code code={ex.models} />
             <p>
-              Each argument changes one assumption and leaves the algorithm untouched. The <em>sensors</em> decide what agents know:
+              Each argument changes one assumption and leaves the algorithm untouched. The <em>space</em> is a graph: a cycle, the
+              infinite line, a star, or your own. An agent sees the part of it within its <em>observation</em> radius, as anonymous
+              <em>locations</em>, in an order its <em>frames</em> decide: the ports as they are, a numbering of its own, or any
+              symmetry of the view, chosen by the adversary. The <em>sensors</em> decide what it learns about each location:
               an algorithm may only read the sensors its model provides, by name, and declares them with <code>uses</code>.
               <em>Components</em> add state and behavior to the world: a black hole, crashes, pebbles, lights, monitors for tasks.
-              Some sensors need a component (<code>lineView</code> reads the radius of <code>Vision.Radius</code>), and components
-              read experiment parameters (<code>Faults.CrashAtNode</code> reads <code>param crashNode</code>).
+              Some sensors need a component (<code>colors</code> reads the lights of <code>Storage.Lights</code>), and components
+              read experiment parameters (<code>Faults.CrashAt</code> reads <code>param crashNode</code>).
               The <a href="../builder/">model builder</a> keeps track of these dependencies for you.
             </p>
             <p>A paper's model is worth naming once, as a definition with its own arguments:</p>
             <Code code={ex.ownModel} />
             <Table head={['Assumption', 'Where it is chosen']} rows={[
-              ['topology', 'Ring, or DynamicRing k (at most k edges missing per round)'],
+              ['space', 'Graphs.Cycle N, Graphs.Line, Graphs.Star k, Graphs.Dynamic space k (at most k edges missing per round)'],
+              ['observation', 'Observe.radius r (the r-hop view), Observe.full'],
+              ['frames', 'Frames.identity, Frames.isomorphisms, Frames.portPermutations .perLook / .perRobot'],
               ['round', '.fsync, .ssync (a fair nonempty subset), .sequential (one agent at a time)'],
-              ['memory', 'persistent, or oblivious in obliviousRing'],
-              ['frame', 'Frames.common, Frames.dynamicReflection, Frames.persistent field'],
-              ['sensors', 'otherStates, ringSize, ringPresence, lineView, colorView, …'],
+              ['memory', '.oblivious (robots), .persistent (blackHoleRobots)'],
+              ['sensors', 'occupied, count, colors, otherStates, spaceSize, …'],
               ['components', 'Hazards.BlackHole, Faults.CrashStop f, Storage.Pebbles, Storage.Lights k, …'],
             ]} />
           </Section>
@@ -127,7 +133,7 @@ function Guide() {
               ['main := …', 'The program.'],
             ]} />
             <Table head={['Statement', 'Meaning']} rows={[
-              ['move .cw / move .ccw', 'Move one node in a local direction, and end the activation.'],
+              ['move l', 'Move to the location l of the Look (a neighbor, such as Ring.cw or port 1), and end the activation.'],
               ['stay', 'Stay for this activation.'],
               ['halt', 'Stay forever.'],
               ['wait n', 'Stay n activations.'],
@@ -136,11 +142,15 @@ function Guide() {
               ['if c then … else …', 'Choose a block; chains with else if.'],
               ['let x : T := e', 'A local variable; locals kept across a move need a type.'],
               ['x := e, pub := e', 'Assign a local or the public state.'],
-              ['move .cw with { pebble := .drop }', 'Set the model\'s actions for this activation.'],
+              ['stay with { pebble := .drop }', 'Set the model\'s actions for this activation.'],
             ]} />
             <p>
-              Sensors are read by name, as values: <code>otherStates.isEmpty</code>, <code>otherStates.any (·.id = 0)</code>,
-              <code>pebblesHere = 0</code>. Directions are local to the agent's frame; <code>dir.opposite</code> reverses one.
+              An agent sees its Look: <code>here</code>, the locations it sees (<code>visible</code>), the neighbors of a location
+              (<code>neighbors l</code>, in port order under port-based frames) and distances (<code>distance a b</code>).
+              Locations are valid for one activation and cannot be stored: to remember a neighbor, store its index in
+              <code>neighbors here</code>, a port number. <code>port i</code>, <code>Ring.cw</code> (port 0) and <code>Ring.ccw</code>
+              (port 1) name neighbors. Sensors are read by name: <code>otherStates.isEmpty</code>, <code>pebblesHere = 0</code>, and,
+              for a sensor about each location, <code>occupied l</code>. The agent never sees positions or the experiment's parameters.
               Here is an algorithm that uses the pebble component's action and sensor, a procedure and a local variable:
             </p>
             <Code code={ex.pebbles} />
@@ -156,15 +166,17 @@ function Guide() {
 
           <Section id="oblivious" title="Oblivious algorithms">
             <p>
-              In an oblivious model (<code>obliviousRing</code>), robots keep nothing between activations: no program counter, no locals.
+              In an oblivious model (<code>robots</code> by default), robots keep nothing between activations: no program counter, no locals.
               The algorithm decides each step from what it sees now, so it reads as a list of guarded rules.
-              Helper definitions (<code>def</code>) are functions on values, usable in algorithms, tasks and parameter domains.
+              Helper definitions (<code>def</code>) are functions, usable in algorithms, tasks and parameter domains; one that reads the
+              Look, such as <code>occupiedNeighbors</code> below, can only be called by algorithms.
               A program that needs memory is rejected by the compiler.
             </p>
             <Code code={ex.oblivious} />
             <p>
-              <code>ringPresence</code> is the robot's view of the ring in its own orientation: entry <code>i</code> tells whether a robot is
-              <code>i</code> nodes ahead. Under <code>Frames.dynamicReflection</code>, the adversary chooses that orientation at each activation.
+              <code>occupied</code> tells, for each location, whether a robot stands there. Under <code>Frames.isomorphisms</code>, the
+              adversary chooses at each activation which of the two neighbors comes first, so <code>Ring.cw</code> is whichever side it
+              presents first: the robot has no sense of direction.
             </p>
           </Section>
 
@@ -181,6 +193,8 @@ function Guide() {
             <p>
               Tasks read the configuration <code>C</code>: <code>C.agents</code>, positions <code>a.pos</code>, public states
               <code>a.pub</code>, outputs, flags (<code>correct a</code>, <code>present a</code>) and component fields <code>C.world.site</code>.
+              An answer given in the agent's own terms, such as a port, is read with <code>C.resolve a i</code> (the neighbor behind port
+              <code>i</code>) or <code>C.follow a i k</code>.
               See the library's <a href="../library/#tasks">tasks</a>, and the next section for writing one.
             </p>
           </Section>
@@ -203,7 +217,9 @@ function Guide() {
               Sensors, components and tasks are written in the same language as the library's. A component owns world and agent fields,
               flags and actions, and acts at the hook points of a round (<code>beforeLook</code>, <code>beforeMove</code>, <code>afterMove</code>).
               The adversary's choices are written <code>choose</code>, with labels shown in the simulator.
-              The <code>@[equivariant …]</code> attribute claims a symmetry, used to reduce the state space; it is tested on bounded instances.
+              A sensor receives the Look <code>L</code> (and a location, for a sensor about each location): it can read who stands where,
+              but returns no position. The <code>@[equivariant]</code> attribute claims that a component or a task commutes with the
+              symmetries the frames keep, used to reduce the state space; it is tested on bounded instances.
             </p>
             <Code code={ex.custom} />
           </Section>

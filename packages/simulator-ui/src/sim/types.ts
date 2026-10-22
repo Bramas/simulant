@@ -6,8 +6,10 @@ import type { Snapshot } from './snapshot';
 export type ModelInfo = {
   experiment: string;
   algorithm: string;
-  /** Ring size. */
+  /** The number of vertices of a finite space (0 for an infinite one). */
   size: number;
+  /** The space's name (`Graphs.Cycle`, `Graphs.Line`, ...). */
+  space: string;
   params: Record<string, unknown>;
   components: string[];
 };
@@ -20,7 +22,8 @@ export type Point = { x: number; y: number };
 export type Layout = {
   center: Point;
   radius: number;
-  nodePosition(node: number): Point;
+  /** Where a vertex is drawn (a vertex is a number on cycles, lines and stars). */
+  nodePosition(node: any): Point;
   /** Where each agent was drawn, for hit testing. */
   agents: AgentRenderInfo[];
 };

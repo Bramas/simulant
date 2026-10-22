@@ -18,15 +18,16 @@ theorem mem_chooseIfMany {site : String} {l : List α} {w : Witness} {x : α}
 @[simp] theorem Config.apply_world (C : Config σ) (e : Effect σ) : (C.apply e).world = e.world C.world := rfl
 
 @[simp] theorem Config.apply_agent (C : Config σ) (e : Effect σ) (i : Fin σ.k) :
-    (C.apply e).agents[i] = { C.agents[i] with flags := FlagSet.merge C.agents[i].flags (e.raise i) } := by
+    (C.apply e).agents[i] =
+      { C.agents[i] with flags := FlagSet.merge C.agents[i].flags (e.raise i), fields := e.fields i C.agents[i].fields } := by
   simp [Config.apply]
 
-theorem moveAll_never (ts : TState) (C : Config σ) (ds : Fin σ.k → Decision σ) (i : Fin σ.k)
+theorem moveAll_never (ts : TState σ.S) (C : Config σ) (ds : Fin σ.k → Decision σ) (i : Fin σ.k)
     (h : FlagSet.acts C.agents[i].flags = .never) : (moveAll ts C ds).agents[i] = C.agents[i] := by
   simp only [Fin.getElem_fin] at h
   simp [moveAll, h]
 
-@[simp] theorem moveAll_world (ts : TState) (C : Config σ) (ds : Fin σ.k → Decision σ) :
+@[simp] theorem moveAll_world (ts : TState σ.S) (C : Config σ) (ds : Fin σ.k → Decision σ) :
     (moveAll ts C ds).world = C.world := rfl
 
 variable [LawfulFlagSet σ.F]
@@ -118,19 +119,19 @@ theorem Model.step_preserves (m : Model σ) (act0 : σ.A) {g : σ.W → T}
 
 omit [FlagSet σ.F] in
 /-- A component preserves every part of the world that its own lens does not touch. -/
-theorem Hooks.toComponent_preserves (h : Hooks σ Wc) (L : Lens σ.W Wc) (g : σ.W → T)
-    (hg : ∀ w x, g (L.set w x) = g w) : (h.toComponent L).Preserves g := by
+theorem Hooks.toComponent_preserves (h : Hooks σ Wc Xc) (L : Lens σ.W Wc) (Lx : Lens σ.X Xc) (g : σ.W → T)
+    (hg : ∀ w x, g (L.set w x) = g w) : (h.toComponent L Lx).Preserves g := by
   refine ⟨fun ts C e he w => ?_, fun ts C ds e he w => ?_, fun ts C e he w => ?_⟩ <;>
   · obtain ⟨e, -, rfl⟩ := ND.can_map.1 he
     exact hg _ _
 
 omit [FlagSet σ.F] in
 /-- A component preserves an observation of its own part that each of its own effects preserves. -/
-theorem Hooks.toComponent_preserves_own (h : Hooks σ Wc) (L : Lens σ.W Wc) [LawfulLens L] (g : Wc → T)
+theorem Hooks.toComponent_preserves_own (h : Hooks σ Wc Xc) (L : Lens σ.W Wc) (Lx : Lens σ.X Xc) [LawfulLens L] (g : Wc → T)
     (hown : (∀ ts C e, ND.Can (h.beforeLook ts C) e → ∀ x, g (e.world x) = g x) ∧
       (∀ ts C ds e, ND.Can (h.beforeMove ts C ds) e → ∀ x, g (e.world x) = g x) ∧
       (∀ ts C e, ND.Can (h.afterMove ts C) e → ∀ x, g (e.world x) = g x)) :
-    (h.toComponent L).Preserves (fun w => g (L.get w)) := by
+    (h.toComponent L Lx).Preserves (fun w => g (L.get w)) := by
   obtain ⟨h1, h2, h3⟩ := hown
   refine ⟨fun ts C e he w => ?_, fun ts C ds e he w => ?_, fun ts C e he w => ?_⟩
   · obtain ⟨e', he', rfl⟩ := ND.can_map.1 he

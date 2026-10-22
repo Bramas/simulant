@@ -1,25 +1,30 @@
 /-! A Visibility vs. Memory Trade-off for Stand-Up Indulgent Gathering on Lines.
 
-FSYNC, anonymous disoriented robots, no multiplicity detection, and crashes at
-a fixed location. A padded ring encodes the finite occupied interval of the infinite
-line. Sensors expose only a radius-phi view; no robot learns its identity,
-the population, crash status, or the size of the finite encoding. -/
+FSYNC, anonymous disoriented robots (`Frames.isomorphisms`: at each Look, the adversary chooses
+which side of the line comes first), no multiplicity detection, and crashes at a fixed
+location, on the infinite line (`Graphs.Line`). Sensors expose only the radius-phi view; no
+robot learns its identity, the population, crash status or phi itself other than through what
+it sees. Symmetry reduction uses the translations and the reflection of the line, which
+`Frames.isomorphisms` keeps. -/
 
 import "std/models.sim"
-import "std/tasks.sim"
 
-/-- Coordinates retained only for the padded-line encoding and its drawing. -/
-def LineDomain : Component where
-  World := { initialPositions : List Nat }
-  init := { initialPositions := param positions }
-
-/-- The paper selects finite-radius observations and a fixed crash node. -/
+/-- The paper's model: radius-phi views, weak occupancy (or, with lights, color sets), and
+crashes at `param crashNode`. A model definition reads an experiment parameter as
+`param phi`, as components do; experiments name their parameters directly. -/
 def lineModel (luminous : Bool := false) : Model :=
-  obliviousRing
-    (view := if luminous then colorView else lineView)
-    (components := [LineDomain, Vision.Radius] ++
-      (if luminous then [Storage.Lights 2] else []) ++ [Faults.CrashAtNode])
-    (symmetries := .none)
+  robots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms
+    (if luminous then [colors] else [occupied])
+    (components := (if luminous then [Storage.Lights 2] else []) ++ [Faults.CrashAt])
+
+/-- The radius-phi occupancy view, from one end to the
+other (0 = empty, 1 = occupied). The observing robot is at the center. -/
+def lineView : List Nat :=
+  Line.window.map fun l => if occupied l then 1 else 0
+
+/-- The color set of each position of the radius-phi view, from one end to the other. -/
+def colorView : List (List Nat) :=
+  Line.window.map colors
 
 /-- Reflect a view, leaving the observing robot at its center. -/
 def mirrored (v : List Nat) : List Nat :=
@@ -27,47 +32,44 @@ def mirrored (v : List Nat) : List Nat :=
 
 /-- A guard cannot match an occupied or empty node outside the observed view.
 This also keeps exploration below the declared visibility bounds executable. -/
-def occupied (v : List Nat) (i : Nat) : Bool :=
+def occupiedAt (v : List Nat) (i : Nat) : Bool :=
   if i < v.length then v.at i > 0 else false
 
 def empty (v : List Nat) (start : Nat) (count : Nat) : Bool :=
   if start + count ≤ v.length then (range count).all (fun i => v.at (start + i) = 0) else false
 
 def nonempty (v : List Nat) (start : Nat) (count : Nat) : Bool :=
-  (range count).any fun i => occupied v (start + i)
+  (range count).any fun i => occupiedAt v (start + i)
 
 /-- Empty nodes precede the observing border in this orientation. -/
 def border (v : List Nat) : Bool :=
   empty v 0 (v.length / 2)
 
-/-- The observing robot is one occupied node after the visible border. -/
+/-- The observing robot is one occupied node after the visible border. A radius-0 view has
+no node before the robot (natural subtraction would read the robot's own node). -/
 def borderNeighbor (v : List Nat) : Bool :=
   let p := v.length / 2
-  empty v 0 (p - 1) ∧ occupied v (p - 1)
+  p ≥ 1 ∧ empty v 0 (p - 1) ∧ occupiedAt v (p - 1)
 
 /-- The observing robot is two consecutive occupied nodes after the border. -/
 def secondBorderNeighbor (v : List Nat) : Bool :=
   let p := v.length / 2
-  empty v 0 (p - 2) ∧ occupied v (p - 2) ∧ occupied v (p - 1)
+  p ≥ 1 ∧ empty v 0 (p - 2) ∧ occupiedAt v (p - 2) ∧ occupiedAt v (p - 1)
 
 /-- Maximum neighboring distance, computed only for initial-domain assumptions.
 The coordinates are sorted and can contain multiplicities. -/
-def initialHole (ps : List Nat) : Nat :=
-  let gaps := ofFn ps.length fun i => if i = 0 then 0 else ps.at i - ps.at (i - 1)
+def initialHole (ps : List Int) : Nat :=
+  let gaps := ofFn ps.length fun i => if i = 0 then 0 else (ps.at i - ps.at (i - 1)).toNat
   (gaps.filter fun h => gaps.all (· ≤ h)).at 0
 
 /-- The paper counts occupied nodes, not robots: multiplicities do not change O_init.
 Odd M_init is equivalent to an even distance between the borders. -/
-def admissiblePositions (ps : List Nat) (oddOnly : Bool) : Bool :=
+def admissiblePositions (ps : List Int) (oddOnly : Bool) : Bool :=
   ps.length ≥ 2 ∧
   (range ps.length).all (fun i => i = 0 ∨ ps.at (i - 1) ≤ ps.at i) ∧
   (ps.dedup.length % 2 = 1 ∨ (!oddOnly ∧ (ps.at (ps.length - 1) - ps.at 0) % 2 = 0))
 
 /-- Required visibility for these coordinates: max(4, H_init + extra) for
 oblivious robots, and max(1, H_init) for the two-color algorithm (extra = 0). -/
-def requiredVisibility (ps : List Nat) (extra : Nat) : Nat :=
+def requiredVisibility (ps : List Int) (extra : Nat) : Nat :=
   max (if extra = 0 then 1 else 4) (initialHole ps + extra)
-
-/-- Enough empty padding to make every radius-phi observation a line observation. -/
-def fitsLine (N : Nat) (ps : List Nat) (phi : Nat) : Bool :=
-  N ≥ ps.at (ps.length - 1) + 2 * phi + 3

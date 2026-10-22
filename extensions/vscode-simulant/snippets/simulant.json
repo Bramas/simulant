@@ -1,11 +1,11 @@
 {
   "Experiment": {
     "prefix": "experiment", "description": "Compose a model, algorithm, task and parameter domains.",
-    "body": ["experiment ${1:name} where", "  model := ${2:model}", "  algorithm := ${3:algorithm}", "  task := ${4:task}", "  param N : Nat := (range ${5:9}).filter (· ≥ ${6:3})", "  agents := ${7:2}", "  position i := node 0", "$0"]
+    "body": ["experiment ${1:name} where", "  model := ${2:robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]}", "  algorithm := ${3:algorithm}", "  task := ${4:task}", "  param N : Nat in (range ${5:9}).filter (· ≥ ${6:3})", "  agents := ${7:2}", "  position i := pos 0", "$0"]
   },
   "Algorithm": {
     "prefix": "algorithm", "description": "An algorithm with structured control flow.",
-    "body": ["algorithm ${1:Name} uses ${2:ringPresence} where", "  main :=", "    ${3:stay}", "$0"]
+    "body": ["algorithm ${1:Name} uses ${2:occupied} where", "  main :=", "    ${3:stay}", "$0"]
   },
   "Component": {
     "prefix": "component", "description": "A component owning world state.",
@@ -19,5 +19,5 @@
     "prefix": "def", "description": "A function on values.",
     "body": ["def ${1:name} (${2:x} : ${3:Nat}) : ${4:Nat} :=", "  ${5:x}", "$0"]
   },
-  "Imports": { "prefix": "std", "description": "Standard model families and tasks.", "body": ["import \"std/models.sim\"", "import \"std/tasks.sim\"", "$0"] }
+  "Imports": { "prefix": "std", "description": "Standard spaces, sensors, components, model families and tasks.", "body": ["import \"std/models.sim\"", "$0"] }
 }

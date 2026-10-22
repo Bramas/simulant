@@ -3,7 +3,8 @@
  * derived from the IR, and the declarations it is built from as written in their files, so that a
  * reader can compare the experiment with the paper it comes from.
  */
-import type { Component, Experiment, Expr, Json, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Experiment, Expr, Frames, Json, Observation, Space, Type } from '@bramas/simulant-lang/ir';
+import { referenceOrderingWarning } from '@bramas/simulant-lang/caveats';
 import { derivedGroup } from '@bramas/simulant-engine/symmetry';
 import { parameterValues } from '@bramas/simulant-engine/system';
 import type { LeanDescription, ModelDescription, ModelFact, SourceExcerpt, SourceRef } from '@bramas/simulant-core/types/project';
@@ -47,13 +48,19 @@ function about(text: string): string | undefined {
   return m ? m[1].trim().split(/\n\s*\n/).map(p => p.replace(/\s*\n\s*/g, ' ')).join('\n\n') : undefined;
 }
 
-/** An item of a declaration (`param N : Nat := ...`, `agents := 4`): its value as written, and its line. */
+/**
+ * An item of a declaration (`agents := 4`, `param N : Nat in ...`): its value as written, and its
+ * line. A parameter's value is its domain (`(range 9).filter (· ≥ 3)`, `(range 9) where …`,
+ * `where …`).
+ */
 function item(lines: Line[], name: RegExp): { text: string; line: number } | undefined {
   const i = lines.findIndex(l => name.test(l.text));
   if (i < 0) return undefined;
   const indent = (s: string) => s.length - s.trimStart().length;
   const own = indent(lines[i].text);
-  const parts = [lines[i].text.slice(lines[i].text.indexOf(':=') + 2).trim()];
+  const first = lines[i].text;
+  const domain = /^\s*param\b/.test(first) ? /\s(in|where)\s/.exec(first) : undefined;
+  const parts = [domain ? first.slice(domain.index + 1).replace(/^in\s+/, '').trim() : first.slice(first.indexOf(':=') + 2).trim()];
   for (let j = i + 1; j < lines.length && lines[j].text.trim() && indent(lines[j].text) > own; j++) parts.push(lines[j].text.trim());
   return { text: parts.join(' ').replace(/\s+--.*$/, ''), line: lines[i].number };
 }
@@ -111,6 +118,65 @@ const GOALS = {
 } as const;
 
 const HOOKS = ['beforeLook', 'beforeMove', 'afterMove'] as const;
+
+/** A model argument as written: a literal, a parameter, or a variable of the space. */
+function exprText(e: Expr): string {
+  return e.e === 'lit' ? JSON.stringify(e.value) : e.e === 'param' || e.e === 'var' ? e.name : 'an expression';
+}
+
+function spaceFact(s: Space): { value: string; note: string; summary: string } {
+  switch (s.kind) {
+    case 'graph': {
+      const args = (s.params ?? []).map(p => exprText(s.args![p.name]));
+      const name = `${s.name}${args.length ? ` ${args.join(' ')}` : ''}`;
+      return {
+        value: name,
+        note: `A graph whose ${s.vertices ? 'vertices' : 'vertices (infinitely many, with finite neighborhoods)'} and ordered neighbors (its ports) come from the space's definition. Every edge is present in every round.`,
+        summary: name,
+      };
+    }
+    case 'dynamic': {
+      const base = spaceFact(s.base);
+      const k = exprText(s.missing);
+      return {
+        value: `${base.value}, dynamic`,
+        note: `${base.note.replace(' Every edge is present in every round.', '')} In every round, the adversary removes up to ${k} edge${k === '1' ? '' : 's'}; missing edges are chosen anew each round and forgotten afterwards.`,
+        summary: `dynamic ${base.summary}`,
+      };
+    }
+    case 'euclidean': return { value: `Euclidean space of dimension ${s.dim}`, note: 'Not run by the simulator yet.', summary: `R^${s.dim}` };
+  }
+}
+
+function observationFact(o: Observation): { value: string; note: string } {
+  if (o.kind === 'full') return { value: 'Full view', note: 'Every position and every edge of the space is visible (finite spaces).' };
+  const r = exprText(o.r);
+  return {
+    value: `Radius ${r}`,
+    note: `The ${r}-hop view: positions at distance at most ${r}, and the edges with an endpoint at distance less than ${r}. The structure of the view is information the observation grants; sensors decide what is known about each location.`,
+  };
+}
+
+function framesFact(f: Frames): { value: string; note: string; summary: string; chosen?: string } {
+  switch (f.kind) {
+    case 'isomorphisms': return {
+      value: 'Isomorphisms, at each Look',
+      note: "The adversary presents each Look through any isomorphism of the visible domain that fixes the observer: an agent cannot tell symmetric locations apart, and has no sense of direction.",
+      summary: 'disoriented', chosen: 'isomorphisms of the views',
+    };
+    case 'identity': return {
+      value: 'Identity',
+      note: "Agents see the space's ports as they are: they agree on the ports (chirality, or a shared port numbering), and a stored port index keeps its meaning.",
+      summary: 'chirality',
+    };
+    case 'portPermutations': return {
+      value: `Port permutations, ${f.when === 'perLook' ? 'at each Look' : 'fixed per agent'}`,
+      note: `Agents see the space's ports through a permutation ${f.when === 'perLook' ? 'chosen at each Look' : "chosen once per agent, at initialisation, and kept: each agent has its own fixed orientation"}, among ${f.among === 'all' ? 'all permutations' : "the permutations induced by the space's symmetries"}.`,
+      summary: f.when === 'perLook' ? 'ports permuted at each Look' : 'own fixed orientation',
+      chosen: f.when === 'perLook' ? 'port permutations' : undefined,
+    };
+  }
+}
 /** Above this many definitions, the algorithm's facts give their number rather than their names. */
 const MANY_DEFS = 6;
 
@@ -132,15 +198,19 @@ function lineTable(exp: Experiment): Record<string, number> {
   return Object.fromEntries(Object.entries(l.cases).flatMap(([pc, e]) => e.e === 'lit' && typeof e.value === 'number' ? [[pc, e.value]] : []));
 }
 
+const KIND_ORDER: SourceExcerpt['kind'][] = ['experiment', 'model', 'space', 'sensor', 'component', 'algorithm', 'task', 'goal', 'definition'];
+
 export function describeExperiment(exp: Experiment, sources: Record<string, string>, revision?: string, lean?: SimLean, checkSettings?: () => Iterable<unknown>): ModelDescription {
   const { model, algorithm, task } = exp;
   const key = (kind: string, name: string) => `${kind} ${name}`;
 
   // The declarations as written. Without recorded uses (IR built otherwise), the algorithm alone.
   const uses = exp.source?.uses ?? (algorithm.source ? [{ kind: 'algorithm' as const, name: algorithm.name, ...algorithm.source }] : []);
+  // By kind, then in order of use (a model before the models it builds on).
   const excerpts: SourceExcerpt[] = uses
     .filter(u => sources[u.file] !== undefined)
-    .map(u => ({ kind: u.kind, name: u.name, file: u.file, lines: excerpt(sources[u.file], u.line, u.endLine) }));
+    .map(u => ({ kind: u.kind, name: u.name, file: u.file, lines: excerpt(sources[u.file], u.line, u.endLine) }))
+    .sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
   const expLines = excerpts.find(s => s.kind === 'experiment')?.lines ?? [];
   /** A declaration shown, by kind and name (a component's declaration is `Hazards.BlackHole`, its IR name `BlackHole`). */
   const shown = (kind: string, name: string) => excerpts.find(s => s.kind === kind && (s.name === name || s.name.split('.').pop() === name));
@@ -166,25 +236,18 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   ];
   const actions = model.components.flatMap(c => c.actions ?? []);
   const flags = model.components.flatMap(c => c.flags ?? []);
-  const size = model.topology.size.e === 'param' ? model.topology.size.name : 'the size expression';
   const group = derivedGroup(exp);
-  const symmetry = group.rotations ? (group.reflections ? 'rotations and reflections' : 'rotations') : 'none';
-
-  const frame = {
-    common: { value: 'Common chirality', note: 'All agents share the orientation of the ring: a local cw is the same direction for every agent.' },
-    dynamicReflection: { value: 'Chosen at each activation', note: "The adversary chooses, at each activation, whether the agent's view is mirrored." },
-    persistent: { value: 'Fixed per agent', note: "Each agent's orientation is chosen at initialisation and kept for the whole execution." },
-  }[model.frame.kind];
+  const automorphisms = (s: Space): string => s.kind === 'dynamic' ? automorphisms(s.base) : s.kind === 'graph'
+    ? ({ computed: 'computed from the graph', dihedral: 'the dihedral group of the cycle', translationsAndReflection: 'translations and the reflection of the line' } as const)[s.automorphisms.kind]
+    : 'none';
+  const symmetry = group.enabled ? `automorphisms of the space that the frames keep (${automorphisms(model.space)})` : 'none';
+  const space = spaceFact(model.space);
+  const observation = observationFact(model.observation);
+  const frame = framesFact(model.frames);
 
   const modelFacts: ModelFact[] = [
-    {
-      label: 'Topology',
-      value: model.topology.kind === 'ring' ? `Ring of ${size} nodes` : `Dynamic ring of ${size} nodes`,
-      note: model.topology.kind === 'ring'
-        ? 'Every edge is present in every round.'
-        : `In every round, the adversary removes up to ${model.topology.k} edge${model.topology.k === 1 ? '' : 's'}; missing edges are chosen anew each round and forgotten afterwards.`,
-      refs: modelRef('topology'),
-    },
+    { label: 'Space', value: space.value, note: space.note, refs: modelRef('space') },
+    { label: 'Observation', value: observation.value, note: observation.note, refs: modelRef('observation') },
     {
       label: 'Synchrony',
       value: model.round === 'fsync' ? 'FSYNC (fully synchronous)' : model.round === 'sequential' ? 'Sequential (fair)' : 'SSYNC (semi-synchronous)',
@@ -204,14 +267,14 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         : 'No program counter or local value is kept between activations; storage supplied by components (read by sensors, written by actions) is separate.',
       refs: modelRef('memory'),
     },
-    { label: 'Orientation', value: frame.value, note: frame.note + (model.frame.kind === 'persistent' ? ` (agent field ${model.frame.field})` : ''), refs: modelRef('frame') },
-    { label: 'Movement', value: 'Rigid', note: 'A move follows the edge to the adjacent node within the round, when that edge is present.' },
+    { label: 'Frames', value: frame.value, note: frame.note, refs: modelRef('frames') },
+    { label: 'Movement', value: 'Along edges', note: "An agent moves to its own location or to a neighbor; through an edge missing this round, it stays." },
     {
       label: 'Sensors',
       value: sensors.length ? sensors.map(x => x.s.name).join(', ') : 'none',
-      note: 'What algorithms can know of the configuration: each activated agent evaluates each sensor once per activation.',
+      note: 'What algorithms can know of their Look: each sensor is read once per Look, or once per location for a per-location sensor, with its choices fixed for the Look.',
       details: sensors.map(({ s, owner }) =>
-        `${s.name} : ${showType(s.type)}${owner ? ` (from ${owner})` : ''}${algorithm.uses.includes(s.name) ? '' : ' — not used by the algorithm'}`),
+        `${s.name}${s.perLocation ? ' (at a location)' : ''} : ${showType(s.type)}${owner ? ` (from ${owner})` : ''}${algorithm.uses.includes(s.name) ? '' : ' — not used by the algorithm'}`),
       refs: [...modelRef('sensors'), ...sensors.flatMap(x => refTo('sensor', x.s.name))],
     },
   ];
@@ -261,12 +324,13 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         },
       ],
     },
-    { title: `Model ${model.name}`, facts: modelFacts },
+    // The model the experiment names (its first model declaration), rather than the base family it builds on.
+    { title: `Model ${excerpts.find(s => s.kind === 'model')?.name ?? model.name}`, facts: modelFacts },
     ...(componentFacts.length ? [{ title: 'Components', facts: componentFacts }] : []),
     {
       title: 'Algorithm',
       facts: [
-        { label: 'Name', value: algorithm.name, note: algorithm.native ? `native TypeScript step ${algorithm.native}` : undefined, refs: refTo('algorithm', algorithm.name) },
+        { label: 'Name', value: algorithm.name, refs: refTo('algorithm', algorithm.name) },
         { label: 'Reads', value: algorithm.uses.length ? algorithm.uses.join(', ') : 'no sensor' },
         { label: 'Public state', value: showType(algorithm.pub), code: true, note: 'Visible to other agents through sensors.' },
         {
@@ -306,7 +370,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         value: symmetry,
         note: model.symmetries === 'none'
           ? 'Disabled by the model (symmetries := none).'
-          : 'Configurations equal up to these automorphisms are merged. Derived from the equivariance declarations of the components, sensors and task.',
+          : 'Configurations equal up to these automorphisms are merged. Derived from the frames and the equivariance declarations of the components and task; sensors read only their Look.',
         details: group.reasons,
       }],
     },
@@ -329,9 +393,9 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
       choices: initChoices,
     },
     {
-      phase: 'Topology',
-      what: model.topology.kind === 'ring' ? 'Every edge is present.' : `The adversary removes up to ${model.topology.k} edge${model.topology.k === 1 ? '' : 's'} for this round.`,
-      choices: model.topology.kind === 'dynamicRing' ? ['missing edges'] : [],
+      phase: 'Space',
+      what: model.space.kind === 'dynamic' ? `The adversary removes up to ${exprText(model.space.missing)} edges for this round.` : 'Every edge is present.',
+      choices: model.space.kind === 'dynamic' ? ['missing edges'] : [],
     },
     hook('beforeLook', 'Components update their state, all reading the same configuration.'),
     {
@@ -339,20 +403,20 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
       what: (model.round === 'fsync' ? 'Every agent able to act is activated.'
         : model.round === 'sequential' ? 'Exactly one agent able to act is activated (none if no agent can act).'
           : 'A nonempty set of the agents able to act is activated.')
-        + (model.frame.kind === 'dynamicReflection' ? " Each activated agent's orientation is chosen." : ''),
+        + (frame.chosen ? ` The adversary chooses how each activated agent sees its view (${frame.chosen}).` : ''),
       choices: [
         ...(model.round !== 'fsync' ? ['activated agents (fair)'] : []),
-        ...(model.frame.kind === 'dynamicReflection' ? ['orientations'] : []),
+        ...(frame.chosen ? [frame.chosen] : []),
       ],
     },
     {
       phase: 'Look & Compute',
-      what: `Each activated agent evaluates ${algorithm.uses.length ? algorithm.uses.join(', ') : 'its sensors'} once, then ${algorithm.name} decides its move${actions.length ? ` and actions (${actions.map(a => a.name).join(', ')})` : ''}.`
+      what: `Each activated agent looks at its visible domain and reads ${algorithm.uses.length ? algorithm.uses.join(', ') : 'its sensors'}, then ${algorithm.name} decides where it moves${actions.length ? ` and its actions (${actions.map(a => a.name).join(', ')})` : ''}.`
         + (adversaryFlags.length ? ` The adversary decides for agents flagged ${adversaryFlags.join(', ')}.` : ''),
-      choices: [...choices(...sensors.map(x => x.s.body)), ...(adversaryFlags.length ? ['moves of agents flagged ' + adversaryFlags.join(', ')] : [])],
+      choices: [...choices(...sensors.flatMap(x => [x.s.body, ...(x.s.look ?? []).map(b => b.value)])), ...(adversaryFlags.length ? ['moves of agents flagged ' + adversaryFlags.join(', ')] : [])],
     },
     hook('beforeMove', 'Components read the decisions and update their state.'),
-    { phase: 'Move', what: 'Agents that decided and still act move, rigidly, along present edges.' },
+    { phase: 'Move', what: 'Agents that decided and still act move to the location they chose, along edges present this round.' },
     hook('afterMove', 'Components update their state after the moves.'),
   ];
 
@@ -361,7 +425,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   const origin = (o: LeanOrigin): { label: string; refs: SourceRef[] } => {
     switch (o.kind) {
       case 'composition': return { label: 'composition of the components', refs: modelRef('components') };
-      case 'model': return { label: `model ${model.name}`, refs: modelRef('topology') };
+      case 'model': return { label: `model ${model.name}`, refs: modelRef('space') };
       case 'component': return { label: `component ${o.name}`, refs: refTo('component', o.name!) };
       case 'sensor': return { label: `sensor ${o.name}`, refs: refTo('sensor', o.name!) };
       case 'definition': return { label: `definition ${o.name}`, refs: refTo('definition', o.name!) };
@@ -388,10 +452,10 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   const caveats = [
     checkSettings
       ? 'Checks are bounded: they cover the finite settings supplied by project.ts, not every admissible parameter value.'
-      : 'Checks are bounded: they cover the settings enumerated from the parameter domains, not every ring size.',
+      : 'Checks are bounded: they cover the settings enumerated from the parameter domains, not every size.',
     ...(exp.limits ? ['Exploration limits can leave a check incomplete.'] : []),
-    ...(algorithm.native ? [`The algorithm's step is native TypeScript (${algorithm.native}): it is not written in .sim and is not translated to Lean.`] : []),
-    ...(group.rotations ? ['Symmetry reduction relies on equivariance declarations, which are claims tested on bounded instances.'] : []),
+    ...[referenceOrderingWarning(exp)].filter(w => w !== undefined),
+    ...(group.enabled ? ['Symmetry reduction relies on equivariance declarations, which are claims tested on bounded instances.'] : []),
   ];
 
   const expFile = exp.source?.file ?? algorithm.source?.file;
@@ -399,10 +463,11 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     experiment: exp.name,
     about: expFile && sources[expFile] !== undefined ? about(sources[expFile]) : undefined,
     summary: [
-      model.topology.kind === 'ring' ? 'ring' : `dynamic ring (${model.topology.k})`,
+      space.summary,
+      model.observation.kind === 'full' ? 'full view' : `radius ${exprText(model.observation.r)}`,
       model.round.toUpperCase(),
       model.memory === 'persistent' ? 'persistent memory' : 'oblivious',
-      model.frame.kind === 'common' ? 'common chirality' : model.frame.kind === 'dynamicReflection' ? 'dynamic orientation' : 'fixed orientation',
+      frame.summary,
       sensors.length ? `${sensors.length === 1 ? 'sensor' : 'sensors'}: ${sensors.map(x => x.s.name).join(', ')}` : 'no sensor',
       ...model.components.map(componentName),
       `${task.name}: ${GOALS[task.goal].formula}`,

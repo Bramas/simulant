@@ -1,0 +1,45 @@
+{
+  "project": "standup-gathering",
+  "source": "projects/standup-gathering/sim/h-plus-one.sim",
+  "experiment": "hPlusOne",
+  "generatedBy": "scripts/phase0-baselines.ts",
+  "model": {
+    "topology": "ring",
+    "round": "fsync",
+    "frame": "dynamicReflection",
+    "memory": "oblivious",
+    "goal": "eventually",
+    "task": "Gathering",
+    "symmetryGroup": {
+      "rotations": false,
+      "reflections": false
+    }
+  },
+  "limits": {
+    "states": 20000,
+    "depth": 100
+  },
+  "settings": [
+    {"settings":{"positions":[0,2,4],"phi":4,"crashNode":0,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":8,"reachable":10,"reachableComplete":true,"reachableLineOrbits":10},
+    {"settings":{"positions":[0,2,4],"phi":4,"crashNode":1,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":5,"reachable":7,"reachableComplete":true,"reachableLineOrbits":7},
+    {"settings":{"positions":[0,2,4],"phi":4,"crashNode":2,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":5,"reachable":7,"reachableComplete":true,"reachableLineOrbits":7},
+    {"settings":{"positions":[0,2,4],"phi":4,"crashNode":3,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":5,"reachable":7,"reachableComplete":true,"reachableLineOrbits":7},
+    {"settings":{"positions":[0,2,4],"phi":4,"crashNode":4,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":8,"reachable":10,"reachableComplete":true,"reachableLineOrbits":10},
+    {"settings":{"positions":[0,2,4],"phi":4,"crashNode":5,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":3,"reachable":3,"reachableComplete":true,"reachableLineOrbits":3},
+    {"settings":{"positions":[0,1,2,3,4],"phi":4,"crashNode":0,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":22,"reachable":25,"reachableComplete":true,"reachableLineOrbits":25},
+    {"settings":{"positions":[0,1,2,3,4],"phi":4,"crashNode":1,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":27,"reachable":29,"reachableComplete":true,"reachableLineOrbits":29},
+    {"settings":{"positions":[0,1,2,3,4],"phi":4,"crashNode":2,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":11,"reachable":15,"reachableComplete":true,"reachableLineOrbits":12},
+    {"settings":{"positions":[0,1,2,3,4],"phi":4,"crashNode":3,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":27,"reachable":29,"reachableComplete":true,"reachableLineOrbits":29},
+    {"settings":{"positions":[0,1,2,3,4],"phi":4,"crashNode":4,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":22,"reachable":25,"reachableComplete":true,"reachableLineOrbits":25},
+    {"settings":{"positions":[0,1,2,3,4],"phi":4,"crashNode":5,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":8,"reachable":8,"reachableComplete":true,"reachableLineOrbits":8},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":0,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":16,"reachable":20,"reachableComplete":true,"reachableLineOrbits":20},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":1,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":13,"reachable":17,"reachableComplete":true,"reachableLineOrbits":17},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":2,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":11,"reachable":15,"reachableComplete":true,"reachableLineOrbits":15},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":3,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":19,"reachable":21,"reachableComplete":true,"reachableLineOrbits":21},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":4,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":17,"reachable":20,"reachableComplete":true,"reachableLineOrbits":19},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":5,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":33,"reachable":34,"reachableComplete":true,"reachableLineOrbits":34},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":6,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":18,"reachable":21,"reachableComplete":true,"reachableLineOrbits":21},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":7,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":15,"reachable":19,"reachableComplete":true,"reachableLineOrbits":19},
+    {"settings":{"positions":[0,3,4,5,7],"phi":4,"crashNode":8,"N":64},"verdict":"success","reason":"every admissible execution satisfies the task","explored":6,"reachable":6,"reachableComplete":true,"reachableLineOrbits":6}
+  ]
+}

@@ -16,13 +16,13 @@ test('a bundled stdio LSP server handles incremental edits, imported buffers, na
   const source = `import "std/examples.sim"
 import "./helper.sim"
 experiment e where
-  model := blackHoleRing .initiallyPresent .unknown
+  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
-  param N : Nat := [5]
-  param site : Node := [node 2]
+  param N : Nat in [5]
+  param site : Pos in [pos 2]
   agents := amount
-  position i := node 0
+  position i := pos 0
 `;
   const main = pathToFileURL(join(directory, 'main.sim')).href;
   const helper = pathToFileURL(join(directory, 'helper.sim')).href;

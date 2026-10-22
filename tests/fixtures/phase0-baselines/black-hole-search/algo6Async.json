@@ -1,0 +1,26 @@
+{
+  "project": "black-hole-search",
+  "source": "projects/black-hole-search/sim/algo6.sim",
+  "experiment": "algo6Async",
+  "generatedBy": "scripts/phase0-baselines.ts",
+  "model": {
+    "topology": "ring",
+    "round": "ssync",
+    "frame": "common",
+    "memory": "persistent",
+    "goal": "eventuallyAlways",
+    "task": "IdentifyEmergingBlackHole",
+    "symmetryGroup": {
+      "rotations": true,
+      "reflections": false
+    }
+  },
+  "limits": {
+    "states": null,
+    "depth": null
+  },
+  "note": "SSYNC: agents keep their identities in states. Only the documented counterexample setting (N = 5, site = 3) is recorded: the full domain (N = 5..12) takes far longer than the ordinary suite allows, and the check of the whole experiment stops at this first failure anyway.",
+  "settings": [
+    {"settings":{"N":5,"site":3},"verdict":"failure","reason":"an execution never satisfies \"eventuallyAlways\"","counterexample":{"kind":"lasso","length":17,"cycleStart":14,"cycleLength":3},"explored":297097,"reachable":297097,"reachableComplete":true}
+  ]
+}

@@ -4,11 +4,11 @@ import { explore } from '@bramas/simulant-engine/explorer';
 import { parameterDomainViolations, parameterValues, System } from '@bramas/simulant-engine/system';
 import { lit } from '@bramas/simulant-lang/builder';
 import { T } from '@bramas/simulant-lang/types';
-import { blackHoleRing } from '../../stdlib/test/helpers/index';
+import { blackHoleRobots } from '../../stdlib/test/helpers/index';
 import { cautiousPairExperiment } from '../../stdlib/test/helpers/examples';
 
-const present = cautiousPairExperiment(blackHoleRing({ policy: 'initiallyPresent', size: 'unknown' }));
-const emerging = cautiousPairExperiment(blackHoleRing({ policy: 'mayEmerge', size: 'unknown' }));
+const present = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
+const emerging = cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' }));
 
 test('parameters are enumerated from their domains', () => {
   const all = [...parameterValues(present)];
@@ -31,7 +31,7 @@ test('domain membership compares structured values and handles empty or absent d
   const exp = {
     ...present,
     params: [...present.params,
-      { name: 'positions', type: T.list(T.node), domain: lit(T.list(T.list(T.node)), [[0, 1], [2]]).ir },
+      { name: 'positions', type: T.list(T.pos), domain: lit(T.list(T.list(T.pos)), [[0, 1], [2]]).ir },
       { name: 'pair', type: record, domain: lit(T.list(record), [{ left: 1, right: 2 }]).ir },
       { name: 'manual', type: T.nat },
     ],
@@ -39,7 +39,7 @@ test('domain membership compares structured values and handles empty or absent d
   const params = { N: 5, site: 1, positions: [0, 1], pair: { right: 2, left: 1 }, manual: 99 };
   assert.deepEqual(parameterDomainViolations(exp, params), []);
   assert.deepEqual(parameterDomainViolations(exp, { ...params, positions: [1, 0], pair: { left: 2, right: 1 } }), ['positions', 'pair']);
-  const empty = { ...present, params: present.params.map(p => p.name === 'site' ? { ...p, domain: lit(T.list(T.node), []).ir } : p) };
+  const empty = { ...present, params: present.params.map(p => p.name === 'site' ? { ...p, domain: lit(T.list(T.pos), []).ir } : p) };
   assert.deepEqual(parameterDomainViolations(empty, params), ['site']);
 });
 
@@ -51,6 +51,10 @@ test('a step of the cautious pair: the leader probes, the waiter waits', () => {
   assert.equal(succ.length, 1);
   const positions = succ[0].config.agents.map(a => a.pos).sort();
   assert.deepEqual(positions, [0, 1]);
+});
+
+test('a position outside the space is an error', () => {
+  assert.throws(() => new System(present, { N: 5, site: 3 }).initialWith({ N: 5, site: 9 }).length, /not a vertex/);
 });
 
 test('with a hole present from the start, the cautious pair identifies it', () => {

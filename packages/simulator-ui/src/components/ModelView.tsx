@@ -23,7 +23,7 @@ export interface ModelViewProps {
 }
 
 const KIND_LABEL: Record<SourceExcerpt['kind'], string> = {
-  experiment: 'experiment', model: 'model', component: 'component', sensor: 'sensor',
+  experiment: 'experiment', model: 'model', space: 'space', component: 'component', sensor: 'sensor',
   algorithm: 'algorithm', task: 'task', goal: 'goal', definition: 'definition',
 };
 

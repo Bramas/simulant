@@ -8,41 +8,43 @@ Use it from `.sim` sources:
 
 ```lean
 import "std/models.sim"
-import "std/tasks.sim"
 ```
 
-The library includes black-hole and crash components, pebble storage, visit
-monitors, ring model families and example algorithms. Topologies and rounds are
-implemented in the semantic core; library definitions compose those capabilities.
+The library includes spaces (`Graphs.Cycle`, `Graphs.Line`, `Graphs.Star`),
+location sensors, black-hole and crash components, lights, pebble storage, visit
+monitors, tasks, the model families `robots` and `blackHoleRobots`, and example
+algorithms. Graphs, observations, frames and rounds are implemented in the
+semantic core; library definitions compose those capabilities.
 
-For limited-visibility luminous robots with a fixed palette of three colors:
+For limited-visibility luminous robots on a line, with a palette of three colors,
+disoriented (a fresh isomorphism of the view at each Look):
 
 ```lean
-def robots : Model :=
-  obliviousRing (view := colorView)
-    (components := [Vision.Radius, Storage.Lights 3, Faults.CrashAtNode])
+def luminous : Model :=
+  robots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms [colors]
+    (components := [Storage.Lights 3, Faults.CrashAt])
 ```
 
 `Storage.Lights k` provides a fixed positive number of colors, numbered 0 through
-k−1. Every light starts at 0. The optional `light` action uses `none` to keep the
-current color and `some c` to request color c; out-of-palette requests are ignored.
-Updates commit after Compute and before movement, including when `CrashAtNode`
-prevents that movement. Slots associate stored colors with robots internally;
-there is no geometry, visibility, population or initial-light parameter.
+k−1, as an agent field `light`. Every light starts at 0. The optional `setLight`
+action uses `none` to keep the current color and `some c` to request color c;
+out-of-palette requests are ignored. Updates commit after Compute and before
+movement, including when `Faults.CrashAt` prevents that movement.
 
-`Vision.Radius` reads the experiment's `phi` parameter. `lineView` returns a
-centered occupancy view, while `colorView` returns a list of distinct colors at
-each visible node, in palette order. An empty color list means unoccupied.
-Neither observation exposes multiplicity, fault flags, slots or topology size.
-A project can interpret a padded ring as a line and choose its own notation for
-colors, such as the stand-up project's X/Y/Z encoding.
+Sensors are queried by location: `occupied l`, `count l` and `colors l` (the
+distinct colors at a location, in palette order; an empty list means unoccupied)
+expose neither multiplicity beyond what they say, nor fault flags, nor the size
+of the space. Helpers such as `Line.window` (the visible locations of a line view,
+from one end to the other) and `Ring.cw`/`Ring.ccw` (named neighbors) build lists
+from locations; a project chooses its own notation, such as the stand-up project's
+X/Y/Z encoding of `colors`.
 
-Compose model capabilities explicitly. For example, fixed-node crash gathering
-uses `obliviousRing (components := [Faults.CrashAtNode])`; dynamic-ring robots use
-`obliviousRing (topology := DynamicRing 1)` with the appropriate observation and
-frame. Dynamic black-hole search uses
-`blackHoleRing .mayEmerge .unknown (topology := DynamicRing 1)`. The experiment
-selects the existing task and goal, such as `Gathering`, separately from the model.
+Compose model capabilities explicitly. Black-hole search with chirality uses
+`blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown`; on a dynamic ring,
+`blackHoleRobots (Graphs.Dynamic (Graphs.Cycle N) 1) .mayEmerge .unknown`. Full-view
+gathering on a ring uses `robots (Graphs.Cycle N) Observe.full Frames.isomorphisms
+[occupied]`. The experiment selects the task and goal, such as `Gathering`,
+separately from the model.
 
 See the [language reference](https://github.com/Bramas/simulant/blob/main/docs/sim-language.md)
 for a complete experiment. The development notes below describe how the library
@@ -79,4 +81,4 @@ updates, independent storage and bounded rotation/reflection equivariance.
 
 Tests import the helpers directly, for example `../../stdlib/test/helpers/index`. The package exports only `.sim` sources through `./sim/*`. Project algorithms import the library through `std/*.sim`; Lean library generation also reads `sim/` directly.
 
-Topologies, rounds and expression builtins are implemented by the TypeScript and Lean semantic cores. The `.sim` library composes those capabilities; see the [architecture](../../docs/architecture.md#models-and-execution).
+Graphs, observations, frames, rounds and expression builtins are implemented by the TypeScript and Lean semantic cores. The `.sim` library composes those capabilities; see the [architecture](../../docs/architecture.md#models-and-execution).

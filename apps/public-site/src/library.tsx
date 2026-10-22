@@ -1,14 +1,15 @@
 import { createMemo, createSignal, For, Show } from 'solid-js';
 import { render } from 'solid-js/web';
 
-import { builtinOptions, frameOptions } from './builder';
+import { builtinOptions } from './builder';
 import { Code, Footer, highlight, Nav, Prose } from './layout';
 import { goalText, signature, type Entry, type Kind } from './stdlib';
 import { library } from './stdlib-sources';
 import './site.css';
 
 const sections: { kind: Kind[]; id: string; title: string; lead: string }[] = [
-  { kind: ['model'], id: 'models', title: 'Model families', lead: 'A model fixes the topology, the sensors, memory, orientation, round and components. A family builds one from its arguments.' },
+  { kind: ['model'], id: 'models', title: 'Model families', lead: 'A model fixes the space, the observation, the frames, the sensors, memory, round and components. A family builds one from its arguments.' },
+  { kind: ['space'], id: 'spaces', title: 'Spaces', lead: 'Graphs: positions and, for each, its ordered neighbors (its ports). An agent sees part of the space through its observation.' },
   { kind: ['component'], id: 'components', title: 'Components', lead: 'A component owns world and agent fields, raises flags, adds actions, and acts at the hook points of each round.' },
   { kind: ['sensor'], id: 'sensors', title: 'Sensors', lead: 'Everything an algorithm knows comes from the sensors of its model.' },
   { kind: ['task'], id: 'tasks', title: 'Tasks', lead: 'A task gives each configuration a verdict; its goal says which executions solve it.' },
@@ -17,12 +18,19 @@ const sections: { kind: Kind[]; id: string; title: string; lead: string }[] = [
 ];
 
 const builtins = [
-  { type: 'Topology', options: builtinOptions.Topology },
-  { type: 'Round', options: builtinOptions.Round },
-  { type: 'FrameModel', options: [
-    ...frameOptions,
-    { value: 'Frames.persistent field', label: 'Persistent', detail: 'Each agent keeps the orientation stored in an agent field of type Frame, such as the one Frames.PersistentReflection owns.' },
+  { type: 'Space', options: [
+    { value: 'Graphs.Dynamic space k', label: 'Dynamic', detail: 'The space, where the adversary removes at most k edges at the start of each round.' },
   ] },
+  { type: 'Observation', options: [
+    { value: 'Observe.radius r', label: 'Radius', detail: 'The r-hop view: the positions at distance at most r, and the edges with an endpoint closer than r.' },
+    { value: 'Observe.full', label: 'Full', detail: 'Every position and edge (finite spaces).' },
+  ] },
+  { type: 'Frames', options: [
+    ...builtinOptions.Frames.filter((o) => !o.value.startsWith('Frames.portPermutations')),
+    { value: 'Frames.portPermutations .perLook / .perRobot', label: 'Port permutations', detail: 'The ports through a permutation chosen at each Look, or fixed per robot (among := .all or .symmetries).' },
+  ] },
+  { type: 'Round', options: builtinOptions.Round },
+  { type: 'Memory', options: builtinOptions.Memory },
   { type: 'Symmetries', options: builtinOptions.Symmetries },
 ];
 
@@ -110,7 +118,7 @@ function Library() {
           The models, components, sensors and tasks every project can import, read from their <code>.sim</code> sources.
           Pick some in the <a href="../builder/">model builder</a> to start an experiment.
         </p>
-        <Code code={'import "std/models.sim"   -- model families, with their sensors and components\nimport "std/tasks.sim"    -- tasks and goals'} />
+        <Code code={'import "std/models.sim"   -- model families, with the spaces, sensors, components and tasks they use'} />
       </header>
 
       <div class="docs-layout">

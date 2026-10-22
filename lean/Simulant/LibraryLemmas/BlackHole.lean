@@ -33,7 +33,7 @@ theorem site_stays (m : Model σ) (act0 : σ.A) (policy : HolePolicy) (L : Ctx �
     (L.world.get C'.world).site = (L.world.get C.world).site :=
   m.step_preserves act0 (g := fun w => (L.world.get w).site) (fun c hcm => by
     rcases hc c hcm with rfl | hp
-    · exact Hooks.toComponent_preserves_own (hooks policy L) L.world (fun x : World σ.N => x.site)
+    · exact Hooks.toComponent_preserves_own (hooks policy L) L.world (Lens.unit σ.X) (fun x : World σ.S.Pos => x.site)
         (hooks_keep_site policy L)
     · exact hp.comp (·.site)) hs
 

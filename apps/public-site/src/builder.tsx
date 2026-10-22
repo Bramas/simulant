@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch
 import { render } from 'solid-js/web';
 
 import {
-  analyze, build, byName, components, isCustom, locate, models, newDraft, sensorArgs, syntaxError, tasks, undeclared, useOf, widget, withCustom,
+  analyze, build, byName, components, isCustom, locate, models, newDraft, sensorArgs, syntaxError, tasks, undeclared, useOf, viewSensors, widget, withCustom,
   type Draft, type Region, type Use,
 } from './builder';
 import type { SiteDiagnostic } from './compile';
@@ -104,10 +104,11 @@ function SensorInput(props: { lib: Library; value: string; onChange: (value: str
   );
 }
 
-function ComponentPicker(props: { lib: Library; draft: Draft; list: string; onChange: (uses: Use[]) => void }) {
+/** Checkboxes for a model argument that lists components, or sensors. */
+function ComponentPicker(props: { lib: Library; draft: Draft; list: string; sensors?: boolean; onChange: (uses: Use[]) => void }) {
   const uses = () => props.draft.lists[props.list] ?? [];
   const included = () => selectedByFamily(props.draft, props.lib);
-  const available = () => components(props.lib).filter((c) => !included().includes(c.name));
+  const available = () => (props.sensors ? viewSensors(props.lib) : components(props.lib)).filter((c) => !included().includes(c.name));
   const toggle = (c: Entry, on: boolean) =>
     props.onChange(on ? [...uses(), useOf(props.lib, c)] : uses().filter((u) => u.name !== c.name));
   const setArg = (name: string, index: number, value: string) =>
@@ -128,7 +129,7 @@ function ComponentPicker(props: { lib: Library; draft: Draft; list: string; onCh
               <p class="hint">{firstSentence(c.doc)}</p>
               <Show when={use() && c.params.length}>
                 <div class="pick-args">
-                  <Index each={c.params}>
+                  <Index each={props.sensors ? sensorArgs(c) : c.params}>
                     {(p, i) => (
                       <label class="inline-arg">
                         {p().name}
@@ -140,6 +141,9 @@ function ComponentPicker(props: { lib: Library; draft: Draft; list: string; onCh
               </Show>
               <Show when={c.reads?.length}>
                 <p class="hint">Adds <For each={c.reads}>{(r) => <code>param {r.name}</code>}</For></p>
+              </Show>
+              <Show when={props.sensors && c.requires?.length}>
+                <p class="hint">Needs <For each={c.requires}>{(r) => <code>{r}</code>}</For></p>
               </Show>
             </div>
           );
@@ -221,8 +225,8 @@ function place(regions: Region[], d: SiteDiagnostic): string {
 
 const customPlaceholder = `-- Your own sensors, components, tasks and definitions, e.g.
 /-- Whether another robot stands on my node. -/
-sensor notAlone (C : Config) (me : Agent) : Bool :=
-  C.agents.any fun b => b ≠ me ∧ present b ∧ b.pos = me.pos`;
+sensor notAlone (L : Look) : Bool :=
+  (L.occupants L.here).any fun b => b ≠ L.me ∧ present b`;
 
 function Builder() {
   const [draft, setDraft] = createSignal<Draft>(initialDraft());
@@ -282,10 +286,15 @@ function Builder() {
     if (!e) return [];
     const m = e.model;
     return [
-      ['Topology', m.topology.kind === 'ring' ? 'static ring of size N' : `dynamic ring, at most ${(m.topology as { k: number }).k} missing edge(s) per round`],
+      ['Space', m.space.kind === 'dynamic'
+        ? `${m.space.base.kind === 'graph' ? m.space.base.name : 'a graph'}, with edges removed by the adversary each round`
+        : m.space.kind === 'graph' ? m.space.name : 'a Euclidean space'],
+      ['Observation', m.observation.kind === 'full' ? 'the whole space' : 'the r-hop view'],
+      ['Frames', m.frames.kind === 'identity' ? 'the ports as they are (common sense of direction)'
+        : m.frames.kind === 'isomorphisms' ? 'any symmetry of the view, chosen by the adversary at each Look'
+        : m.frames.when === 'perRobot' ? 'each robot’s own port numbering' : 'a port numbering chosen at each Look'],
       ['Round', m.round.toUpperCase()],
       ['Memory', m.memory === 'oblivious' ? 'oblivious (no private state across rounds)' : 'persistent'],
-      ['Orientation', m.frame.kind === 'common' ? 'common chirality' : m.frame.kind === 'dynamicReflection' ? 'chosen by the adversary at each activation' : `persistent, in ${(m.frame as { field: string }).field}`],
       ['Sensors', m.sensors.map((s) => s.name).join(', ') || 'none'],
       ['Components', m.components.map((c) => c.name).join(', ') || 'none'],
       ['Goal', `${e.task.name}: ${goalText[e.task.goal] ?? e.task.goal}`],
@@ -329,7 +338,7 @@ function Builder() {
               <p class="hint">Always includes <For each={family()!.includes}>{(n) => <code>{n}</code>}</For></p>
             </Show>
             <div class="args">
-              <For each={params().filter((p) => p.type !== 'List Component')}>
+              <For each={params().filter((p) => p.type !== 'List Component' && p.type !== 'List Sensor')}>
                 {(p) => (
                   <label class="arg">
                     <span class="arg-name">{p.name} <small>{p.type}</small></span>
@@ -344,6 +353,16 @@ function Builder() {
               </For>
             </div>
           </fieldset>
+
+          <For each={params().filter((p) => p.type === 'List Sensor')}>
+            {(p) => (
+              <fieldset>
+                <legend>Sensors <small>({p.name})</small></legend>
+                <ComponentPicker lib={lib()} draft={draft()} list={p.name} sensors onChange={(uses) => update({ lists: { ...draft().lists, [p.name]: uses } })} />
+                <p class="hint">What an agent learns about each location of its view. The algorithm reads the ones it <code>uses</code>.</p>
+              </fieldset>
+            )}
+          </For>
 
           <For each={params().filter((p) => p.type === 'List Component')}>
             {(p) => (
@@ -389,8 +408,8 @@ function Builder() {
               <label class="arg">
                 <span class="arg-name">Initial positions</span>
                 <select onChange={(e) => update({ placement: e.currentTarget.value as Draft['placement'] })}>
-                  <option value="same" selected={draft().placement === 'same'}>All on node 0</option>
-                  <option value="spread" selected={draft().placement === 'spread'}>Agent i on node i</option>
+                  <option value="same" selected={draft().placement === 'same'}>All on position 0</option>
+                  <option value="spread" selected={draft().placement === 'spread'}>Agent i on position i</option>
                 </select>
               </label>
               <For each={analysis().params}>

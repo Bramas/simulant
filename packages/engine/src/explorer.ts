@@ -172,7 +172,7 @@ export class Explorer {
         expanded: this.states.filter(s => s.succ).length,
         edges: this.edges,
         maxDepth: this.states.reduce((m, s) => Math.max(m, s.depth), 0),
-        group: this.symmetry.group.length,
+        group: this.symmetry.size,
       },
     };
   }
@@ -307,7 +307,7 @@ export class Explorer {
   /**
    * Steps along stored states, replayed concretely: each configuration is the
    * successor of the previous concrete one that the stored state represents,
-   * so that a path does not jump around the ring.
+   * so that a path does not jump around the space.
    */
   private steps(ids: number[], loopTo?: number): Step[] {
     let concrete = this.concreteInitial.get(ids[0])!.config;

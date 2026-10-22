@@ -13,7 +13,8 @@ export type SnapshotAgent = {
   index: number;
   /** `pub.id` when the public state has one (agents with identifiers), the index otherwise. */
   id: number;
-  pos: number;
+  /** The agent's position: its vertex (a number on cycles, lines and stars). */
+  pos: any;
   /** Raised flags, by name. */
   flags: Record<string, boolean>;
   /** Component agent fields. */
@@ -28,17 +29,18 @@ export type SnapshotAgent = {
   present: boolean;
   // The names of the former engine's agents, which the UI and project renderers still use.
   _id: number;
-  _pos: number;
+  _pos: any;
 };
 
 export class Snapshot {
   readonly agents: readonly SnapshotAgent[];
   readonly world: Readonly<Record<string, any>>;
+  /** The number of vertices of a finite space (0 for an infinite one, such as the line). */
   readonly size: number;
 
   constructor(readonly config: Config, readonly system: System) {
     const flagNames = system.lay.flags.map(f => f.name);
-    this.size = system.topo.size;
+    this.size = system.space.vertices?.length ?? 0;
     this.world = config.world;
     this.agents = config.agents.map((a, index) => {
       const flags = Object.fromEntries(flagNames.map(f => [f, !!a.f[f]]));
@@ -53,8 +55,8 @@ export class Snapshot {
     });
   }
 
-  /** The agents on a node (the former engine's configuration interface, which renderers still use). */
-  get(node: number): { state: null; agents: SnapshotAgent[] } {
+  /** The agents at a position (the former engine's configuration interface, which renderers still use). */
+  get(node: unknown): { state: null; agents: SnapshotAgent[] } {
     return { state: null, agents: this.agents.filter(a => a.pos === node) };
   }
 }
