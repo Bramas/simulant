@@ -1,12 +1,12 @@
 # Phase 0: core and standard-library redesign
 
-Design document · 21 October 2026 · not implemented
+Design document · 21 October 2026 · implemented on 22 October 2026 (steps 0 to 7 below), except the Euclidean spaces, which remain interfaces
 
 Phase 0 replaces the ring-based semantic core with a generic one. The physical space is a graph or a Euclidean space. An agent observes the visible part of it through **opaque locations**, ordered by a hidden reference ordering and a **morphism** chosen by the adversary. Every sensor is a query about a location. Rings, lines, stars, grids and discs become library spaces built on the two core kinds, with helpers in `.sim` (named neighbors), TypeScript (drawing, fast paths) and Lean (closed forms and lemmas).
 
 Simulant is in alpha, so Phase 0 keeps **no legacy definitions**. `Ring`, `DynamicRing`, `Frame`, `Move`, `offset`, `toGlobal`, the frame models and the ring-specific sensors are removed rather than adapted. The work proceeds package by package (section 9). The first milestone is that the starter, black-hole search and stand-up gathering projects run and check again. The [public-paper program](public-projects-roadmap.md) and the [capability catalog](stdlib-additions-proposal.md) build on this foundation.
 
-Blocks tagged `sim-design` show the target language. Their syntax is a proposal, to be settled in step 0 of section 9; today's compiler does not accept them.
+Blocks tagged `sim-design` show the target language as designed. The implemented syntax is described in [the language reference](sim-language.md), which prevails where the two differ.
 
 ## 1. Concepts
 
@@ -490,7 +490,7 @@ Lean export is unavailable between steps 1 and 6. Record this under "Known issue
 
 ### Step 0 answers and decisions
 
-Proposed answers, written with the target sources in [`docs/phase0-target/`](phase0-target/README.md) and the baselines in [`tests/fixtures/phase0-baselines/`](../tests/fixtures/phase0-baselines/README.md). The inventory of the private projects remains to be done in their own repository.
+Proposed answers, written with the target sources in [`docs/phase0-target/`](phase0-target/README.md) and the baselines in [`tests/fixtures/phase0-baselines/`](../tests/fixtures/phase0-baselines/README.md). The private projects were inventoried and ported in their own repository, which records their comparison with the old core.
 
 **Syntax of spaces and of helpers that read `here`.** Spaces are `def … : Space where` declarations, like components and models. Their fields are `Vertex`, `vertices` (omitted for an infinite vertex set), `neighbors` and an optional `automorphisms` fast path, required when `vertices` is omitted ([`spaces.sim`](../packages/stdlib/sim/spaces.sim)). A separate `space` keyword would add a declaration form without adding anything a typed `def` cannot say. Helpers stay plain `def`s. A definition that reads `here`, `visible`, `neighbors`, `distance` or a sensor is *algorithm-local*:
 
