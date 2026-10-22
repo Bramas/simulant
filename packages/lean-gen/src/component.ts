@@ -8,7 +8,7 @@
  */
 import type { Component, Expr, Field, Sensor, Type } from '@bramas/simulant-lang/ir';
 import { T, showType, typeEq } from '@bramas/simulant-lang/types';
-import { fail, ident, Translator, type Env } from './translate';
+import { fail, ident, Translator, wrap, type Env } from './translate';
 
 export type ComponentInfo = {
   name: string;
@@ -104,7 +104,8 @@ export function generateComponent(c: Component, namespace: string): string {
 
   const env = (space: string, pos: string, sig: string, k: string): Env => ({
     space, pos, sig, agent: `Fin ${k}`, k, pub: 'σ.P',
-    posOf: () => fail(`${c.name}: positions from vertex numbers are only available in experiments`),
+    // The composition's space maps vertex numbers to its positions.
+    posOf: (v, t) => `(${space}.${t.k === 'int' ? 'ofInt' : 'ofNat'} ${wrap(v)})`,
     typeName: t => {
       if (t.k === 'enum' && enumNames.has(t.name)) return ident(t.name);
       if (t.k === 'record' && typeEq(t, worldT)) return `World ${pos}`;

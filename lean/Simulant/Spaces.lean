@@ -20,6 +20,8 @@ def cycle (n : Nat) [NeZero n] : Space where
   vertices := some (List.finRange n)
   maxDegree := 2
   le a b := a.val ≤ b.val
+  ofNat v := Fin.ofNat n v
+  ofInt v := Fin.ofNat n (v % n).toNat
 
 /-- The infinite line. -/
 def line : Space where
@@ -27,6 +29,8 @@ def line : Space where
   neighbors v := [v + 1, v - 1]
   maxDegree := 2
   le a b := a ≤ b
+  ofNat v := v
+  ofInt v := v
 
 /-- A position of the cycle from a vertex number (mod n). -/
 def cyclePos (n : Nat) [NeZero n] (v : Nat) : (cycle n).Pos := Fin.ofNat n v

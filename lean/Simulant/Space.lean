@@ -30,6 +30,9 @@ structure Space where
   maxDegree : Nat
   /-- The interpreter's physical order of positions, for the identity reference ordering. -/
   le : Pos → Pos → Bool
+  /-- The position of a vertex number (`pos v` in components, which are generic over the space). -/
+  ofNat : Nat → Pos
+  ofInt : Int → Pos
 
 attribute [instance] Space.deq Space.repr Space.inh
 

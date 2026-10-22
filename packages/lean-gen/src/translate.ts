@@ -34,7 +34,7 @@ export interface Env {
   /** The space (`σ.S`, `(space N)`), the Lean type of its positions, and a position from a vertex. */
   space: string;
   pos: string;
-  posOf(vertex: string): string;
+  posOf(vertex: string, type: Type): string;
   /** The signature (`σ`, `(sig N nAgents)`), the Lean type of agents, and the number of agents. */
   sig: string;
   agent: string;
@@ -140,7 +140,7 @@ export class Translator {
       case 'nat': case 'loc': return String(v);
       case 'int': return `(${v} : Int)`;
       case 'string': return JSON.stringify(v);
-      case 'pos': return this.env.posOf(typeof v === 'number' && v < 0 ? `(${v} : Int)` : String(v));
+      case 'pos': return this.env.posOf(typeof v === 'number' && v < 0 ? `(${v} : Int)` : String(v), typeof v === 'number' && v < 0 ? T.int : T.nat);
       case 'verdict': case 'enum': return this.ctor(t, v as string);
       case 'option': return v === null ? `(none : ${this.type(t)})` : `(some ${this.lit(v, t.of)})`;
       case 'list': case 'multiset': return `([${(v as Json[]).map(x => this.lit(x, t.of)).join(', ')}] : ${this.type(t)})`;
@@ -458,7 +458,7 @@ export class Translator {
           const agent = `${wrap(a[0])}.agents[${a[1]}]`;
           return `(Space.follow ${env.space} ${agent}.pos (${agent}.port ${w[2]}) ${e.fn === 'resolve' ? '1' : w[3]})`;
         }
-        case 'pos': return env.posOf(w[0]);
+        case 'pos': return env.posOf(w[0], t0);
         case 'positions': return `(${env.space}.vertices.getD [])`;
         case 'occupants': return `(${w[0]}.occupants ${w[1]})`;
         case 'position': return `(${w[0]}.position ${w[1]})`;

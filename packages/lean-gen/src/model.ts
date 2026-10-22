@@ -273,7 +273,8 @@ export function generateMappedModel(exp: Experiment, namespace: string): Generat
     emit(`def space ${mBinders} : Space :=
   ${lets}let nbrs := fun (${ident(base.neighbors.vertex)} : ${vt}) => ${nb}
   { Pos := ${vt}, neighbors := nbrs, vertices := ${vs ? `some ${wrap(vs)}` : 'none'},
-    maxDegree := ${vs ? `(${wrap(vs)}.map fun v => (nbrs v).length).foldl max 0` : '2'}, le := fun a b => decide (a ≤ b) }
+    maxDegree := ${vs ? `(${wrap(vs)}.map fun v => (nbrs v).length).foldl max 0` : '2'}, le := fun a b => decide (a ≤ b),
+    ofNat := ${vt === 'Nat' ? 'id' : 'Int.ofNat'}, ofInt := ${vt === 'Nat' ? 'Int.toNat' : 'id'} }
 `, { kind: 'model' });
   }
 
