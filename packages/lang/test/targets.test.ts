@@ -27,6 +27,7 @@ test('every public project and the library examples compile without diagnostics'
     'packages/stdlib/sim/conformance.sim': [
       'blackHoleEmerging', 'blackHoleCrashStop', 'blackHoleLossy', 'pebbles', 'gatheringRobots', 'dynamicRing', 'ownOrientation',
       'portPermutations', 'ssync', 'sequential', 'parameterAcceptance', 'lights', 'starGathering', 'starDispersion',
+      'agentFields', 'edgePresence',
     ],
     'projects/starter/src/main.sim': ['cautiousPair'],
     'projects/black-hole-search/sim/algo0.sim': ['algo0'],

@@ -211,16 +211,15 @@ export class System {
     if (algorithm.line) this.lineFn = compiler.root(algorithm.line, [['mem', algorithm.mem]], defsOf(model.defs, algorithm.defs));
     this.verdictFn = compiler.root(task.verdict, [['C', T.config]], defsOf(model.defs, task.defs));
 
-    const fields = [
-      ...lay.flags.map(f => (a: AgentV) => a.f[f.name] ? '1' : '0'),
-      ...lay.agentFields.map(f => { const e = encoder(f.type); return (a: AgentV) => e(a.f[f.name]); }),
-    ];
+    const fieldsKey = encoder(T.record([
+      ...lay.flags.map(f => ({ name: f.name, type: T.bool })),
+      ...lay.agentFields,
+    ]));
     const pubKey = encoder(lay.pub);
     const memKey = encoder(lay.mem);
     this.agentKey = a => {
-      let s = vertexKey(a.pos) + (a.frame ? `/${a.frame.join('')}` : '') + '|';
-      for (const f of fields) s += f(a);
-      return s + '|' + pubKey(a.pub) + '|' + memKey(a.mem);
+      const s = vertexKey(a.pos) + (a.frame ? `/${a.frame.join(',')}` : '') + '|';
+      return s + fieldsKey(a.f) + '|' + pubKey(a.pub) + '|' + memKey(a.mem);
     };
     this.worldKey = encoder(lay.worldType);
     this.decisionKey = encoder(T.record([

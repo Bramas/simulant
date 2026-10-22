@@ -25,6 +25,8 @@ const table: [string, string, Record<string, unknown>, number?][] = [
   ['lights', 'lights', { positions: [0, 0, 2], phi: 1, crashNode: 1 }, 24],
   ['star-gathering', 'starGathering', { k: 3, start: [1, 2, 0] }],
   ['star-dispersion', 'starDispersion', { k: 3 }],
+  ['agent-fields', 'agentFields', { N: 3 }],
+  ['edge-presence', 'edgePresence', { N: 5 }],
 ];
 
 const out = compile(loadProgram(stdlibDir + 'conformance.sim'));

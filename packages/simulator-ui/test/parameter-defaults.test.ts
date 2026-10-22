@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { compileSource } from '../../vite-plugin/src/index';
-import { simProject, type SimSources } from '../src/sim/project';
+import { adjustSettings, simProject, type SimSources } from '../src/sim/project';
 import type { ProjectUpdate } from '../../core/src/types/project';
 
 const source = `
@@ -23,6 +23,74 @@ const compile = (text = source) => {
   assert.deepEqual(module.diagnostics, []);
   return module;
 };
+
+const recordPositions = `import "std/models.sim"
+def Pair : Space where
+  Vertex := { x : Nat, y : Int }
+  vertices := [{ x := 0, y := 0 }, { x := 1, y := -1 }]
+  neighbors v := if v.x = 0 then [{ x := 1, y := -1 }] else [{ x := 0, y := 0 }]
+  automorphisms := .computed
+algorithm Idle where
+  main := stay
+experiment domains where
+  model := robots Pair (Observe.radius 1) Frames.identity []
+  algorithm := Idle
+  task := Gathering
+  param site : Pos in positions
+  param path : List Pos in [positions]
+  param maybe : Option Pos in [none, some (pos { x := 1, y := -1 })]
+  param setup : { anchor : Pos } in [{ anchor := pos { x := 0, y := 0 } }]
+  agents := 1
+  position i := site
+`;
+
+test('record positions use JSON fields and settings, including nested positions', () => {
+  const module = compile(recordPositions);
+  const project = simProject(module, 'domains');
+  assert.deepEqual(project.editorSchema!.fields[0], {
+    type: 'text', key: 'site', label: 'site (JSON)', defaultValue: '{"x":0,"y":0}',
+  });
+  const settings = {
+    site: '{"x":1,"y":-1}', path: '[{"x":1,"y":-1}]',
+    maybe: '{"x":1,"y":-1}', setup: '{"anchor":{"x":1,"y":-1}}',
+  };
+  const params = {
+    site: { x: 1, y: -1 }, path: [{ x: 1, y: -1 }],
+    maybe: { x: 1, y: -1 }, setup: { anchor: { x: 1, y: -1 } },
+  };
+  assert.deepEqual(project.setup(settings).params, params);
+  assert.deepEqual(adjustSettings(module.experiments.domains, settings), { settings, notes: [] });
+  const checked = {
+    ...settings, path: '[{"x":0,"y":0},{"x":1,"y":-1}]', setup: '{"anchor":{"x":0,"y":0}}',
+  };
+  const overridden = simProject(module, 'domains', { defaults: settings, checkSettings: () => [checked] });
+  assert.deepEqual(overridden.setup(null).params, params);
+  assert.deepEqual([...overridden.settingsGenerator!()], [{
+    ...params, path: [{ x: 0, y: 0 }, { x: 1, y: -1 }], setup: { anchor: { x: 0, y: 0 } },
+  }]);
+});
+
+test('source updates preserve compatible record positions and reset incompatible nested ones', () => {
+  const listeners = new Set<(module: SimSources) => void>();
+  const module = { ...compile(recordPositions), subscribe: (listener: (next: SimSources) => void) => { listeners.add(listener); return () => listeners.delete(listener); } };
+  const project = simProject(module, 'domains');
+  const updates: ProjectUpdate[] = [];
+  project.subscribe!(u => updates.push(u));
+  for (const listener of listeners) listener(compile(recordPositions.replace('agents := 1', 'agents := 2')));
+  const update = updates[0];
+  assert.equal(update.kind, 'replaced');
+  if (update.kind !== 'replaced') return;
+  const settings = {
+    site: { x: 1, y: -1 }, path: [{ x: 1, y: -1 }], maybe: null, setup: { anchor: { x: 1, y: -1 } },
+  };
+  assert.deepEqual(update.adjust(settings), { settings, notes: [] });
+  const incompatible = {
+    site: { x: 'bad', y: 0 }, path: [{ x: 1 }], maybe: { x: -1, y: 0 }, setup: { anchor: 1 },
+  };
+  const adjusted = update.adjust(incompatible);
+  assert.equal(adjusted.notes.length, 4);
+  assert.deepEqual(adjusted.settings, project.setup(null).params);
+});
 
 test('predicate-only defaults populate both the form and execution without finite model samples', () => {
   const project = simProject(compile(), 'domains');

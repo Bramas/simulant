@@ -3,7 +3,7 @@
  * Project simulations and Lean generation use ../../sim/sensors.sim; see ../../README.md.
  */
 import {
-  and, choose, concat, ite, let_, locationSensor, occupants, present, range, sensor, show, str, subsetsUpTo, type X,
+  and, choose, concat, edgePresent, ite, let_, locationSensor, occupants, present, range, sensor, show, str, subsetsUpTo, type X,
 } from '@bramas/simulant-lang/builder';
 import { T } from '@bramas/simulant-lang/types';
 
@@ -31,3 +31,6 @@ export const otherStatesLossy = (k: number) => sensor('otherStates', T.multiset(
 
 /** Knowledge of the size of a finite space. */
 export const spaceSize = sensor('spaceSize', T.nat, ({ L }) => L.spaceSize);
+
+/** Whether an edge to this location is present this round. */
+export const edgeTo = locationSensor('edgeTo', T.bool, ({ L, l }) => edgePresent(L, L.here, l));

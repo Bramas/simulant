@@ -41,6 +41,12 @@ theorem Auto.beq {f : S.Pos → S.Pos} (hf : S.Auto f) (p q : S.Pos) : (f p == f
   · have : f p ≠ f q := fun e => h (hf.inj _ _ e)
     rw [beq_eq_false_iff_ne.2 this, beq_eq_false_iff_ne.2 h]
 
+/-- Automorphisms preserve edge presence in a static space. -/
+theorem Auto.edgePresent_nil {f : S.Pos → S.Pos} (hf : S.Auto f) (p q : S.Pos) :
+    S.edgePresent [] (f p) (f q) = S.edgePresent [] p q := by
+  rw [Space.edgePresent_nil, Space.edgePresent_nil, hf.nbrs]
+  simp only [List.contains_eq_any_beq, List.any_map, Function.comp_def, hf.beq]
+
 /-- The positions of a breadth-first state, moved by `f`. -/
 def mapSeen (f : S.Pos → S.Pos) (acc : List (S.Pos × Nat) × List S.Pos) : List (S.Pos × Nat) × List S.Pos :=
   (acc.1.map fun (x : S.Pos × Nat) => (f x.1, x.2), acc.2.map f)

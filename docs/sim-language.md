@@ -88,6 +88,8 @@ def Graphs.Line : Space where
 
 Positions have type `Pos`. Experiments build them from vertices with `pos v`; everything else compares, stores and passes positions without unwrapping them.
 
+In the simulator settings, a position uses its vertex's representation: a number for `Nat` or `Int` vertices, JSON for record vertices. This also applies to positions nested in lists, options and records. Lean export currently supports only `Nat` and `Int` vertex types.
+
 ## Components
 
 ```lean

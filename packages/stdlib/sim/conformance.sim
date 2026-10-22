@@ -201,3 +201,43 @@ experiment starDispersion where
   param k : Nat
   agents := 3
   position i := pos 0
+
+/-- Two fields whose concatenations agree, but whose configurations must stay distinct. -/
+def FieldChoices : Component where
+  Agent := { x : Nat, y : Nat }
+  init i := { x := 0, y := 0 }
+  beforeLook C :=
+    let b := choose [false, true]
+    { agents := fun a => { x := if b then 12 else 1, y := if b then 3 else 23 } }
+
+algorithm Stay where
+  init i := {}
+  step mem pub := { move := here }
+
+task SafeFields (C : Config) : Verdict :=
+  if C.agents.any (fun a => a.x = 12) then .failure else .inProgress
+
+goal SafeFields := always ¬ .failure
+
+experiment agentFields where
+  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity []
+    (components := [FieldChoices]) (symmetries := .none)
+  algorithm := Stay
+  task := SafeFields
+  param N : Nat
+  agents := 1
+  position i := pos 0
+
+/-- Record edges to all locations, including here and locations that are not neighbors. -/
+algorithm ReadEdges uses edgeTo where
+  Pub := { edges : List Bool }
+  init i := { pub := { edges := [] } }
+  step mem pub := { move := here, pub := { edges := visible.map edgeTo } }
+
+experiment edgePresence where
+  model := robots (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 2) Frames.identity [edgeTo]
+  algorithm := ReadEdges
+  task := Observe
+  param N : Nat
+  agents := 1
+  position i := pos 0

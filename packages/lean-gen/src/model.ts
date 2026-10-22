@@ -475,11 +475,13 @@ ${cases.join('\n')}
   for (const { c, ns, info } of withFields) {
     const cargs = (c.params ?? []).map(p => wrap(initTr.lit(c.args![p.name], p.type)));
     const inputs = info.inputs.map(x => ident(x.name));
+    const fields: string[] = [];
     for (const f of c.agent!) {
       const v = `f_${c.name}_${f.name}`;
       initLines.push(`let ${v} ← (List.range ${wrap(kCode)}).mapM (fun i => ${ns}.init_${ident(f.name)} (S := ${spaceCode}) ${[...cargs, ...inputs].join(' ')} i)`);
-      fieldInits.push(`${ident(c.name)} := { ${ident(f.name)} := ${v}[i]! }`);
+      fields.push(`${ident(f.name)} := ${v}[i]!`);
     }
+    fieldInits.push(`${ident(c.name)} := { ${fields.join(', ')} }`);
   }
   for (const { c, ns, info } of withWorld) {
     const cargs = (c.params ?? []).map(p => wrap(initTr.lit(c.args![p.name], p.type)));

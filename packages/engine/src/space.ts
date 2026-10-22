@@ -74,7 +74,6 @@ export class SpaceRuntime {
 
   /** Whether some edge between `u` and `w` is present in `state` (the list of missing edges). */
   edgePresent(state: string[], u: Vertex, w: Vertex): boolean {
-    if (!state.length) return true;
     const [a, b] = [vertexKey(u), vertexKey(w)].sort();
     const parallel = this.neighbors(u).filter(x => vertexKey(x) === vertexKey(w)).length;
     for (let k = 0; k < parallel; k++) if (!state.includes(`${a}|${b}|${k}`)) return true;

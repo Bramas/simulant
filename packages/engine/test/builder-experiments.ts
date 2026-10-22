@@ -4,11 +4,14 @@
  * graphs, which checks that the builder's standard library and the `.sim`
  * one agree.
  */
-import { dynamic, experiment, frames, full, param, pos, radius } from '@bramas/simulant-lang/builder';
+import {
+  agents, algorithm, choose, component, dynamic, effect, emptyList, experiment, frames, full, here, ite, let_, list,
+  param, pos, radius, rec, sense, task, unit, verdict, visible,
+} from '@bramas/simulant-lang/builder';
 import type { Algorithm, Experiment, Model, Task, Type } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
 import {
-  blackHoleRobots, colors, count, Cycle, Dispersion, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
+  blackHoleRobots, colors, count, Cycle, Dispersion, edgeTo, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
   robots, Star, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
@@ -33,8 +36,33 @@ const three = (name: string, m: Model, accepts?: boolean) => experiment({
   params: [{ name: 'N', type: T.nat, ...(accepts ? { accepts: param('N').ge(3) } : {}) }], agents: { count: 3, pos: i => pos(i) },
 });
 
+const fieldChoices = component({
+  name: 'FieldChoices', agent: { x: T.nat, y: T.nat },
+  init: { agent: { x: () => 0, y: () => 0 } },
+  beforeLook: () => let_('b', choose('FieldChoices.b', list(false, true)), b =>
+    effect({ agents: () => rec({ x: ite(b, 12, 1), y: ite(b, 3, 23) }) })),
+});
+
 /** By fixture file. */
 export const builderExperiments: Record<string, Experiment> = {
+  'agent-fields': experiment({
+    name: 'agentFields',
+    model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], components: [fieldChoices], symmetries: 'none' }),
+    algorithm: algorithm({ name: 'Stay', uses: [], pub: T.unit, init: { pub: unit }, step: () => ({ move: here() }) }),
+    task: task({ name: 'SafeFields', goal: 'safety', verdict: C => ite(agents(C).any(a => a.x.eq(12)), verdict('failure'), verdict('inProgress')) }),
+    params: [{ name: 'N', type: T.nat }], agents: { count: 1, pos: () => pos(0) },
+  }),
+  'edge-presence': experiment({
+    name: 'edgePresence',
+    model: robots({ space: dynamic(Cycle(), 1), observation: radius(2), frames: frames.identity, sensors: [edgeTo] }),
+    algorithm: algorithm({
+      name: 'ReadEdges', uses: ['edgeTo'], pub: T.record({ edges: T.list(T.bool) }),
+      init: { pub: () => rec({ edges: emptyList(T.bool) }) },
+      step: () => ({ move: here(), pub: rec({ edges: visible().map(l => sense('edgeTo', l)) }) }),
+    }),
+    task: Observe,
+    params: [{ name: 'N', type: T.nat }], agents: { count: 1, pos: () => pos(0) },
+  }),
   'black-hole-emerging': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
   'black-hole-crash-stop': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
   'black-hole-lossy': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),

@@ -29,11 +29,11 @@ theorem step_rot (r : Nat) {C C' : Config (sig N k)} {w : Witness}
   have hports : ∀ ord, (model N k).frames ≠ .isomorphisms ord := fun _ h => by cases h
   refine Model.step_app (model N k) act0 (rot r) hauto.inj hauto.nbrs ?_
     (Model.options_app (model N k) act0 (rot r) hauto hports (env_rot r) (fun _ _ _ _ => rfl)) ?_ ?_ ?_ ?_ h
-  · -- the cycle is static: every edge is present
+  · -- The cycle is static, and rotations preserve adjacency.
     intro ts hts p q
     simp only [model, List.mem_singleton] at hts
     subst hts
-    rfl
+    exact hauto.edgePresent_nil p q
   · intro c hc ts C; simp only [model, List.mem_singleton] at hc; subst hc; rfl
   · intro c hc ts C ds; simp only [model, List.mem_singleton] at hc; subst hc; rfl
   · intro c hc ts C; simp only [model, List.mem_singleton] at hc; subst hc

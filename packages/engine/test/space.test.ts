@@ -18,6 +18,31 @@ const line = new SpaceRuntime('line', undefined, v => [v + 1, v - 1], { kind: 't
 const star = (k: number) => new SpaceRuntime('star', Array.from({ length: k + 1 }, (_, i) => i),
   v => v === 0 ? Array.from({ length: k }, (_, i) => i + 1) : [0], { kind: 'computed' });
 
+test('edge presence requires a neighbor, including when no edges are missing', () => {
+  const space = cycle(5);
+  for (const state of [[], ['2|3|0']]) {
+    assert.equal(space.edgePresent(state, 0, 0), false);
+    assert.equal(space.edgePresent(state, 0, 2), false);
+    assert.equal(space.edgePresent(state, 0, 1), true);
+  }
+  assert.equal(space.edgePresent(['0|1|0'], 0, 1), false);
+  assert.equal(space.edgePresent(['0|1|0'], 1, 0), false);
+  const parallel = cycle(2);
+  assert.equal(parallel.edgePresent(['0|1|0'], 0, 1), true);
+  assert.equal(parallel.edgePresent(['0|1|0', '0|1|1'], 0, 1), false);
+});
+
+test('edgeTo distinguishes neighbors from other visible locations in every dynamic branch', () => {
+  const exp = libraryExperiments('conformance.sim').edgePresence;
+  const system = new System(exp, { N: 5 });
+  const initial = system.initial()[0].config;
+  assert.deepEqual(system.successors(initial).map(s => s.config.agents[0].pub.edges), [
+    [false, true, true, false, false],
+    [false, false, true, false, false],
+    [false, true, false, false, false],
+  ]);
+});
+
 test('the r-hop view drops edges between positions both at distance r', () => {
   // In a triangle, radius 1 shows the observer joined to its two neighbors, not the edge between them.
   const triangle = viewAround(cycle(3), 0, 1);

@@ -6,6 +6,7 @@
  * `draw`, the algorithm view from the algorithm's source and line table.
  */
 import type { Experiment, Type } from '@bramas/simulant-lang/ir';
+import { graphOf } from '@bramas/simulant-lang/types';
 import { parameterDefaults, parameterDomainViolations, parameterValues, System } from '@bramas/simulant-engine/system';
 import { checkFirstBranch, checkSetting, checkSettings, stateGraph, type CheckResult } from '@bramas/simulant-engine/check';
 import type { EditorField, EditorSchema } from '@bramas/simulant-core/types/editor-schema';
@@ -60,10 +61,20 @@ export function renameSettings(settings: any, aliases: Record<string, string> = 
   return out;
 }
 
+/** Positions use the graph's vertex representation, including inside other parameter types. */
+function settingsType(exp: Experiment, t: Type): Type {
+  switch (t.k) {
+    case 'pos': return graphOf(exp.model.space)!.vertex;
+    case 'list': case 'multiset': case 'option': return { ...t, of: settingsType(exp, t.of) };
+    case 'record': return { ...t, fields: t.fields.map(f => ({ ...f, type: settingsType(exp, f.type) })) };
+    default: return t;
+  }
+}
+
 /** Settings from the editor (or a URL) to parameter values of the right types. */
 function coerce(value: unknown, t: Type): unknown {
   switch (t.k) {
-    case 'nat': case 'int': case 'pos': return typeof value === 'string' ? Number(value) : value;
+    case 'nat': case 'int': return typeof value === 'string' ? Number(value) : value;
     case 'bool': return value === true || value === 'true';
     case 'list': case 'multiset': case 'record': case 'option': return typeof value === 'string' ? JSON.parse(value) : value;
     default: return value;
@@ -71,23 +82,23 @@ function coerce(value: unknown, t: Type): unknown {
 }
 
 /** Whether a setting is a value of the declared type (after coercion). */
-function fits(value: unknown, t: Type): boolean {
+function fits(value: unknown, t: Type, encoded = true): boolean {
   let v: unknown;
   try {
-    v = coerce(value, t);
+    v = encoded ? coerce(value, t) : value;
   } catch {
     return false;
   }
   switch (t.k) {
     case 'nat': return Number.isInteger(v) && (v as number) >= 0;
-    // A position is its vertex: a number on cycles, lines and stars.
-    case 'int': case 'pos': return Number.isInteger(v);
-    case 'bool': return typeof value === 'boolean' || value === 'true' || value === 'false';
+    case 'int': return Number.isInteger(v);
+    case 'bool': return typeof value === 'boolean' || (encoded && (value === 'true' || value === 'false'));
     case 'enum': return t.ctors.includes(v as string);
     case 'string': return typeof v === 'string';
-    case 'list': case 'multiset': return Array.isArray(v);
-    case 'option': return true;
-    case 'record': return typeof v === 'object' && v !== null && !Array.isArray(v);
+    case 'list': case 'multiset': return Array.isArray(v) && v.every(x => fits(x, t.of, false));
+    case 'option': return v === null || fits(v, t.of, false);
+    case 'record': return typeof v === 'object' && v !== null && !Array.isArray(v)
+      && t.fields.every(f => f.name in v && fits((v as Record<string, unknown>)[f.name], f.type, false));
     default: return true;
   }
 }
@@ -106,7 +117,7 @@ export function adjustSettings(exp: Experiment, settings: Record<string, unknown
     if (!(p.name in settings)) {
       out[p.name] = first[p.name];
       notes.push(`new parameter ${p.name} = ${JSON.stringify(first[p.name])}`);
-    } else if (fits(settings[p.name], p.type)) {
+    } else if (fits(settings[p.name], settingsType(exp, p.type))) {
       out[p.name] = settings[p.name];
     } else {
       out[p.name] = first[p.name];
@@ -121,7 +132,7 @@ export function adjustSettings(exp: Experiment, settings: Record<string, unknown
 
 function field(name: string, t: Type, value: unknown): EditorField {
   switch (t.k) {
-    case 'nat': case 'int': case 'pos': return { type: 'number', key: name, label: name, defaultValue: Number(value ?? 0), ...(t.k === 'nat' ? { min: 0 } : {}) };
+    case 'nat': case 'int': return { type: 'number', key: name, label: name, defaultValue: Number(value ?? 0), ...(t.k === 'nat' ? { min: 0 } : {}) };
     case 'bool': return { type: 'boolean', key: name, label: name, defaultValue: !!value };
     case 'enum': return { type: 'select', key: name, label: name, defaultValue: String(value ?? t.ctors[0]), options: t.ctors.map(c => ({ value: c, label: c })) };
     default: return { type: 'text', key: name, label: `${name} (JSON)`, defaultValue: JSON.stringify(value ?? null) };
@@ -152,9 +163,9 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
   const draw = opts.draw ?? drawSpace;
   const defaultsOf = (exp: Experiment) => Object.fromEntries(exp.params
     .filter(p => opts.defaults && p.name in opts.defaults)
-    .map(p => [p.name, coerce(opts.defaults![p.name], p.type)]));
+    .map(p => [p.name, coerce(opts.defaults![p.name], settingsType(exp, p.type))]));
   const coerceSettings = (exp: Experiment, settings: Record<string, unknown>) => Object.fromEntries(exp.params
-    .filter(p => p.name in settings).map(p => [p.name, coerce(settings[p.name], p.type)]));
+    .filter(p => p.name in settings).map(p => [p.name, coerce(settings[p.name], settingsType(exp, p.type))]));
   function* settingsFor(exp: Experiment) {
     if (!opts.checkSettings) { yield* parameterValues(exp); return; }
     for (const given of opts.checkSettings(exp)) {
@@ -188,7 +199,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
       exp, key: JSON.stringify({ ...rest, algorithm }, (k, v) => k === 'at' ? undefined : v), first,
       source: algorithmSource(exp, m.sources ?? {}),
       description: lazy(() => describeExperiment(exp, m.sources ?? {}, m.revision, m.lean?.[experiment], opts.checkSettings && (() => settingsFor(exp)))),
-      editorSchema: lazy(() => ({ fields: exp.params.map(p => field(p.name, p.type, first()?.[p.name])) })),
+      editorSchema: lazy(() => ({ fields: exp.params.map(p => field(p.name, settingsType(exp, p.type), first()?.[p.name])) })),
     };
   };
   const errors = (m: SimSources) => {
@@ -249,7 +260,7 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
   const paramsOf = (given: Record<string, unknown> | null) => {
     const { exp, first } = need();
     const settings = normalizeSettings(given);
-    return Object.fromEntries(exp.params.map(p => [p.name, coerce(settings?.[p.name] ?? first()?.[p.name], p.type)]));
+    return Object.fromEntries(exp.params.map(p => [p.name, coerce(settings?.[p.name] ?? first()?.[p.name], settingsType(exp, p.type))]));
   };
   // Results carry the revision they were computed for, and their traces adapter paths.
   const report = (r: CheckResult & { settings?: unknown }, rev: string) => ({

@@ -66,9 +66,18 @@ def dynamicStates (k : Nat) : List (List S.Edge) := [] :: S.extend k [] S.edges
 
 /-- Whether some edge between `u` and `w` is present when the edges `missing` are missing. -/
 def edgePresent (missing : List S.Edge) (u w : S.Pos) : Bool :=
-  missing.isEmpty ||
-    (List.range ((S.neighbors u).count w)).any fun k =>
-      !missing.any fun e => e.2.2 == k && ((e.1 == u && e.2.1 == w) || (e.1 == w && e.2.1 == u))
+  (List.range ((S.neighbors u).count w)).any fun k =>
+    !missing.any fun e => e.2.2 == k && ((e.1 == u && e.2.1 == w) || (e.1 == w && e.2.1 == u))
+
+/-- With no removals, edge presence is adjacency, including for a pair with no edge. -/
+@[simp] theorem edgePresent_nil (u w : S.Pos) :
+    S.edgePresent [] u w = (S.neighbors u).contains w := by
+  simp [edgePresent, List.any_eq]
+  constructor
+  · rintro ⟨x, hx⟩
+    exact List.count_pos_iff.mp (Nat.lt_of_le_of_lt (Nat.zero_le _) hx)
+  · intro h
+    exact ⟨0, List.count_pos_iff.mpr h⟩
 
 /-- From `p`, `k` times through the port `port` (staying put at a missing port). -/
 def follow (p : S.Pos) (port : Nat) : Nat → S.Pos
