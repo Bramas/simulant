@@ -1,8 +1,8 @@
 # Release notes
 
-## Next release (breaking): the generic core
+## 0.4.0 (2026-10-22, breaking): the generic core
 
-The next release replaces the ring-based core with a generic one ([core-redesign.md](core-redesign.md)). It is breaking at every level: `.sim` sources, the IR (version 2), the engine's API, the simulator's renderers and the Lean library. Under semantic versioning for `0.x` packages, it is the next minor version (`pnpm release:version minor`). Saved links and settings from earlier versions are not kept.
+This release replaces the ring-based core with a generic one ([core-redesign.md](core-redesign.md)). It is breaking at every level: `.sim` sources, the IR (version 2), the engine's API, the simulator's renderers and the Lean library. It increments the minor version while the packages are `0.x`. Saved links and settings from earlier versions are not kept.
 
 ### Models
 
@@ -25,6 +25,8 @@ The next release replaces the ring-based core with a generic one ([core-redesign
 - **Simulator.** The default renderer follows the space: rings for cycles, a window of the line, a circular layout for other finite graphs (a star's center in the middle). Under `Frames.isomorphisms`, the model view and the CLI warn that the simulator's reference ordering of locations can leak information on views without symmetry.
 - **Lean.** The Lean library has a generic `Space`, Looks and presentations; under `Frames.isomorphisms`, statements quantify over every lawful reference ordering. Generated models take the experiment parameters the model reads and `nAgents`. Proofs about earlier generated models need porting; the library's examples were ported.
 - **Editor.** Completions, hovers and the grammar follow the new built-ins.
+- **Website.** A guide, a standard-library reference and an interactive model builder document the new core and compile examples in the browser.
+- **Release fixes.** Agent-state keys preserve boundaries between component fields and port numbers, so distinct configurations cannot hide a counterexample. Edge sensors reject locations with no connecting edge, in both TypeScript and Lean. Record-valued positions use JSON settings and survive compatible source updates. Lean generation groups a component's initial agent fields into one record.
 
 ### Upgrading a project
 
