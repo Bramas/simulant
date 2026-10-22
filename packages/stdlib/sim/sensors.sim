@@ -1,11 +1,10 @@
-/-! Library sensors (docs/core-redesign.md, section 4).
+/-! Sensors expose an agent's observations to its algorithm.
 
 A sensor receives the Look `L` and, for a per-location sensor, a location. Its result cannot
 contain `Pos`, `Agent` or `Loc`. Choices are made once per Look, for the whole view (one sensor
 environment per Look). A sensor that reads only the Look API is equivariant under every
 automorphism of the space, since positions are opaque to it; no `@[equivariant]` claim is
-needed (see the answers to the open questions). `ringPresence`, `ringCount`, `lineView` and
-`colorView` are gone: an algorithm maps a per-location sensor over locations instead. -/
+needed. An algorithm can map a per-location sensor over the locations of its view. -/
 
 /-- Is someone at this location? (weak multiplicity) -/
 sensor occupied (L : Look) (l : Loc) : Bool :=

@@ -1,5 +1,4 @@
-/-! Small algorithms and experiments, used by tests and as examples of the language.
-They are not paper algorithms. -/
+/-! Small algorithms and experiments illustrating the language. -/
 
 import "./models.sim"
 import "./tasks.sim"

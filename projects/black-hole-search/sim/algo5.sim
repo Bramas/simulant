@@ -5,9 +5,9 @@ the size of the cycle (`spaceSize`) and count nodes clockwise from their common 
 (`node`); the suspected node `bh` is in those coordinates, and the claim is its distance
 through the clockwise port (`claimSteps`). The walking direction `dir` is a port index.
 
-`NAgentEBSLatency` reproduces the TypeScript simulation exactly (experiment `algo5`, registered):
-it idles a pseudo-random number of rounds before each move, to imitate latency in a synchronous
-engine; its pseudo-random state never repeats, so it is explored to bounded depth. `NAgentEBS`
+`NAgentEBSLatency` (experiment `algo5`) idles a pseudo-random number of rounds before each move,
+to imitate latency in synchronous rounds; its pseudo-random state never repeats, so checks
+are bounded. `NAgentEBS`
 is the paper's algorithm without the idling (experiment `algo5Sync`), checked exhaustively. -/
 
 import "std/models.sim"
@@ -71,7 +71,7 @@ algorithm NAgentEBSLatency uses spaceSize where
 
 /-- The paper's algorithm, without the idling, on cycles of 2 to 12 nodes (2 nodes: the
 multigraph cycle), one agent per node, the hole anywhere: checked exhaustively. It fails on
-2 nodes, as before. -/
+2 nodes. -/
 experiment algo5Sync where
   model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
   algorithm := NAgentEBS
@@ -81,7 +81,7 @@ experiment algo5Sync where
   agents := N
   position i := pos 0
 
-/-- The TypeScript simulation's version, with its pseudo-random idling. Its state space is
+/-- The variant with pseudo-random idling. Its state space is
 infinite: checks stop at the state limit. -/
 experiment algo5 where
   model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known

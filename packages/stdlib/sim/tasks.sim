@@ -1,11 +1,12 @@
-/-! Library tasks (docs/core-redesign.md, section 7).
+/-! Tasks assign verdicts to configurations and goals to executions.
 
 Tasks see the physical configuration. An answer given in an agent's own terms (a port) is
 interpreted with the agent's kept frame: `C.resolve a i` is the neighbor of `a.pos` at the
 agent's port i, and `C.follow a i k` the position reached by taking that port k times. Both are
-errors under per-Look frames and for a port the vertex does not have. A task that uses them is equivariant under the automorphisms that
-the frames keep (section 7), which is what `@[equivariant]` claims for it. Under `Frames.identity`, as in the
-black-hole models, these are the rotations of a cycle. -/
+errors under per-Look frames and for a port the vertex does not have. A task that uses them is
+equivariant under the automorphisms that the frames keep, which is what `@[equivariant]`
+claims for it. Under `Frames.identity`, as in the black-hole models, these are the rotations
+of a cycle. -/
 
 /-- Every correct agent claims the port leading to the black hole from its node (output
 `claim : Option Nat`). Fails when no agent is correct. -/

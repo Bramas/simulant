@@ -4,14 +4,13 @@ step by watching each other's public `dir` and `sync`. `dir` is a port index, wh
 agent reads the same way under `Frames.identity`, so comparing it with another agent's `dir`
 keeps its meaning.
 
-`FourAgentsTwoPebblesLatency` reproduces the TypeScript simulation exactly: synchronous rounds,
-with a pseudo-random number of idle rounds (the page shows the agent as idle) before each step
-of the walk, to imitate asynchrony; its pseudo-random state never repeats, so it is explored to bounded depth.
+`FourAgentsTwoPebblesLatency` uses synchronous rounds, with a pseudo-random number of idle
+rounds before each step of the walk, to imitate asynchrony; its pseudo-random state never
+repeats, so checks are bounded.
 `FourAgentsTwoPebbles` follows the same rules without the idling (a₃ and a₄ wait until a₁ and
-a₂ have left), for exhaustive checks with synchronous and asynchronous agents. Both follow the
-TypeScript's synchronisation rules, which differ from the paper's pseudocode (Procedure
-CautiousWalkPebble waits until the other agent is on the same node; the pseudocode does not say
-when an agent claims the hole, so the paper's version is not written here). -/
+a₂ have left), for exhaustive checks with synchronous and asynchronous agents. In both
+variants, a leader may continue while its follower is on another node. This differs from the
+paper's CautiousWalkPebble procedure, which waits for the follower on the same node. -/
 
 import "std/models.sim"
 
@@ -160,7 +159,7 @@ algorithm FourAgentsTwoPebblesLatency uses otherStates, pebblesHere where
       else
         follow 2 5
 
-/-- The TypeScript simulation's version, with its pseudo-random idling. Its state space is
+/-- The variant with pseudo-random idling. Its state space is
 infinite: checks stop at the state limit. -/
 experiment algo6 where
   model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles])

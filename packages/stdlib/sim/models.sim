@@ -1,5 +1,5 @@
-/-! Model families (docs/core-redesign.md, section 8). No capability is granted
-implicitly: the space, the observation, the frames and the sensors are always explicit. -/
+/-! Model families compose spaces, observations, frames, sensors and components.
+These capabilities are explicit arguments of each family. -/
 
 import "./spaces.sim"
 import "./helpers.sim"

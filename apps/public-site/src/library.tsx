@@ -14,7 +14,7 @@ const sections: { kind: Kind[]; id: string; title: string; lead: string }[] = [
   { kind: ['sensor'], id: 'sensors', title: 'Sensors', lead: 'Everything an algorithm knows comes from the sensors of its model.' },
   { kind: ['task'], id: 'tasks', title: 'Tasks', lead: 'A task gives each configuration a verdict; its goal says which executions solve it.' },
   { kind: ['type', 'definition'], id: 'types', title: 'Types and definitions', lead: 'Enumerations used as arguments of the pieces above.' },
-  { kind: ['algorithm', 'experiment'], id: 'examples', title: 'Examples', lead: 'Small experiments shipped with the library, used by its tests.' },
+  { kind: ['algorithm', 'experiment'], id: 'examples', title: 'Examples', lead: 'Small algorithms and experiments illustrating the language.' },
 ];
 
 const builtins = [

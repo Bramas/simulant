@@ -1,15 +1,9 @@
-/-! Library spaces (docs/core-redesign.md, section 2). Rings, lines and stars are ordinary
-definitions over the core graph space; the
-automorphism groups given here are fast paths, checked against the computed group on small
-sizes (section 7). -/
+/-! Graph spaces with ordered neighbors (ports). Cycles and lines provide their automorphism
+groups explicitly; stars use the computed group. -/
 
 /-- The cycle C_n. Port 0 points clockwise (to v + 1), port 1 counterclockwise (to v - 1).
 
-For n = 2, both ports of a vertex lead to the other vertex: two parallel edges. Black-hole
-search needs this size (`algo0` is the paper's small-ring case, and `algo5Sync` checks that the
-n-agent algorithm fails there), so the target allows repeated vertices in a neighbor list (a
-multigraph port numbering) instead of the separate multigraph space that section 2 suggests.
-See the answers to the open questions. -/
+For n = 2, both ports of a vertex lead to the other vertex: two parallel edges. -/
 def Graphs.Cycle (n : Nat) : Space where
   Vertex := Nat
   vertices := range n
@@ -23,14 +17,14 @@ def Graphs.Line : Space where
   neighbors v := [v + 1, v - 1]
   automorphisms := .translationsAndReflection   -- required: infinite spaces cannot be enumerated
 
-/-- A star with a center (vertex 0) and `k` leaves (vertices 1..k), k ≥ 1: a space that
-is not a cycle. The center's port i leads to leaf i + 1; a leaf's only port leads to the center.
+/-- A star with a center (vertex 0) and `k` leaves (vertices 1..k), k ≥ 1.
+The center's port i leads to leaf i + 1; a leaf's only port leads to the center.
 The automorphisms (the permutations of the leaves) are computed. -/
 def Graphs.Star (k : Nat) : Space where
   Vertex := Nat
   vertices := range (k + 1)
   neighbors v := if v = 0 then (range k).map (· + 1) else [0]
 
--- `Graphs.Dynamic (base : Space) (missing : Nat) : Space` is built in (docs/phase0-target/stdlib/core.sim-design lists the built-in signatures): at the
+-- `Graphs.Dynamic (base : Space) (missing : Nat) : Space` is built in: at the
 -- start of each round the adversary removes up to `missing` edges of `base`, and forgets them
 -- afterwards: `Graphs.Dynamic (Graphs.Cycle N) 1` is a cycle that may miss one edge per round.

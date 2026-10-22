@@ -1,4 +1,4 @@
-/-! Library components (docs/core-redesign.md, section 7).
+/-! Components add state, actions and effects to a model.
 
 Components own world fields, agent fields, flags and actions. Fields may have type `Pos`,
 which global symmetries transform, and hooks may update the component's own agent fields
@@ -47,7 +47,7 @@ def Faults.CrashAt : Component where
 
 /-- Lights with a palette of `colors` colors, initially 0. The action `setLight := some c`
 requests color c; `none` keeps the light; out-of-palette requests are ignored. The light is an
-agent field: no internal slots, no world list. -/
+agent field. -/
 @[equivariant]
 def Storage.Lights (colors : Nat) : Component where
   World := { colorCount : Nat }
