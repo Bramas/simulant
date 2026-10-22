@@ -324,7 +324,8 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         },
       ],
     },
-    { title: `Model ${model.name}`, facts: modelFacts },
+    // The model the experiment names (its first model declaration), rather than the base family it builds on.
+    { title: `Model ${excerpts.find(s => s.kind === 'model')?.name ?? model.name}`, facts: modelFacts },
     ...(componentFacts.length ? [{ title: 'Components', facts: componentFacts }] : []),
     {
       title: 'Algorithm',

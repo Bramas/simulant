@@ -340,7 +340,7 @@ export function AlgorithmViewer(props: AlgorithmViewerProps) {
                   <div class="ex-meta">
                     <span><span class="tok-action">move</span> {e().move}</span>
                     <Show when={e().line !== undefined}><span>decided at line {e().line}</span></Show>
-                    <span>frame: {e().frame}</span>
+                    <Show when={e().frame}><span>frame: {e().frame}</span></Show>
                   </div>
                   <div class="ex-section">
                     <h4>Look</h4>
