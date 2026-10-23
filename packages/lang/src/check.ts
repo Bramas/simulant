@@ -323,7 +323,7 @@ export class Checker {
   }
 
   private effect(expr: Extract<Expr, { e: 'effect' }>, scope: Map<string, Type>, unit: Unit): Inferred {
-    if (!['hook', 'beforeMove', 'def'].includes(unit.ctx)) this.fail(unit, 'effects are only returned by hooks');
+    if (!['hook', 'decisionHook', 'def'].includes(unit.ctx)) this.fail(unit, 'effects are only returned by hooks');
     let nd = false;
     for (const [name, e] of Object.entries(expr.world ?? {})) {
       const f = this.lay.world.find(f => f.name === name) ?? this.fail(unit, `unknown world field ${name}`);
@@ -557,9 +557,10 @@ export class Checker {
       for (const name of Object.keys(c.init?.agent ?? {})) {
         if (!c.agent?.some(f => f.name === name)) this.report(`${c.name}: initial value for unknown agent field ${name}`);
       }
-      for (const hook of ['beforeLook', 'beforeMove', 'afterMove'] as const) {
+      for (const hook of ['beforeLook', 'onCompute', 'beforeMove', 'afterMove'] as const) {
         const body = c[hook];
-        if (body) this.root(body, { ...params, C: T.config }, unit(hook === 'beforeMove' ? 'beforeMove' : 'hook', `${c.name}.${hook}`, defs, c.name), T.effect);
+        const decisions = hook === 'onCompute' || hook === 'beforeMove';
+        if (body) this.root(body, { ...params, C: T.config }, unit(decisions ? 'decisionHook' : 'hook', `${c.name}.${hook}`, defs, c.name), T.effect);
       }
     }
 
@@ -624,7 +625,7 @@ function isVertexType(t: Type): boolean {
 function showContext(ctx: Context): string {
   return ({
     init: 'initial values', domain: 'parameter domains and model arguments', sensor: 'a sensor', hook: 'a hook',
-    beforeMove: 'a hook', task: 'a task', algorithm: 'an algorithm', def: 'a definition', space: 'a space',
+    decisionHook: 'a hook', task: 'a task', algorithm: 'an algorithm', def: 'a definition', space: 'a space',
   } as Record<Context, string>)[ctx];
 }
 

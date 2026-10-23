@@ -176,7 +176,9 @@ export type Component = {
   init?: { world?: Record<string, Expr>; agent?: Record<string, Expr> };
   /** Hook bodies: `C` is in scope; they return an effect. */
   beforeLook?: Expr;
-  /** Also sees the decisions, through `decisionOf(a)`. */
+  /** At Compute; sees the decisions taking effect, through `decisionOf(a)`. */
+  onCompute?: Expr;
+  /** Before Move; sees the moves happening, through `decisionOf(a)`. */
   beforeMove?: Expr;
   afterMove?: Expr;
   defs?: Def[];

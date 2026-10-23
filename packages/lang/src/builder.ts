@@ -269,6 +269,7 @@ export type ComponentSpec = {
   actions?: Action[];
   init?: { world?: Record<string, Arg | ((p: Params) => Arg)>; agent?: Record<string, (i: X, p: Params) => Arg> };
   beforeLook?: (C: X, p: Params) => Arg;
+  onCompute?: (C: X, p: Params) => Arg;
   beforeMove?: (C: X, p: Params) => Arg;
   afterMove?: (C: X, p: Params) => Arg;
   defs?: Component['defs'];
@@ -292,6 +293,7 @@ export function component(spec: ComponentSpec): Component {
       agent: spec.init.agent && mapValues(spec.init.agent, f => ir(f(v('i'), p))),
     }),
     beforeLook: hook(spec.beforeLook),
+    onCompute: hook(spec.onCompute),
     beforeMove: hook(spec.beforeMove),
     afterMove: hook(spec.afterMove),
     defs: spec.defs,

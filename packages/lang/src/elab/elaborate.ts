@@ -443,12 +443,13 @@ export class Elaborator {
         agent: agentInit && initRecord(agentInit, [[agentInit.args[0], 'i']]),
       }),
       beforeLook: hook('beforeLook'),
+      onCompute: hook('onCompute'),
       beforeMove: hook('beforeMove'),
       afterMove: hook('afterMove'),
       equivariant: this.equivariant(decl),
     };
     for (const i of decl.items!) {
-      const known = ['World', 'Agent', 'flags', 'actions', 'sensors', 'init', 'beforeLook', 'beforeMove', 'afterMove'];
+      const known = ['World', 'Agent', 'flags', 'actions', 'sensors', 'init', 'beforeLook', 'onCompute', 'beforeMove', 'afterMove'];
       if (!known.includes(i.name)) fail(`unknown component field ${i.name} (expected one of ${known.join(', ')})`, i.span);
     }
     if (c.init && !c.init.world && !c.init.agent) delete c.init;

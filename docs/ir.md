@@ -14,7 +14,7 @@ Status: version 2, the generic core of [Phase 0](core-redesign.md). The frontend
 | Values, canonical encodings, symmetry action on values | `packages/engine/src/values.ts` |
 | Compiler from IR to closures | `packages/engine/src/compile.ts` |
 | Spaces, views, presentations of a Look, automorphisms | `packages/engine/src/space.ts` |
-| Initial configurations and the standard round | `packages/engine/src/system.ts` |
+| Initial configurations and the step | `packages/engine/src/system.ts`, `packages/engine/src/scheduler.ts` |
 | Explorer: state graph, verdicts, liveness, counterexamples | `packages/engine/src/explorer.ts` |
 | Symmetry reduction, bounded equivariance test | `packages/engine/src/symmetry.ts` |
 | Conformance fixtures | `packages/engine/conformance/*.json` (regenerate with `npx tsx packages/engine/conformance/generate.ts`) |
@@ -38,7 +38,7 @@ A `Model` gives its `space`, `observation` and `frames`, its round (`fsync`, `ss
 
 **Frames.** The declared morphisms through which agents see their view: `isomorphisms` (any isomorphism of the visible domain fixing the observer, chosen at each Look), `identity` (the space's ports as they are), and `portPermutations` with `when` (`perLook` or `perRobot`) and `among` (`all` or `symmetries`, the permutations induced by automorphisms of the space). A `perRobot` permutation is chosen once per agent, at initialization.
 
-A `Component` owns world fields, agent fields, flags, sensors and actions, gives their initial values, and may define three hooks (`beforeLook`, `beforeMove`, `afterMove`), each an expression with `C : Config` in scope that returns an `effect`. An effect sets the component's own world fields, raises its own flags (on a collection of agents or on those satisfying a predicate), and, with `agents`, a function from an agent to a record, sets its own agent fields. Fields may have type `Pos`. `equivariant` is a claim: the component commutes with the automorphisms that the model's frames keep.
+A `Component` owns world fields, agent fields, flags, sensors and actions, gives their initial values, and may define four hooks (`beforeLook`, `onCompute`, `beforeMove`, `afterMove`), each an expression with `C : Config` in scope that returns an `effect`. An effect sets the component's own world fields, raises its own flags (on a collection of agents or on those satisfying a predicate), and, with `agents`, a function from an agent to a record, sets its own agent fields. Fields may have type `Pos`. `equivariant` is a claim: the component commutes with the automorphisms that the model's frames keep.
 
 A `Sensor` is what an agent learns from its Look `L`. A per-location sensor (`perLocation`) also receives a location `l`. Its `look` bindings are its Look-level part, evaluated once per Look, which may contain choices; its body sees them, and is deterministic when the sensor is per location. A sensor's result contains no `Pos`, `Agent` or `Loc`. The Look offers `me`, `here`, `visible`, `visibleAgents`, `world` (the components' world fields; a component's sensor reads only its own) and `spaceSize` (finite spaces) as fields, and `occupants(L, l)`, `position(L, l)` and `edgePresent(L, a, b)` as builtins. Edge presence requires an actual edge between the positions behind the two locations, even when no edges are missing. With parallel edges it is true if at least one remains; it is false for the observer itself and for locations that are not neighbors.
 
@@ -56,7 +56,7 @@ Every expression is pure, except `choose`, which is an adversary choice. Context
 | initial values (`init`, agent positions) | yes | yes | choices give several initial configurations |
 | space vertices and neighbors | no | no | the space's parameters and one vertex in scope |
 | sensors (`L`, `l`) | no | in the Look-level part, and in Look-level sensors | the choices are fixed for the whole Look |
-| hooks (`C`) | no | yes | `decisionOf(a)` only in `beforeMove` |
+| hooks (`C`) | no | yes | `decisionOf(a)` only in `onCompute` and `beforeMove` |
 | algorithms (`mem`, `pub`) | no | no | the Look and the sensors in `uses`; no builtin that reads the configuration |
 | tasks (`C`) | no | no | may read `a.mem` (nothing else may) |
 
@@ -85,18 +85,20 @@ A configuration's key is its agents' keys, then the world's. An agent's key is i
 
 Arithmetic follows Lean: `Nat` subtraction and division are truncated, division by zero is zero, `Int` division and modulo are Euclidean. Number literals are `Nat` unless an `Int` is expected.
 
-## The standard round
+## A step
 
-`System.successors(C)`:
+`System.successors(C)` follows [scheduler-design.md](scheduler-design.md#1-cycles-events-and-phases). Each agent's Look-Compute-Move cycle is cut into atomic events by its scheduler (`SchedulerRuntime.events`); an agent's `phase` counts the events of its current cycle it has taken, and `pending` holds the decision of its last Look meanwhile. Both are absent between cycles, hence always with atomic cycles, and are part of the state key only when present.
 
 1. The adversary chooses the space state (in a dynamic space: at most `missing` missing edges). Then all `beforeLook` hooks run on the same snapshot and their effects are merged (fields have one owner; flags are merged by "or").
-2. Activation: FSYNC activates every agent whose flags do not say `acts never`; SSYNC lets the adversary choose a nonempty set of them; `sequential` chooses exactly one. If none is eligible, the round idles. Both adversarial activation modes require every continuously acting agent to be activated infinitely often, without a bound on finite activation gaps.
-3. For each activated agent, its Look: the visible domain around its position, and the order of its locations, the reference ordering followed by a morphism. The interpreter's reference ordering is the order of the physical vertices, which can leak information on views without symmetry (see the warning in [core-redesign.md](core-redesign.md#3-observations-ordering-and-frames)). The morphism is chosen by the adversary from the declared frames: under `isomorphisms`, among the isomorphisms of the visible domain fixing the observer; under `portPermutations`, the agent's kept permutation or one chosen for this Look; under `identity`, none. Then its sensors (one environment per Look, with their choices) and `step`. The decision's location is mapped back to a position through the Look. An agent's decisions are deduplicated by their effect (target position, new state, actions). Agents with `acts adversary` choose any destination the movement allows. The decisions are combined over agents (a product).
-4. `beforeMove` hooks, which read the decisions through `decisionOf(a)`: `decided`, `target` (the position it moves to) and its actions. Agents that did not decide have `decided = false` and `target` their position.
-5. Move (`alongEdges`): agents that decided and still act move to their target, which must be their position or one of its neighbors; through an edge missing this round, they stay.
-6. `afterMove` hooks.
+2. The scheduler chooses the agents that take their next event, among those whose flags do not say `acts never`, and may update its own state. The model's round gives the scheduler until IR version 3: FSYNC activates every eligible agent; SSYNC lets the adversary choose a nonempty set of them; `sequential` chooses exactly one; each with atomic cycles. If none is eligible, the step idles. SSYNC and sequential require every continuously acting agent to take events infinitely often, without a bound on finite gaps (activation fairness).
+3. Each scheduled agent whose event includes Look takes its Look, from the configuration of step 2: the visible domain around its position, and the order of its locations, the reference ordering followed by a morphism. The interpreter's reference ordering is the order of the physical vertices, which can leak information on views without symmetry (see the warning in [core-redesign.md](core-redesign.md#3-observations-ordering-and-frames)). The morphism is chosen by the adversary from the declared frames: under `isomorphisms`, among the isomorphisms of the visible domain fixing the observer; under `portPermutations`, the agent's kept permutation or one chosen for this Look; under `identity`, none. Then its sensors (one environment per Look, with their choices) and `step`. The decision's location is mapped back to a position through the Look. An agent's decisions are deduplicated by their effect (target position, new state, actions). Agents with `acts adversary` choose any destination the movement allows. The decisions are combined over agents (a product). Other scheduled agents use their pending decision.
+4. `onCompute` hooks read, through `decisionOf(a)`, the decisions of the agents whose event includes Compute: `decided`, `target` (the position it moves to) and its actions; other agents have `decided = false` and `target` their position. Then those agents, if they still act, take the decision's public state and memory.
+5. `beforeMove` hooks read, in the same way, the decisions of the agents whose event includes Move. Then those agents, if they still act, move (`alongEdges`) to their target, which must be their position or one of its neighbors; through an edge missing this step, they stay.
+6. `afterMove` hooks. Then each scheduled agent advances in its cycle, keeping its decision as `pending` until its last event.
 
-The space state is then forgotten, and successors with the same key merge. Choices are enumerated in order, so successors come in the lexicographic order of their witnesses; a merged successor keeps the first witness, and under SSYNC or sequential scheduling the union of the agents activated by its witnesses.
+With atomic cycles a step is the previous round. A robot that a `beforeMove` hook crashes has taken its new state at Compute, before it.
+
+The space state is then forgotten, and successors with the same key merge. Choices are enumerated in order, so successors come in the lexicographic order of their witnesses; a merged successor keeps the first witness, and the union of the agents scheduled by its witnesses.
 
 Initial configurations are the product of the choices of the components' initial values (agent fields per agent, then world fields) and, under `portPermutations .perRobot`, of each agent's permutation.
 
@@ -106,7 +108,7 @@ Initial configurations are the product of the choices of the components' initial
 
 - A state with verdict `failure` is a counterexample (the shortest path to it).
 - Under `eventually`, `success` states are not expanded. Bad cycles are searched among the expanded non-`success` states. Under `eventuallyAlways`, among all expanded states, in a strongly connected component containing a non-`success` state.
-- A component counts only if it has a cycle (two states, or a self-loop) and, under SSYNC or sequential scheduling, if it is scheduler-fair: every agent that acts in it (flags are constant in a component, since they are never cleared) is activated on one of its edges. The lasso then visits those edges.
+- A component counts only if it has a cycle (two states, or a self-loop) and, under activation fairness, if every agent that acts in it (flags are constant in a component, since they are never cleared) takes an event on one of its edges. The lasso then visits those edges.
 - `incomplete` is returned only when a limit was reached and no counterexample was found. A lasso among expanded states is a genuine counterexample even then.
 
 Counterexamples are replayed concretely, from a concrete initial configuration, so their configurations do not jump around the space.

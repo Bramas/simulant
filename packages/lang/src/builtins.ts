@@ -6,7 +6,7 @@ import type { Type } from './ir';
 import { isCollection, isData, mentions, showType, T, typeEq } from './types';
 
 /** Where an expression is evaluated. `space`: vertex lists and neighbor functions of a space. */
-export type Context = 'init' | 'domain' | 'sensor' | 'hook' | 'beforeMove' | 'task' | 'algorithm' | 'def' | 'space';
+export type Context = 'init' | 'domain' | 'sensor' | 'hook' | 'decisionHook' | 'task' | 'algorithm' | 'def' | 'space';
 
 export type Signature = {
   /** Number of arguments; `undefined` means at least one. */
@@ -68,7 +68,7 @@ function predicate(name: string, ret: (l: Type) => Type) {
   } satisfies Signature;
 }
 
-const CONFIG_CONTEXTS: Context[] = ['init', 'hook', 'beforeMove', 'task', 'def'];
+const CONFIG_CONTEXTS: Context[] = ['init', 'hook', 'decisionHook', 'task', 'def'];
 
 export const BUILTINS: Record<string, Signature> = {
   // Logic and comparison
@@ -161,7 +161,7 @@ export const BUILTINS: Record<string, Signature> = {
   /** No hidden flag is raised. */
   present: { arity: 1, config: true, ret: ([a]) => a.k === 'agent' ? T.bool : err('present: expected an Agent') },
   /** The decision of an agent this round; `decided` is false for agents that did not decide (then `target` is its position). */
-  decisionOf: { arity: 1, config: true, only: ['beforeMove', 'def'], ret: ([a]) => a.k === 'agent' ? T.decision : err('decisionOf: expected an Agent') },
+  decisionOf: { arity: 1, config: true, only: ['decisionHook', 'def'], ret: ([a]) => a.k === 'agent' ? T.decision : err('decisionOf: expected an Agent') },
   /** The neighbor of `a.pos` behind the agent's port `i`, in its kept frame (Frames.identity, .perRobot). */
   resolve: {
     arity: 3, config: true, only: CONFIG_CONTEXTS,

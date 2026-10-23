@@ -20,8 +20,12 @@ import { canonicalSort, encoder, equality, show, vertexKey, type V } from './val
 
 export type Choice = { site: string; index: number; label: string };
 
-/** An agent: its position (a vertex), its kept port permutation (local → space port, under `.perRobot`), state and fields. */
-export type AgentV = { pos: Vertex; frame?: number[]; pub: V; mem: V; f: Record<string, V> };
+/**
+ * An agent: its position (a vertex), its kept port permutation (local → space port, under
+ * `.perRobot`), state and fields. `phase` counts the events of its current cycle it has taken
+ * (absent between cycles); meanwhile `pending` is the decision of its last Look, not yet applied.
+ */
+export type AgentV = { pos: Vertex; frame?: number[]; pub: V; mem: V; f: Record<string, V>; phase?: number; pending?: DecisionV };
 export type Config = { agents: AgentV[]; world: Record<string, V>; idx?: number[] };
 /** A decision, as hooks see it: whether the agent decided, the position it moves to, and its actions. */
 export type DecisionV = { decided: boolean; target: Vertex; pub: V; mem: V; [action: string]: V };

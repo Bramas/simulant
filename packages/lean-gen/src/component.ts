@@ -89,6 +89,8 @@ export function componentInfo(c: Component, namespace: string): ComponentInfo {
 
 /** The Lean module of a component. */
 export function generateComponent(c: Component, namespace: string): string {
+  // The Lean round has no Compute instant yet (docs/scheduler-design.md, step 4).
+  if (c.onCompute) fail(`${c.name}: onCompute hooks are not translated to Lean yet`);
   const info = componentInfo(c, namespace);
   const world = c.world ?? [];
   const fields = c.agent ?? [];
