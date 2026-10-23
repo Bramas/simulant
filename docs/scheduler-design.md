@@ -1,6 +1,6 @@
 # Schedulers in `.sim`
 
-Design document · 23 October 2026 · not implemented
+Design document · 23 October 2026 · implemented (steps 1 to 5 of section 7); enabled agents and other fairness kinds remain for later
 
 Today the round is a three-way switch of the semantic core: `.fsync`, `.ssync` or `.sequential` (`Model.round` in the IR, `activate` in `packages/engine/src/system.ts`, `RoundKind` in `lean/Simulant/Round.lean`), and the explorer assumes scheduler fairness whenever the round is not FSYNC. Every agent performs a whole Look-Compute-Move cycle in the round that activates it. Schedulers from the literature cannot be written: a sequential scheduler that follows a permutation of the agents, a k-bounded scheduler, or any asynchronous one (ASYNC and its LC-atomic and CM-atomic variants).
 

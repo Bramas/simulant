@@ -287,14 +287,15 @@ function Builder() {
     const m = e.model;
     return [
       ['Space', m.space.kind === 'dynamic'
-        ? `${m.space.base.kind === 'graph' ? m.space.base.name : 'a graph'}, with edges removed by the adversary each round`
+        ? `${m.space.base.kind === 'graph' ? m.space.base.name : 'a graph'}, with edges removed by the adversary each step`
         : m.space.kind === 'graph' ? m.space.name : 'a Euclidean space'],
       ['Observation', m.observation.kind === 'full' ? 'the whole space' : 'the r-hop view'],
       ['Frames', m.frames.kind === 'identity' ? 'the ports as they are (common sense of direction)'
         : m.frames.kind === 'isomorphisms' ? 'any symmetry of the view, chosen by the adversary at each Look'
         : m.frames.when === 'perRobot' ? 'each robot’s own port numbering' : 'a port numbering chosen at each Look'],
-      ['Round', m.round.toUpperCase()],
-      ['Memory', m.memory === 'oblivious' ? 'oblivious (no private state across rounds)' : 'persistent'],
+      ['Scheduler', `${m.scheduler.name}${m.scheduler.events.length > 1
+        ? ` (${m.scheduler.events.map((e) => e.join('-')).join(' | ')})` : ''}${m.scheduler.fairness === 'activation' ? ', fair' : ''}`],
+      ['Memory', m.memory === 'oblivious' ? 'oblivious (no private state across activations)' : 'persistent'],
       ['Sensors', m.sensors.map((s) => s.name).join(', ') || 'none'],
       ['Components', m.components.map((c) => c.name).join(', ') || 'none'],
       ['Goal', `${e.task.name}: ${goalText[e.task.goal] ?? e.task.goal}`],

@@ -8,7 +8,8 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import {
-  analyze, build, byName, components, isCustom, locate, modelText, models, newDraft, outputTypes, sensorArgs, spaceOptions, syntaxError, tasks, undeclared, useOf,
+  analyze, build, byName, components, isCustom, locate, modelText, models, newDraft, outputTypes, schedulerOptions, sensorArgs, spaceOptions,
+  syntaxError, tasks, undeclared, useOf,
   viewSensors, withCustom, type Draft,
 } from '../src/builder';
 import { compileText } from '../src/compile';
@@ -110,6 +111,19 @@ test('the builder passes sensors only their own arguments, and sizes only finite
   assert.match(build(library, sources, draft).text, /uses occupied where/);
 });
 
+test('the builder offers the library schedulers, asynchronous cuts included, and each compiles', () => {
+  const options = schedulerOptions(library);
+  assert.deepEqual(options.map((o) => o.label), [
+    'Schedulers.FSync', 'Schedulers.SSync', 'Schedulers.Sequential', 'Schedulers.Async (ASYNC)', 'Schedulers.Async (LC-atomic)',
+    'Schedulers.Async (CM-atomic)', 'Schedulers.Bounded 2', 'Schedulers.Permutation',
+  ]);
+  for (const option of options) {
+    const draft = newDraft(library, 'robots');
+    draft.args.scheduler = option.value;
+    assert.match(assertCompiles(draft, option.label).text, option.value === 'Schedulers.FSync' ? /robots / : /scheduler := /);
+  }
+});
+
 test('the builder reports the compiler diagnostics of a rejected combination', () => {
   const draft = newDraft(library, 'robots');
   draft.lists.sensors = [{ name: 'colors', args: [] }];
@@ -123,7 +137,7 @@ test('the guide examples compile', () => {
   for (const [name, text] of Object.entries(completeFiles)) {
     const compiled = compileText(text, sources);
     assert.deepEqual(compiled.diagnostics, [], name);
-    assert.equal(Object.keys(compiled.experiments).length, 1, name);
+    assert.ok(Object.keys(compiled.experiments).length >= 1, name);
   }
 });
 

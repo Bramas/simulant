@@ -50,7 +50,7 @@ export function LeanView(props: LeanViewProps) {
         </h3>
         <p class="mv-note">
           Generated from the same compiled experiment as the simulation and the checks, by <code>simulant lean -p {props.simulation}</code>.
-          The rounds, executions, fairness and <code>Correct</code> are defined once, by hand, in the semantic core (<code>lean/Simulant/</code>);
+          The step, executions, fairness and <code>Correct</code> are defined once, by hand, in the semantic core (<code>lean/Simulant/</code>);
           proofs go in <code>Proofs/</code>. The gutter says what each part translates: click a part to see its source, or a declaration's
           {' '}<em>Lean</em> button to find its translation.
         </p>

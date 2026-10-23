@@ -131,7 +131,7 @@ function spaceFact(s: Space): { value: string; note: string; summary: string } {
       const name = `${s.name}${args.length ? ` ${args.join(' ')}` : ''}`;
       return {
         value: name,
-        note: `A graph whose ${s.vertices ? 'vertices' : 'vertices (infinitely many, with finite neighborhoods)'} and ordered neighbors (its ports) come from the space's definition. Every edge is present in every round.`,
+        note: `A graph whose ${s.vertices ? 'vertices' : 'vertices (infinitely many, with finite neighborhoods)'} and ordered neighbors (its ports) come from the space's definition. Every edge is present in every step.`,
         summary: name,
       };
     }
@@ -140,7 +140,7 @@ function spaceFact(s: Space): { value: string; note: string; summary: string } {
       const k = exprText(s.missing);
       return {
         value: `${base.value}, dynamic`,
-        note: `${base.note.replace(' Every edge is present in every round.', '')} In every round, the adversary removes up to ${k} edge${k === '1' ? '' : 's'}; missing edges are chosen anew each round and forgotten afterwards.`,
+        note: `${base.note.replace(' Every edge is present in every step.', '')} In every step, the adversary removes up to ${k} edge${k === '1' ? '' : 's'}; missing edges are chosen anew each step and forgotten afterwards.`,
         summary: `dynamic ${base.summary}`,
       };
     }
@@ -167,6 +167,10 @@ function schedulerFact(sc: Scheduler): { value: string; note: string; summary: s
     FSync: 'Every agent able to act takes its next event.',
     SSync: 'The adversary chooses a nonempty set of the agents able to act, which take their next event.',
     Sequential: 'The adversary chooses one agent able to act, which takes its next event.',
+    Async: 'The adversary chooses a nonempty set of the agents able to act, which take their next event.',
+    Bounded: `The adversary chooses a nonempty set of the agents able to act, which take their next event; each of them takes one at least every ${
+      sc.args?.k ?? 'k'} steps.`,
+    Permutation: 'One agent able to act takes its next event, and every agent takes one per pass, in an order the adversary chooses for each pass.',
   } as Record<string, string>)[sc.name] ?? `${sc.name} chooses the agents that take their next event (its schedule).`;
   const fair = sc.fairness === 'activation';
   return {
@@ -283,7 +287,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
       refs: modelRef('memory'),
     },
     { label: 'Frames', value: frame.value, note: frame.note, refs: modelRef('frames') },
-    { label: 'Movement', value: 'Along edges', note: "An agent moves to its own location or to a neighbor; through an edge missing this round, it stays." },
+    { label: 'Movement', value: 'Along edges', note: "An agent moves to its own location or to a neighbor; through an edge missing this step, it stays." },
     {
       label: 'Sensors',
       value: sensors.length ? sensors.map(x => x.s.name).join(', ') : 'none',
@@ -401,7 +405,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   const hookChoices = (h: typeof HOOKS[number]) => choices(...model.components.map(c => c[h]));
   const adversaryFlags = flags.filter(f => f.acts === 'adversary').map(f => f.name);
   const atomicCycles = model.scheduler.events.length === 1;
-  const round: ModelDescription['round'] = [
+  const step: ModelDescription['step'] = [
     {
       phase: 'Initialisation',
       what: 'Once: the agents are placed and the components set their initial values from the parameters.',
@@ -410,7 +414,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     },
     {
       phase: 'Space',
-      what: model.space.kind === 'dynamic' ? `The adversary removes up to ${exprText(model.space.missing)} edges for this round.` : 'Every edge is present.',
+      what: model.space.kind === 'dynamic' ? `The adversary removes up to ${exprText(model.space.missing)} edges for this step.` : 'Every edge is present.',
       choices: model.space.kind === 'dynamic' ? ['missing edges'] : [],
     },
     hook('beforeLook', 'Components update their state, all reading the same configuration.'),
@@ -492,7 +496,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
       `${task.name}: ${GOALS[task.goal].formula}`,
     ],
     sections,
-    round,
+    step,
     sources: excerpts,
     caveats,
     ir: exp,

@@ -376,6 +376,8 @@ export function simProject(module: SimSources, experiment: string, opts: SimProj
             ...a.fields,
             pub: a.pub,
             mem: a.mem,
+            // Between two events of its cycle: its phase and the decision of its last Look.
+            ...(a.phase ? { phase: a.phase, pending: snapshot.config.agents[i].pending } : {}),
           },
         })),
     }),

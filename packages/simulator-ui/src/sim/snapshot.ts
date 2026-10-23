@@ -21,6 +21,10 @@ export type SnapshotAgent = {
   fields: Record<string, unknown>;
   pub: any;
   mem: any;
+  /** Events of its current cycle the agent has taken (0 between cycles; always 0 with atomic cycles). */
+  phase: number;
+  /** Meanwhile, its pending decision: its target and whether its Compute is still to come. */
+  pending?: { target: any; computed: boolean };
   /** The line of the algorithm the agent is at, when the algorithm has a line table. */
   line?: number;
   /** No flag raised. */
@@ -45,10 +49,15 @@ export class Snapshot {
     this.agents = config.agents.map((a, index) => {
       const flags = Object.fromEntries(flagNames.map(f => [f, !!a.f[f]]));
       const id = typeof a.pub?.id === 'number' ? a.pub.id : index;
+      const phase = a.phase ?? 0;
+      // The events already taken, from the scheduler's cut of the cycle.
+      const taken = system.scheduler.events.slice(0, phase).flat();
       return {
         index, id, pos: a.pos, flags,
         fields: Object.fromEntries(Object.entries(a.f).filter(([k]) => !flagNames.includes(k))),
-        pub: a.pub, mem: a.mem, line: system.line(a),
+        pub: a.pub, mem: a.mem, phase,
+        ...(a.pending ? { pending: { target: a.pending.target, computed: taken.includes('compute') } } : {}),
+        line: system.line(a),
         correct: system.rt.correct(a), present: system.rt.present(a),
         _id: id, _pos: a.pos,
       };

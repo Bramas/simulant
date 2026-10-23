@@ -42,6 +42,12 @@ export type Explanation = {
   move: string;
   /** The definitions the step called, with their arguments, results and return lines. */
   calls: TraceCall[];
+  /** With several events per cycle: the instants of the event the agent took (`Look`, `Compute, Move`). */
+  event?: string;
+  /** Its decision stays pending after this step (its Compute or Move is still to come). */
+  pending?: boolean;
+  /** It took no Look in this step: it applied the decision of an earlier one (`locations` is then empty). */
+  applies?: boolean;
 };
 
 export type Successor = {
@@ -320,9 +326,20 @@ export class System {
       this.recording = false;
     }
     if (!succ?.order || !succ.inputs) return [];
+    const events = this.scheduler.events;
     return succ.order.map(from => {
+      const a = C.agents[from];
+      const event = events[a.phase ?? 0];
+      // With atomic cycles every event is a whole cycle: nothing to say about it.
+      const label = events.length > 1 ? event.map(i => i[0].toUpperCase() + i.slice(1)).join(', ') : undefined;
       const input = succ!.inputs![from];
-      return input && this.explainStep(C.agents[from], input);
+      if (input) {
+        const e = this.explainStep(a, input);
+        return label ? { ...e, event: label, pending: !event.includes('move') } : e;
+      }
+      if (!label || !a.pending || !succ!.activated.has(from)) return undefined;
+      const move = vertexKey(a.pending.target) === vertexKey(a.pos) ? 'stay' : show(T.pos)(a.pending.target);
+      return { frame: '', view: {}, locations: [], move, calls: [], event: label, pending: !event.includes('move'), applies: true };
     });
   }
 

@@ -13,6 +13,7 @@ const toc = [
   ['models', 'Choosing a model'],
   ['algorithms', 'Writing an algorithm'],
   ['oblivious', 'Oblivious algorithms'],
+  ['schedulers', 'Schedulers'],
   ['tasks', 'Tasks and goals'],
   ['parameters', 'Parameters'],
   ['custom', 'Your own pieces'],
@@ -76,7 +77,7 @@ function Guide() {
           <Section id="experiments" title="Experiments">
             <p>An experiment is what the simulator runs and the explorer checks. Its fields:</p>
             <Table head={['Field', 'Meaning']} rows={[
-              ['model := …', 'The model: space, observation, frames, sensors, memory, round and components.'],
+              ['model := …', 'The model: space, observation, frames, sensors, memory, scheduler and components.'],
               ['algorithm := …', 'The algorithm every agent runs.'],
               ['task := …', 'The task, with its goal.'],
               ['param x : T in …', 'A parameter and its domain. The model reads some (the size N of a cycle, a radius phi); components read others, such as site.'],
@@ -112,7 +113,7 @@ function Guide() {
               ['space', 'Graphs.Cycle N, Graphs.Line, Graphs.Star k, Graphs.Dynamic space k (at most k edges missing per round)'],
               ['observation', 'Observe.radius r (the r-hop view), Observe.full'],
               ['frames', 'Frames.identity, Frames.isomorphisms, Frames.portPermutations .perLook / .perRobot'],
-              ['round', '.fsync, .ssync (a fair nonempty subset), .sequential (one agent at a time)'],
+              ['scheduler', 'Schedulers.FSync (default), Schedulers.SSync, Schedulers.Sequential, Schedulers.Async (ASYNC, LC- or CM-atomic), Schedulers.Bounded k, Schedulers.Permutation, or your own'],
               ['memory', '.oblivious (robots), .persistent (blackHoleRobots)'],
               ['sensors', 'occupied, count, colors, otherStates, spaceSize, …'],
               ['components', 'Hazards.BlackHole, Faults.CrashStop f, Storage.Pebbles, Storage.Lights k, …'],
@@ -183,6 +184,30 @@ function Guide() {
             </p>
           </Section>
 
+          <Section id="schedulers" title="Schedulers">
+            <p>
+              Each agent runs Look-Compute-Move cycles. At each step, the model's <em>scheduler</em> chooses the agents that take
+              the next event of their cycle, and its <code>events</code> say how a cycle is cut into atomic events. With the default,
+              one event per cycle, a step is a classic round: <code>Schedulers.FSync</code> activates every agent able to act,
+              <code>Schedulers.SSync</code> a nonempty set chosen by the adversary, <code>Schedulers.Sequential</code> one agent.
+              <code>Schedulers.Async</code> cuts the cycle into Look, Compute and Move (ASYNC), or into Look-Compute and Move
+              (LC-atomic), or Look and Compute-Move (CM-atomic).
+            </p>
+            <p>
+              An agent decides at its Look, from what it sees then; its decision stays <em>pending</em> until its Compute (when its
+              public state, light and pebbles change) and its Move. Another agent that looks in between sees its previous state and
+              position. The simulator draws a pending move as a dashed arrow, and the step's explanation says which event an agent took.
+            </p>
+            <Code code={ex.schedulers} />
+            <p>
+              A scheduler of your own is written like a component: it may own agent and world fields, and its <code>schedule</code>
+              returns an effect whose <code>activate</code> part lists the agents that take their next event (<code>C.eligible</code>
+              lists those able to act). <code>fairness := .activation</code> (the default) admits only executions in which every agent
+              that keeps acting takes events infinitely often; <code>.none</code> admits all of them, as for a scheduler whose bound is in
+              its own state, such as <code>Schedulers.Bounded k</code>.
+            </p>
+          </Section>
+
           <Section id="tasks" title="Tasks and goals">
             <p>
               A task gives each configuration a verdict: <code>.success</code>, <code>.failure</code> or <code>.inProgress</code>.
@@ -218,7 +243,8 @@ function Guide() {
           <Section id="custom" title="Your own pieces">
             <p>
               Sensors, components and tasks are written in the same language as the library's. A component owns world and agent fields,
-              flags and actions, and acts at the hook points of a round (<code>beforeLook</code>, <code>beforeMove</code>, <code>afterMove</code>).
+              flags and actions, and acts at the hook points of a step (<code>beforeLook</code>, <code>onCompute</code>, <code>beforeMove</code>,
+              <code>afterMove</code>).
               The adversary's choices are written <code>choose</code>, with labels shown in the simulator.
               A sensor receives the Look <code>L</code> (and a location, for a sensor about each location): it can read who stands where,
               but returns no position. The <code>@[equivariant]</code> attribute claims that a component or a task commutes with the

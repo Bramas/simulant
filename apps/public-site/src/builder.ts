@@ -67,10 +67,14 @@ export const builtinOptions: Record<string, Option[]> = {
   Movement: [
     { value: '.alongEdges', label: 'Along edges', detail: 'An agent moves to its position or a neighbor.' },
   ],
-  Round: [
-    { value: '.fsync', label: 'FSYNC', detail: 'Every agent is activated in every round.' },
-    { value: '.ssync', label: 'SSYNC', detail: 'A fair nonempty subset of agents is activated each round.' },
-    { value: '.sequential', label: 'Sequential', detail: 'One agent at a time, fairly.' },
+  Fairness: [
+    { value: '.activation', label: 'Activation', detail: 'Only executions in which every agent that keeps acting takes events infinitely often.' },
+    { value: '.none', label: 'None', detail: 'Every execution the scheduler allows.' },
+  ],
+  Instant: [
+    { value: '.look', label: 'Look', detail: 'The snapshot, and the decision computed from it, which stays pending.' },
+    { value: '.compute', label: 'Compute', detail: 'The decision’s public state, memory, light and pebbles take effect.' },
+    { value: '.move', label: 'Move', detail: 'The agent moves to the decision’s target.' },
   ],
   Symmetries: [
     { value: '.derived', label: 'Derived', detail: 'Reduce the state space by the symmetries the pieces declare.' },
@@ -102,8 +106,26 @@ export function spaceOptions(lib: Library): Option[] {
   const options = spaces(lib).map((s) => ({ value: spaceUse(s), label: spaceUse(s), detail: s.doc?.split('\n')[0] }));
   const cycle = options.find((o) => o.value.startsWith('Graphs.Cycle'));
   return cycle
-    ? [...options, { value: `Graphs.Dynamic (${cycle.value}) 1`, label: `Graphs.Dynamic (${cycle.value}) 1`, detail: 'The cycle, where the adversary removes at most one edge each round.' }]
+    ? [...options, { value: `Graphs.Dynamic (${cycle.value}) 1`, label: `Graphs.Dynamic (${cycle.value}) 1`, detail: 'The cycle, where the adversary removes at most one edge each step.' }]
     : options;
+}
+
+/**
+ * Library schedulers, with arguments: `Schedulers.Bounded 2`, and the asynchronous cuts of the
+ * cycle (ASYNC by default, LC-atomic, CM-atomic).
+ */
+export function schedulerOptions(lib: Library): Option[] {
+  const first = (e: Entry) => e.doc?.split('\n')[0];
+  return lib.entries.filter((e) => e.kind === 'scheduler').flatMap((s) => {
+    const args = s.params.filter((p) => p.default === undefined).map((p) => (p.type === 'Nat' ? '2' : '_'));
+    const value = [s.name, ...args].join(' ');
+    if (s.name !== 'Schedulers.Async') return [{ value, label: value, detail: first(s) }];
+    return [
+      { value, label: 'Schedulers.Async (ASYNC)', detail: first(s) },
+      { value: `${s.name} [[.look, .compute], [.move]]`, label: 'Schedulers.Async (LC-atomic)', detail: 'Look and Compute together, then Move.' },
+      { value: `${s.name} [[.look], [.compute, .move]]`, label: 'Schedulers.Async (CM-atomic)', detail: 'Look, then Compute and Move together.' },
+    ];
+  });
 }
 
 /** Whether the draft's space is infinite (its positions are integers, without a finite list). */
@@ -126,6 +148,7 @@ export function widget(lib: Library, type: string, draft?: Draft): Widget {
   if (type === 'List Sensor') return { kind: 'sensors' };
   if (type === 'Sensor') return { kind: 'sensor', options: viewSensors(lib) };
   if (type === 'Space') return { kind: 'select', options: spaceOptions(lib) };
+  if (type === 'Scheduler') return { kind: 'select', options: schedulerOptions(lib) };
   if (builtinOptions[type]) return { kind: 'select', options: builtinOptions[type] };
   if (type === 'Nat') return { kind: 'nat' };
   if (type === 'Bool') return { kind: 'bool' };

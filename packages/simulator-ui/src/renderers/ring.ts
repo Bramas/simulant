@@ -9,7 +9,7 @@
  */
 import type { Snapshot } from '../sim/snapshot';
 import type { Layout, ModelInfo, Point, RenderOptions } from '../sim/types';
-import { drawAgentDiscs, drawComponentMarks, markColors, stackIndices } from './marks';
+import { drawAgentDiscs, drawComponentMarks, drawPendingMoves, markColors, stackIndices } from './marks';
 
 export { agentColor } from './marks';
 
@@ -61,6 +61,7 @@ export function drawRing(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
       }
     }
     drawComponentMarks(ctx, snapshot, layout.nodePosition, n => inside(n, 0.9), colors, nodeRadius);
+    drawPendingMoves(ctx, snapshot, layout.agents.map(a => a.position), layout.nodePosition);
     drawAgentDiscs(ctx, snapshot, layout.agents.map(a => a.position), colors, agentRadius);
   } finally {
     ctx.restore();

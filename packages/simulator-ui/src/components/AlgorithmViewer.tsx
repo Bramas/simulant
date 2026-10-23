@@ -334,14 +334,20 @@ export function AlgorithmViewer(props: AlgorithmViewerProps) {
               <span class="sim-spacer" />
               <button class="sim-ghost sim-icon sim-sm" onClick={close} aria-label="Close the explanation" title="Close (Esc)"><Icon name="close" size={14} /></button>
             </div>
-            <Show when={selectedAgent()!.explanation} fallback={<p class="ex-none">No decision in the last step: the agent was not activated, or this is the initial configuration.</p>}>
+            <Show when={selectedAgent()!.explanation} fallback={<p class="ex-none">No decision in the last step: the agent took no event, or this is the initial configuration.</p>}>
               {e => (
                 <>
                   <div class="ex-meta">
+                    <Show when={e().event}><span>event: {e().event}</span></Show>
                     <span><span class="tok-action">move</span> {e().move}</span>
                     <Show when={e().line !== undefined}><span>decided at line {e().line}</span></Show>
                     <Show when={e().frame}><span>frame: {e().frame}</span></Show>
+                    <Show when={e().pending}><span>decision pending</span></Show>
                   </div>
+                  <Show when={e().applies}>
+                    <p class="ex-note">No Look in this step: the agent applies the decision of its last Look{e().pending ? ', which stays pending until its next event' : ''}.</p>
+                  </Show>
+                  <Show when={!e().applies}>
                   <div class="ex-section">
                     <h4>Look</h4>
                     <div class="ex-look-wrap">
@@ -384,6 +390,7 @@ export function AlgorithmViewer(props: AlgorithmViewerProps) {
                       <CallTree calls={e().calls} depth={0} />
                     </Show>
                   </div>
+                  </Show>
                 </>
               )}
             </Show>

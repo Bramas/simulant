@@ -7,7 +7,7 @@
 import type { Type } from '@bramas/simulant-lang/ir';
 import type { Snapshot } from '../sim/snapshot';
 import type { Layout, ModelInfo, Point, RenderOptions } from '../sim/types';
-import { drawAgentDiscs, drawComponentMarks, markColors, stackIndices } from './marks';
+import { drawAgentDiscs, drawComponentMarks, drawPendingMoves, markColors, stackIndices } from './marks';
 
 /** The integers among the values of type `t` (positions of the line, possibly in lists). */
 function positionsIn(t: Type, v: unknown): number[] {
@@ -90,6 +90,7 @@ export function drawLine(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mod
       const p = layout.nodePosition(v);
       return { x: p.x, y: p.y + nodeRadius + 26 };
     }, colors, nodeRadius);
+    drawPendingMoves(ctx, snapshot, layout.agents.map(a => a.position), layout.nodePosition);
     drawAgentDiscs(ctx, snapshot, layout.agents.map(a => a.position), colors, agentRadius);
   } finally {
     ctx.restore();

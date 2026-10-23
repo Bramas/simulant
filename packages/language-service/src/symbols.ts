@@ -126,7 +126,7 @@ export class Symbols {
         // Hook/step arguments are implicit runtime binders in the surface syntax.
         for (const [i, arg] of item.args.entries()) {
           const role = item.name === 'step' ? (['mem', 'pub', 'view'] as const)[i]
-            : ['beforeLook', 'beforeMove', 'afterMove'].includes(item.name) ? 'config' as const : undefined;
+            : ['beforeLook', 'onCompute', 'beforeMove', 'afterMove', 'schedule'].includes(item.name) ? 'config' as const : undefined;
           const type = role === 'pub' || role === 'mem' ? parent.children.find(b => b.name.toLowerCase() === role)?.type : undefined;
           this.add(uri, arg, item.span, SymbolKind.Variable, `${arg} : ${type ? typeText(type) : role === 'view' ? 'View' : role === 'config' ? 'Config' : 'runtime argument'}`,
             { role, type, scope: { start: item.span.start.offset, end: item.span.end.offset, visible: item.span.start.offset } }, parent);

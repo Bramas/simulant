@@ -108,3 +108,20 @@ test('a permutation scheduler activates every agent once per pass, in any order'
   assert.deepEqual(system.successors(step(system, C2, 2)).map(s => [...s.activated].join()), ['0', '1', '2']);
   assert.equal(new Explorer(new System(marks('Schedulers.Permutation'), { N: 3 })).run().status, 'success');
 });
+
+test('under ASYNC, explanations name the event and say when an earlier decision applies', () => {
+  const system = new System(lights('Schedulers.Async'), { N: 3 }, { sortAgents: false });
+  const C0 = system.initial()[0].config;
+  const looked = system.successors(C0).find(s => [...s.activated].join() === '0')!;
+  const e0 = system.explainAll(C0, looked.key)[0]!;
+  assert.equal(e0.event, 'Look');
+  assert.equal(e0.pending, true);
+  assert.ok(e0.locations.length > 0);
+  const computed = system.successors(looked.config).find(s => [...s.activated].join() === '0')!;
+  const e1 = system.explainAll(looked.config, computed.key)[0]!;
+  assert.deepEqual([e1.event, e1.applies, e1.pending, e1.locations.length], ['Compute', true, true, 0]);
+  // With atomic cycles there is no event to name.
+  const fsync = new System(lights('Schedulers.FSync'), { N: 3 });
+  const C = fsync.initial()[0].config;
+  assert.equal(fsync.explainAll(C, fsync.successors(C)[0].key)[0]?.event, undefined);
+});

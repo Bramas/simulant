@@ -6,7 +6,7 @@
 import type { SBinder, SDecl, SExpr, SStmt, SType, SWhereItem } from '../../../packages/lang/src/parse/ast';
 import { parse } from '../../../packages/lang/src/parse/parser';
 
-export type Kind = 'model' | 'space' | 'component' | 'sensor' | 'task' | 'type' | 'algorithm' | 'experiment' | 'definition';
+export type Kind = 'model' | 'space' | 'component' | 'scheduler' | 'sensor' | 'task' | 'type' | 'algorithm' | 'experiment' | 'definition';
 
 export type Param = { name: string; type: string; default?: string };
 export type Field = { name: string; type: string };
@@ -39,6 +39,9 @@ export type Entry = {
   outputs?: string[];
   implements?: string;
   goal?: string;
+  /** A scheduler's cut of the cycle and its fairness, as written. */
+  events?: string;
+  fairness?: string;
 };
 
 export type Library = { modules: { path: string; doc?: string }[]; entries: Entry[] };
@@ -74,7 +77,8 @@ function kindOf(d: SDecl): Kind | undefined {
     case 'inductive': case 'structure': return 'type';
     case 'def': {
       const t = d.type?.t === 'name' ? d.type.name : undefined;
-      return t === 'Component' ? 'component' : t === 'Model' ? 'model' : t === 'Space' ? 'space' : t === 'Sensor' ? 'sensor' : 'definition';
+      return t === 'Component' ? 'component' : t === 'Scheduler' ? 'scheduler' : t === 'Model' ? 'model' : t === 'Space' ? 'space'
+        : t === 'Sensor' ? 'sensor' : 'definition';
     }
     default: return undefined;
   }
@@ -160,6 +164,17 @@ export function readLibrary(sources: Record<string, string>): Library {
       if (d.d === 'structure') entry.world = d.fields.map((f) => ({ name: f.name, type: typeText(f.type) }));
       const implemented = d.attrs.find((a) => a.name === 'implements');
       if (implemented) entry.implements = implemented.args[0];
+      if (d.d === 'def' && kind === 'scheduler') {
+        const item = (name: string) => d.items?.find((i) => i.name === name && !i.args.length);
+        entry.world = recordFields(item('World')?.value);
+        entry.agent = recordFields(item('Agent')?.value);
+        const text = (name: string) => { const i = item(name); return i && slice(source, i.value.span); };
+        // Events given by an argument (`events := events`) show the argument and its default.
+        const events = text('events');
+        const arg = entry.params.find((p) => p.name === events);
+        entry.events = !events ? '[[.look, .compute, .move]]' : arg ? `the argument ${arg.name}${arg.default ? ` (default ${arg.default})` : ''}` : events;
+        entry.fairness = text('fairness') ?? '.activation';
+      }
       if (d.d === 'def' && kind === 'component') {
         const item = (name: string) => d.items?.find((i) => i.name === name && !i.args.length);
         entry.world = recordFields(item('World')?.value);
@@ -167,7 +182,7 @@ export function readLibrary(sources: Record<string, string>): Library {
         const list = (name: string) => item(name)?.value.t === 'list' ? (item(name)!.value as Extract<SExpr, { t: 'list' }>).items : [];
         entry.flags = list('flags').flatMap((f) => (f.t === 'flag' ? [`${f.name} (${f.visibility}, acts ${f.acts})`] : []));
         entry.actions = list('actions').flatMap((a) => (a.t === 'action' ? [`${a.name} : ${typeText(a.type)}`] : []));
-        entry.hooks = (d.items ?? []).filter((i) => ['beforeLook', 'beforeMove', 'afterMove'].includes(i.name)).map((i) => i.name);
+        entry.hooks = (d.items ?? []).filter((i) => ['beforeLook', 'onCompute', 'beforeMove', 'afterMove'].includes(i.name)).map((i) => i.name);
         const reads: Field[] = [];
         for (const init of (d.items ?? []).filter((i) => i.name === 'init' && i.value.t === 'record')) {
           const record = init.value as Extract<SExpr, { t: 'record' }>;
@@ -236,6 +251,7 @@ export function signature(e: Entry): string {
   switch (e.kind) {
     case 'type': return e.ctors ? join('inductive', e.name, ...e.ctors.map((c) => `| ${c}`)) : join('structure', e.name);
     case 'component': return join('def', e.name, params, ': Component');
+    case 'scheduler': return join('def', e.name, params, ': Scheduler');
     case 'model': return join('def', e.name, params, ': Model');
     case 'space': return join('def', e.name, params, ': Space');
     case 'sensor': return join('sensor', e.name, params, `: ${e.type ?? 'Sensor'}`);

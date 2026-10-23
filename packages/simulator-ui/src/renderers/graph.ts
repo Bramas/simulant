@@ -7,7 +7,7 @@
 import { vertexKey, type V } from '@bramas/simulant-engine/values';
 import type { Snapshot } from '../sim/snapshot';
 import type { Layout, ModelInfo, Point, RenderOptions } from '../sim/types';
-import { drawAgentDiscs, drawComponentMarks, markColors, nodeLabel, stackIndices } from './marks';
+import { drawAgentDiscs, drawComponentMarks, drawPendingMoves, markColors, nodeLabel, stackIndices } from './marks';
 
 /** The vertex in the middle, if exactly one is adjacent to all others (and there are at least 4). */
 function hubOf(snapshot: Snapshot): string | undefined {
@@ -83,6 +83,7 @@ export function drawGraph(ctx: CanvasRenderingContext2D, snapshot: Snapshot, _mo
       }
     }
     drawComponentMarks(ctx, snapshot, layout.nodePosition, v => inward(v, 0.9), colors, nodeRadius);
+    drawPendingMoves(ctx, snapshot, layout.agents.map(a => a.position), layout.nodePosition);
     drawAgentDiscs(ctx, snapshot, layout.agents.map(a => a.position), colors, agentRadius);
   } finally {
     ctx.restore();

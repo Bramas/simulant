@@ -171,7 +171,7 @@ test('the model view describes the experiment and shows the declarations it uses
   const at = fact('Experiment', 'param N').refs![0];
   assert.equal(d.sources.find(s => s.kind === 'experiment')!.lines.find(l => l.number === at.line)!.text.trim(), 'param N : Nat in (range 13).filter (· ≥ 5)');
   // The adversary chooses whether the hole activates, after the moves.
-  assert.deepEqual(d.round.find(p => p.phase === 'afterMove')!.choices, ['BlackHole.active']);
+  assert.deepEqual(d.step.find(p => p.phase === 'afterMove')!.choices, ['BlackHole.active']);
 });
 
 test('the model view links each case of the Lean step to the statement it resumes after', () => {

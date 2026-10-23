@@ -116,6 +116,52 @@ experiment stepTowardsNeighbor where
   position i := pos (2 * i)
 `;
 
+export const schedulers = `/-! The oblivious rule of the guide, under asynchronous schedulers: a robot's
+decision waits, pending, between its Look and its Move. -/
+
+import "std/models.sim"
+
+def occupiedNeighbors : List Loc :=
+  (neighbors here).filter occupied
+
+algorithm StepTowardsNeighbor uses occupied where
+  main :=
+    let next := occupiedNeighbors
+    if next.isEmpty then
+      move Ring.cw
+    else
+      move (next.at 0)
+
+/-- ASYNC with atomic Look-Compute (LC-atomic): a robot looks and computes in one event, and
+moves in a later one. -/
+experiment lcAtomic where
+  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
+    (scheduler := Schedulers.Async [[.look, .compute], [.move]])
+  algorithm := StepTowardsNeighbor
+  task := Gathering
+  param N : Nat in [4, 5]
+  agents := 2
+  position i := pos (2 * i)
+
+/-- Robot 0 alone, then all the others, and so on: each robot keeps whether it is its turn. -/
+@[equivariant]
+def Alternate : Scheduler where
+  Agent := { turn : Bool }
+  init i := { turn := i = 0 }
+  fairness := .none
+  schedule C :=
+    { activate := fun a => a.turn,
+      agents := fun a => { turn := !a.turn } }
+
+experiment alternate where
+  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied] (scheduler := Alternate)
+  algorithm := StepTowardsNeighbor
+  task := Gathering
+  param N : Nat in [4, 5]
+  agents := 2
+  position i := pos (2 * i)
+`;
+
 export const stateMachine = `algorithm CautiousPair uses otherStates where
   Pub := { id : Nat, bh : Option Nat }
   Mem := { pc : PC }
@@ -183,4 +229,4 @@ npx simulant check-all -p my-experiment   # every setting, every execution
 npx simulant lean --build                 # the Lean model, compiled with Lake`;
 
 /** Complete files, compiled by the site's tests. */
-export const completeFiles = { firstFile, pebbles, oblivious, custom };
+export const completeFiles = { firstFile, pebbles, oblivious, schedulers, custom };
