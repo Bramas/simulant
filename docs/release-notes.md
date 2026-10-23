@@ -1,8 +1,8 @@
 # Release notes
 
-## Next release (breaking): schedulers and model families
+## 0.5.0 (2026-10-23, breaking): schedulers and model families
 
-This release moves schedulers into the language ([scheduler-design.md](scheduler-design.md)). It is breaking for `.sim` sources (`round` is gone), the IR (version 3), the engine's configurations (agents may carry a pending decision) and the Lean library (the step runs over events). It is the next minor version (`pnpm release:version minor`).
+This release moves schedulers into the language ([scheduler-design.md](scheduler-design.md)). It is breaking for `.sim` sources (`round` is gone), the IR (version 3), the engine's configurations (agents may carry a pending decision) and the Lean library (the step runs over events).
 
 ### Models
 
