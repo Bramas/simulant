@@ -31,6 +31,11 @@ function placed(m: Model, algorithm: Algorithm, task: Task, extra: { name: strin
 const onCycle = (scheduler: Model['scheduler']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], scheduler });
 const exploring = (f: Model['frames'], space = Cycle()) =>
   robots({ space, observation: radius(1), frames: f, sensors: [count], components: [Monitors.Visited()] });
+const lightsOnCycle = (name: string, scheduler: Model['scheduler']) => experiment({
+  name, algorithm: CycleLight, task: Observe,
+  model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [colors], components: [Storage.Lights(3)], scheduler }),
+  params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => pos(i) },
+});
 const three = (name: string, m: Model, accepts?: boolean) => experiment({
   name, model: m, algorithm: MarkActivated, task: EveryoneActivated,
   params: [{ name: 'N', type: T.nat, ...(accepts ? { accepts: param('N').ge(3) } : {}) }], agents: { count: 3, pos: i => pos(i) },
@@ -93,6 +98,11 @@ export const builderExperiments: Record<string, Experiment> = {
     params: [{ name: 'k', type: T.nat }, { name: 'start', type: T.list(T.nat) }],
     agents: { count: param('start').length(), pos: i => pos(param('start').at(i)) },
   }),
+  'async-lights': lightsOnCycle('asyncLights', Schedulers.Async()),
+  'lc-atomic-lights': lightsOnCycle('lcAtomicLights', Schedulers.Async([['look', 'compute'], ['move']])),
+  'cm-atomic-lights': lightsOnCycle('cmAtomicLights', Schedulers.Async([['look'], ['compute', 'move']])),
+  bounded: three('bounded', onCycle(Schedulers.Bounded(2))),
+  permutation: three('permutation', onCycle(Schedulers.Permutation)),
   'star-dispersion': experiment({
     name: 'starDispersion', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, sensors: [count] }),
     algorithm: Disperse, task: Dispersion,

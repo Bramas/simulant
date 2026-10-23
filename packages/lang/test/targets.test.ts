@@ -26,7 +26,8 @@ test('every public project and the library examples compile without diagnostics'
     'packages/stdlib/sim/examples.sim': ['cautiousPair', 'cautiousPairCrash'],
     'packages/stdlib/sim/conformance.sim': [
       'blackHoleEmerging', 'blackHoleCrashStop', 'blackHoleLossy', 'pebbles', 'gatheringRobots', 'dynamicRing', 'ownOrientation',
-      'portPermutations', 'ssync', 'sequential', 'parameterAcceptance', 'lights', 'starGathering', 'starDispersion',
+      'portPermutations', 'ssync', 'sequential', 'parameterAcceptance', 'lights', 'asyncLights', 'lcAtomicLights', 'cmAtomicLights',
+      'bounded', 'permutation', 'starGathering', 'starDispersion',
       'agentFields', 'edgePresence',
     ],
     'projects/starter/src/main.sim': ['cautiousPair'],

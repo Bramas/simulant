@@ -78,7 +78,7 @@ function inputsOf(c: Component): Field[] {
 export function componentInfo(c: Component, namespace: string): ComponentInfo {
   const enums = new Map<string, string[]>();
   for (const f of [...(c.params ?? []), ...(c.world ?? []), ...(c.agent ?? []), ...(c.actions ?? [])]) enumsOf(f.type, enums);
-  for (const e of [c.beforeLook, c.beforeMove, c.afterMove, ...Object.values(c.init?.world ?? {}), ...Object.values(c.init?.agent ?? {}),
+  for (const e of [c.beforeLook, c.onCompute, c.beforeMove, c.afterMove, ...Object.values(c.init?.world ?? {}), ...Object.values(c.init?.agent ?? {}),
     ...(c.sensors ?? []).map(s => s.body)]) enumsInExpr(e, enums);
   return {
     name: c.name, namespace, inputs: inputsOf(c),
@@ -89,8 +89,9 @@ export function componentInfo(c: Component, namespace: string): ComponentInfo {
 
 /** The Lean module of a component. */
 export function generateComponent(c: Component, namespace: string): string {
-  // The Lean round has no Compute instant yet (docs/scheduler-design.md, step 4).
-  if (c.onCompute) fail(`${c.name}: onCompute hooks are not translated to Lean yet`);
+  // The Lean round has no Compute instant yet (docs/scheduler-design.md, step 4): with atomic cycles,
+  // a component's onCompute runs in the same step as its beforeMove, which it may stand for.
+  if (c.onCompute && c.beforeMove) fail(`${c.name}: a component with both onCompute and beforeMove is not translated to Lean yet`);
   const info = componentInfo(c, namespace);
   const world = c.world ?? [];
   const fields = c.agent ?? [];
@@ -190,7 +191,7 @@ export function generateComponent(c: Component, namespace: string): string {
   out.push(`/-- The hooks, on the parts of the state the component owns. -/
 def hooks ${paramBinders} (L : Ctx σ) : Hooks σ ${ownW} ${ownX} where
   beforeLook := ${hook(c.beforeLook, 'ts C')}
-  beforeMove := ${hook(c.beforeMove, 'ts C ds')}
+  beforeMove := ${hook(c.onCompute ?? c.beforeMove, 'ts C ds')}
   afterMove := ${hook(c.afterMove, 'ts C')}
 
 def component ${paramBinders} (L : Ctx σ) : Component σ :=

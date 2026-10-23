@@ -66,6 +66,11 @@ test('differential: the computable Lean round has the interpreter\'s successors 
         assert.throws(() => differential(fixture.experiment, fixture.params, leanDir.pathname, 30), /not merged in Lean yet/);
         continue;
       }
+      if (['async-lights', 'lc-atomic-lights', 'cm-atomic-lights', 'bounded', 'permutation'].includes(f.replace('.json', ''))) {
+        // Schedulers beyond the three atomic ones need the Lean round over events (docs/scheduler-design.md, step 4).
+        assert.throws(() => differential(fixture.experiment, fixture.params, leanDir.pathname, 30), /not translated to Lean yet/);
+        continue;
+      }
       const r = differential(fixture.experiment, fixture.params, leanDir.pathname, 30);
       assert.deepEqual(r.mismatches, [], f);
       assert.ok(r.successors > 0, f);

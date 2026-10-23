@@ -34,7 +34,7 @@ def Faults.CrashStop (f : Nat) : Component where
     { raise crashed := S }
 
 /-- Robots at `param crashNode` may crash after Compute, instead of moving. A crashed robot
-keeps the light it requested in that Compute (both hooks read the same snapshot). -/
+keeps the state and the light of that Compute. -/
 @[equivariant]
 def Faults.CrashAt : Component where
   World := { crashNode : Pos }
@@ -55,7 +55,7 @@ def Storage.Lights (colors : Nat) : Component where
   actions := [action setLight : Option Nat := none]
   init := { colorCount := colors }
   init i := { light := 0 }
-  beforeMove C :=
+  onCompute C :=
     { agents := fun a =>
         let c := (decisionOf a).setLight
         { light := if (decisionOf a).decided ∧ c.isSome ∧ c.getD 0 < colors then c.getD 0 else a.light } }
@@ -63,15 +63,15 @@ def Storage.Lights (colors : Nat) : Component where
 inductive PebbleAction | none | drop | pick
 
 /-- Pebbles on positions, one multiset entry per pebble. Dropping and picking are actions,
-applied in `beforeMove`. All drops succeed; picks at a position succeed up to the number of
-pebbles there (multiset difference is truncated). -/
+applied at Compute, where the agent stands before it moves. All drops succeed; picks at a
+position succeed up to the number of pebbles there (multiset difference is truncated). -/
 @[equivariant]
 def Storage.Pebbles : Component where
   World := { pebbles : Multiset Pos }
   actions := [action pebble : PebbleAction := .none]
   sensors := [pebblesHere]
   init := { pebbles := [] }
-  beforeMove C :=
+  onCompute C :=
     let picks := (C.agents.filter fun a => (decisionOf a).decided ∧ (decisionOf a).pebble = .pick).map (·.pos)
     let drops := (C.agents.filter fun a => (decisionOf a).decided ∧ (decisionOf a).pebble = .drop).map (·.pos)
     { world := { C.world with pebbles := (C.world.pebbles.diff picks) ++ drops } }

@@ -28,3 +28,40 @@ def Schedulers.Sequential : Scheduler where
   schedule C :=
     let a := choose C.eligible labels fun a => "activates " ++ show a
     { activate := fun b => b = a }
+
+/-- Asynchronous agents: at each step, a nonempty set of the agents able to act takes its next
+event. `events` cuts the cycle: `[[.look], [.compute], [.move]]` (ASYNC, the default),
+`[[.look, .compute], [.move]]` (LC-atomic) or `[[.look], [.compute, .move]]` (CM-atomic). -/
+@[equivariant]
+def Schedulers.Async (events : List (List Instant) := [[.look], [.compute], [.move]]) : Scheduler where
+  events := events
+  schedule C :=
+    let S := choose (nonemptySubsets C.eligible) labels fun S => "activates " ++ show S
+    { activate := S }
+
+/-- A nonempty set of the agents able to act at each step, such that each of them takes an event
+at least once every `k` steps (k ≥ 1; `Bounded 1` is FSYNC). The bound is part of the state: no
+fairness assumption is needed. -/
+@[equivariant]
+def Schedulers.Bounded (k : Nat) : Scheduler where
+  Agent := { waited : Nat }
+  init i := { waited := 0 }
+  fairness := .none
+  schedule C :=
+    let S := choose ((nonemptySubsets C.eligible).filter fun S => C.eligible.all fun a => a.waited + 1 < k ∨ S.contains a)
+      labels fun S => "activates " ++ show S
+    { activate := S,
+      agents := fun a => { waited := if S.contains a ∨ !(C.eligible.contains a) then 0 else a.waited + 1 } }
+
+/-- One agent at a time, in passes: in each pass every agent able to act takes one event, in an
+order the adversary chooses anew for each pass (`done` marks the agents of the current pass). -/
+@[equivariant]
+def Schedulers.Permutation : Scheduler where
+  Agent := { done : Bool }
+  init i := { done := false }
+  fairness := .none
+  schedule C :=
+    let left := C.eligible.filter fun a => !a.done
+    let a := choose (if left.isEmpty then C.eligible else left) labels fun a => "activates " ++ show a
+    { activate := fun b => b = a,
+      agents := fun b => { done := b = a ∨ (!left.isEmpty ∧ b.done) } }

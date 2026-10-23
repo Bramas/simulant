@@ -80,17 +80,19 @@ def Schedulers.Bounded (k : Nat) : Scheduler where
     let S := choose ((nonemptySubsets C.eligible).filter fun S => due.all S.contains)
     { activate := S, agents := fun a => { waited := if S.contains a then 0 else a.waited + 1 } }
 
-/-- One agent at a time, following an order the adversary picks for each pass over the agents. -/
+/-- One agent at a time, in passes: every agent able to act takes one event per pass, in an
+order the adversary chooses anew for each pass. -/
 def Schedulers.Permutation : Scheduler where
-  World := { turn : Nat }
-  Agent := { rank : Nat }
-  init := { turn := 0 }
-  init i := { rank := i }
-  schedule C := …   -- at turn 0 the adversary chooses the ranks (a permutation), then the agent
-                    -- whose rank is `turn` is activated and `turn` advances modulo the agents
+  Agent := { done : Bool }
+  init i := { done := false }
+  fairness := .none
+  schedule C :=
+    let left := C.eligible.filter fun a => !a.done
+    let a := choose (if left.isEmpty then C.eligible else left)
+    { activate := fun b => b = a, agents := fun b => { done := b = a ∨ (!left.isEmpty ∧ b.done) } }
 ```
 
-Defaults: `events := [[.look, .compute, .move]]` and `fairness := .activation`. `C.eligible` lists the agents whose flags allow acting (not `acts never`). Agents are references valid within one step, as in components, so a scheduler keeps per-agent state in agent fields (`waited`, `rank`), not in lists of agents. A scheduler may read `a.phase`, for instance to bound how long a pending move may wait.
+Defaults: `events := [[.look, .compute, .move]]` and `fairness := .activation`. `C.eligible` lists the agents whose flags allow acting (not `acts never`). Agents are references valid within one step, as in components, so a scheduler keeps per-agent state in agent fields (`waited`, `done`), not in lists of agents. A scheduler may read `a.phase`, for instance to bound how long a pending move may wait.
 
 Model families take a `scheduler` argument (default `Schedulers.FSync`): `robots … (scheduler := Schedulers.Async)`. Agents all cut their cycle the same way: per-agent cuts are not planned.
 
@@ -130,7 +132,7 @@ Fairness says which infinite executions are admissible. It is a kind, declared b
 
 The configuration gains, per agent, the scheduler's agent fields, its phase and its pending decision, and the scheduler's world fields. With atomic cycles, the phase is always 0 and no decision is pending: the encoding of a configuration leaves them out, so state counts are unchanged. Scheduler state multiplies the state space as expected: counters up to k for each agent, permutations of the agents, pending decisions under ASYNC.
 
-A pending target is a position, transformed by the automorphisms like the other positions of a configuration. A scheduler, like a component, may claim `@[equivariant]`. Symmetry reduction also merges configurations that differ by a permutation of agents. Today this is enabled for FSYNC only (`anonymous` in `System`), because fairness is tracked per agent and merging would mix agents up. It becomes a property of the scheduler: allowed when its fairness tracks no agent (`.none`) and it treats agents alike (FSync does; Permutation, whose ranks start from the agents' indices, does not).
+A pending target is a position, transformed by the automorphisms like the other positions of a configuration. A scheduler, like a component, may claim `@[equivariant]`. Symmetry reduction also merges configurations that differ by a permutation of agents. Today this is enabled for FSYNC only (`anonymous` in `System`), because fairness is tracked per agent and merging would mix agents up. It becomes a property of the scheduler: allowed when its fairness tracks no agent (`.none`): the scheduler's agent fields move with the agents they belong to.
 
 ## 6. IR, engine, Lean and tools
 

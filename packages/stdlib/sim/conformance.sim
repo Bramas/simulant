@@ -174,6 +174,52 @@ experiment lights where
   agents := positions.length
   position i := pos (positions.at i)
 
+/-- Agents with lights on a cycle, under a given scheduler: a decision's light shows at its
+Compute, and a Look at that instant still sees the previous light. -/
+def lightsOnCycle (scheduler : Scheduler) : Model :=
+  robots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [colors]
+    (components := [Storage.Lights 3]) (scheduler := scheduler)
+
+experiment asyncLights where
+  model := lightsOnCycle Schedulers.Async
+  algorithm := CycleLight
+  task := Observe
+  param N : Nat
+  agents := 2
+  position i := pos i
+
+experiment lcAtomicLights where
+  model := lightsOnCycle (Schedulers.Async [[.look, .compute], [.move]])
+  algorithm := CycleLight
+  task := Observe
+  param N : Nat
+  agents := 2
+  position i := pos i
+
+experiment cmAtomicLights where
+  model := lightsOnCycle (Schedulers.Async [[.look], [.compute, .move]])
+  algorithm := CycleLight
+  task := Observe
+  param N : Nat
+  agents := 2
+  position i := pos i
+
+experiment bounded where
+  model := cycleRobots (Schedulers.Bounded 2)
+  algorithm := MarkActivated
+  task := EveryoneActivated
+  param N : Nat
+  agents := 3
+  position i := pos i
+
+experiment permutation where
+  model := cycleRobots Schedulers.Permutation
+  algorithm := MarkActivated
+  task := EveryoneActivated
+  param N : Nat
+  agents := 3
+  position i := pos i
+
 /-- Robots on leaves move to the center; robots at the center stay. -/
 algorithm ToHub uses occupied where
   main :=

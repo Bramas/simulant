@@ -81,7 +81,7 @@ export const Storage = {
     world: { colorCount: T.nat }, agent: { light: T.nat },
     actions: [{ name: 'setLight', type: T.option(T.nat), default: null }],
     init: { world: { colorCount: p => p.colors }, agent: { light: () => 0 } },
-    beforeMove: (_C, p) => effect({
+    onCompute: (_C, p) => effect({
       agents: a => let_('c', decisionOf(a).setLight, c =>
         rec({ light: ite(and(decisionOf(a).decided, c.isSome(), c.getD(0).lt(p.colors)), c.getD(0), a.light) })),
     }),
@@ -89,8 +89,8 @@ export const Storage = {
   }),
   /**
    * Pebbles on positions, one multiset entry per pebble. Dropping and picking are
-   * actions, applied in `beforeMove`: all drops succeed; picks at a position succeed
-   * up to the number of pebbles there (multiset difference is truncated).
+   * actions, applied at Compute, where the agent stands before it moves: all drops succeed;
+   * picks at a position succeed up to the number of pebbles there (multiset difference is truncated).
    */
   Pebbles: (): Component => component({
     name: 'Pebbles',
@@ -98,7 +98,7 @@ export const Storage = {
     actions: [{ name: 'pebble', type: PebbleAction, default: 'none' }],
     sensors: [sensor('pebblesHere', T.nat, ({ L }) => L.world.pebbles.count((p: X) => p.eq(position(L, L.here))))],
     init: { world: { pebbles: lit(T.multiset(T.pos), []) } },
-    beforeMove: C => {
+    onCompute: C => {
       const doing = (what: string) => agents(C)
         .filter(a => and(decisionOf(a).decided, decisionOf(a).pebble.eq(lit(PebbleAction, what))))
         .map(a => a.pos);
