@@ -188,7 +188,7 @@ whatever the algorithm). The check finds an execution in which a leader and its 
 on different nodes, wait for each other forever (N = 5, hole at 3): these rules let a leader
 go on when its follower is not on its node, where the paper's pseudocode waits for it. -/
 experiment algo6Async where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles]) (round := .ssync)
+  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles]) (scheduler := Schedulers.SSync)
   algorithm := FourAgentsTwoPebbles
   task := IdentifyEmergingBlackHole
   param N : Nat in (range 13).filter (· ≥ 5)

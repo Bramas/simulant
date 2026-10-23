@@ -13,7 +13,7 @@ import { check } from '@bramas/simulant-lang/check';
 import { compile } from '@bramas/simulant-lang/elab/elaborate';
 import { nodeHost } from '@bramas/simulant-lang/elab/node';
 import { Program } from '@bramas/simulant-lang/elab/program';
-import type { Component, Expr, Experiment, Field, Space, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Expr, Experiment, Field, Scheduler, Space, Type } from '@bramas/simulant-lang/ir';
 import { showType, T, typeEq } from '@bramas/simulant-lang/types';
 import { componentInfo, enumDecl, enumsInExpr, enumsOf, generateComponent, sensorDef, structDecl } from './component';
 import { libraryComponents, libraryNamespace } from './library';
@@ -417,7 +417,7 @@ ${envBinds.map(b => `  ${b}\n`).join('')}  pure { ${lay.used.map(s => `${ident(s
   components := [${compCode.join(',\n    ')}]
   radius := ${radiusCode}
   frames := ${framesCode}
-  round := .${model.round}
+  round := .${leanRound(model.scheduler)}
   env := env ${sec}
   step := step ${sec}
 `, { kind: 'model' });
@@ -561,3 +561,14 @@ regenerate it. Proofs go in a separate file. -/\n\nset_option linter.unusedVaria
 }
 
 export type { Expr };
+
+/**
+ * The Lean round of a library scheduler with atomic cycles and no state. Until the Lean round
+ * runs over events (docs/scheduler-design.md, step 4), other schedulers are not translated.
+ */
+function leanRound(sc: Scheduler): 'fsync' | 'ssync' | 'sequential' {
+  const atomic = sc.events.length === 1 && !sc.world?.length && !sc.agent?.length;
+  const round = ({ FSync: 'fsync', SSync: 'ssync', Sequential: 'sequential' } as const)[sc.name as 'FSync'];
+  if (!atomic || !round) throw new Error(`scheduler ${sc.name} is not translated to Lean yet: only Schedulers.FSync, SSync and Sequential are`);
+  return round;
+}

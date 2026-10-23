@@ -160,7 +160,9 @@ def configs : List (Config ${sig}) := [
   configs.forEach((C, i) => {
     const lean = (JSON.parse(lines[i]) as [[string, number][], { agents: V[]; world: V }][])
       .map(([w, c]) => ({ w: JSON.stringify(w), key: system.key(normConfig(c)) }));
-    const engine = system.successors(C).map(s => ({ w: JSON.stringify(s.witness.map(c => [c.site, c.index])), key: s.key }));
+    // The Lean round names the scheduler's choice `activation` (until it is generated: docs/scheduler-design.md, step 4).
+    const site = (s: string) => s.startsWith(`${exp.model.scheduler.name}.`) ? 'activation' : s;
+    const engine = system.successors(C).map(s => ({ w: JSON.stringify(s.witness.map(c => [site(c.site), c.index])), key: s.key }));
     successors += engine.length;
     const leanKeys = new Set(lean.map(x => x.key));
     const engineKeys = new Set(engine.map(x => x.key));

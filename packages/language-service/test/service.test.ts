@@ -36,7 +36,7 @@ function position(text: string, needle: string, occurrence = 0) {
 test('compiler diagnostics use zero-based UTF-16 ranges and clear after an unsaved fix', () => {
   const { service } = project({ 'main.sim': example });
   assert.equal(service.analyze(main).diagnostics.size, 0);
-  assert.equal(service.analyze(main).experiments.e.irVersion, 2);
+  assert.equal(service.analyze(main).experiments.e.irVersion, 3);
   const invalid = example.replace('agents := 2', 'agents := true');
   service.setDocument(main, invalid, 1);
   const diagnostic = service.analyze(main).diagnostics.get(main)![0];

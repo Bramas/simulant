@@ -150,7 +150,7 @@ test('the model view describes the experiment and shows the declarations it uses
   assert.match(d.about!, /^Algorithm 1 of the black-hole-search paper/);
   assert.deepEqual(d.sources.map(s => `${s.kind} ${s.name}`), [
     'experiment algo1', 'model blackHoleRobots', 'model robots', 'space Graphs.Cycle', 'sensor otherStates',
-    'component Hazards.BlackHole', 'algorithm FourAgentEBS', 'task IdentifyEmergingBlackHole', 'goal IdentifyEmergingBlackHole',
+    'component Hazards.BlackHole', 'scheduler Schedulers.FSync', 'algorithm FourAgentEBS', 'task IdentifyEmergingBlackHole', 'goal IdentifyEmergingBlackHole',
     'definition Port.cw', 'definition port', 'definition Ring.cw', 'definition Ring.ccw', 'definition Port.opposite',
   ]);
   // A declaration comes with its doc comment and attributes.
@@ -161,7 +161,7 @@ test('the model view describes the experiment and shows the declarations it uses
   const fact = (section: string, label: string) => d.sections.find(s => s.title.startsWith(section))!.facts.find(f => f.label === label)!;
   assert.equal(fact('Experiment', 'param N').value, '(range 13).filter (· ≥ 5)');
   assert.equal(fact('Experiment', 'Settings checked').value, String([5, 6, 7, 8, 9, 10, 11, 12].reduce((n, N) => n + N, 0)));
-  assert.equal(fact('Model', 'Synchrony').value, 'FSYNC (fully synchronous)');
+  assert.equal(fact('Model', 'Scheduler').value, 'FSync');
   assert.equal(fact('Components', 'BlackHole').value, 'BlackHole (policy := .mayEmerge)');
   assert.equal(fact('Task', 'Goal').value, '◇□ success');
   // Every reference names a shown declaration.

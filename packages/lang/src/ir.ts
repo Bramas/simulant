@@ -8,7 +8,7 @@
  * whose vertices and neighbors are IR expressions.
  */
 
-export const IR_VERSION = 2;
+export const IR_VERSION = 3;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -77,8 +77,10 @@ type ExprNode =
   /**
    * What a hook does: new values of its component's world fields, flags to raise, and new
    * values of its own agent fields (`agents`: a function from an agent to a record of them).
+   * A scheduler's `schedule` also says which agents take their next event (`activate`: agents
+   * or a predicate on agents).
    */
-  | { e: 'effect'; world?: Record<string, Expr>; raise?: Record<string, Expr>; agents?: Expr }
+  | { e: 'effect'; world?: Record<string, Expr>; raise?: Record<string, Expr>; agents?: Expr; activate?: Expr }
   /**
    * A sensor read by the algorithm in its current Look: a Look-level sensor without `loc`, a
    * per-location sensor at the location `loc`. One sensor environment per Look: repeated reads agree.
@@ -186,6 +188,37 @@ export type Component = {
   equivariant?: boolean;
 };
 
+/** An instant of an agent's cycle. */
+export type Instant = 'look' | 'compute' | 'move';
+
+/**
+ * Which executions are admissible: `activation`, those in which every agent that acts forever
+ * takes events infinitely often; `none`, all of them.
+ */
+export type Fairness = 'activation' | 'none';
+
+/**
+ * How agents take the events of their cycles (docs/scheduler-design.md). Like a component, a
+ * scheduler may own world and agent fields. Its `schedule` hook (`C` in scope) returns an effect
+ * whose `activate` part lists the agents that take their next event; its other parts update the
+ * scheduler's own fields.
+ */
+export type Scheduler = {
+  name: string;
+  params?: Field[];
+  args?: Record<string, Json>;
+  world?: Field[];
+  agent?: Field[];
+  init?: { world?: Record<string, Expr>; agent?: Record<string, Expr> };
+  /** The events of a cycle, in order, each a nonempty set of instants; together, each instant once. */
+  events: Instant[][];
+  fairness: Fairness;
+  schedule: Expr;
+  defs?: Def[];
+  /** A claim: the scheduler commutes with the automorphisms that the model's frames keep. */
+  equivariant?: boolean;
+};
+
 export type Model = {
   name: string;
   space: Space;
@@ -193,8 +226,7 @@ export type Model = {
   frames: Frames;
   sensors: Sensor[];
   memory: 'persistent' | 'oblivious';
-  /** `ssync`: a nonempty eligible subset; `sequential`: one eligible agent. Both require scheduler fairness. */
-  round: 'fsync' | 'ssync' | 'sequential';
+  scheduler: Scheduler;
   /** `alongEdges`: to `here` or a neighbor; a missing dynamic edge leaves the agent in place. */
   movement: 'alongEdges';
   components: Component[];
@@ -252,7 +284,7 @@ export type Param = { name: string; type: Type; domain?: Expr; accepts?: Expr };
 
 /** Where a declaration is written (display only). */
 export type DeclSource = {
-  kind: 'experiment' | 'model' | 'component' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition' | 'space';
+  kind: 'experiment' | 'model' | 'component' | 'scheduler' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition' | 'space';
   name: string; file: string; line: number; endLine: number;
 };
 

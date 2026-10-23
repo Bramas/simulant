@@ -45,7 +45,7 @@ export const models = `-- A hole that may appear at any time, a known size, one 
 blackHoleRobots (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1])
 
 -- The same family on a dynamic cycle, in semi-synchronous rounds
-blackHoleRobots (Graphs.Dynamic (Graphs.Cycle N) 1) .mayEmerge .unknown (round := .ssync)
+blackHoleRobots (Graphs.Dynamic (Graphs.Cycle N) 1) .mayEmerge .unknown (scheduler := Schedulers.SSync)
 
 -- Robots on the infinite line that see a radius-phi window, cannot tell left from
 -- right, see which locations are occupied, and may crash on one node

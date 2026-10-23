@@ -40,13 +40,15 @@ export function layout(exp: Experiment): Layout {
   };
   const owned = <X>(owner: string, items: X[] | undefined) => (items ?? []).map(x => ({ ...x, owner }));
   const { model, algorithm } = exp;
-  const world = unique('world field', model.components.flatMap(c => owned(c.name, c.world)));
-  const agentFields = unique('agent field', model.components.flatMap(c => owned(c.name, c.agent)));
+  // The scheduler owns world and agent fields like a component.
+  const owners = [...model.components, model.scheduler];
+  const world = unique('world field', owners.flatMap(c => owned(c.name, c.world)));
+  const agentFields = unique('agent field', owners.flatMap(c => owned(c.name, c.agent)));
   const flags = unique('flag', model.components.flatMap(c => owned(c.name, c.flags)));
   const sensors = unique('sensor', [...owned(MODEL, model.sensors), ...model.components.flatMap(c => owned(c.name, c.sensors))])
     .map(s => ({ ...s, type: resolvePub(s.type, algorithm.pub) }));
   const actions = unique('action', model.components.flatMap(c => owned(c.name, c.actions)));
-  const reserved = new Set(['pos', 'pub', 'mem', 'decided', 'target']);
+  const reserved = new Set(['pos', 'pub', 'mem', 'decided', 'target', 'phase']);
   for (const f of [...agentFields, ...flags]) {
     if (reserved.has(f.name)) errors.push(`agent field '${f.name}' of ${f.owner} is reserved`);
   }

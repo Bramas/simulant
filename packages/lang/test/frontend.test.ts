@@ -89,7 +89,7 @@ experiment idle where
   const e = experiment(source, 'idle');
   assert.deepEqual(e.source?.uses.map(u => `${u.kind} ${u.name}`), [
     'experiment idle', 'model robots', 'space Graphs.Cycle', 'sensor occupied', 'component Faults.CrashAt',
-    'algorithm Stay', 'task Gathering', 'goal Gathering',
+    'scheduler Schedulers.FSync', 'algorithm Stay', 'task Gathering', 'goal Gathering',
   ]);
   assert.deepEqual([e.source?.line, e.source?.endLine], [8, 15]);
 });

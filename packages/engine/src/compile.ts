@@ -29,8 +29,13 @@ export type AgentV = { pos: Vertex; frame?: number[]; pub: V; mem: V; f: Record<
 export type Config = { agents: AgentV[]; world: Record<string, V>; idx?: number[] };
 /** A decision, as hooks see it: whether the agent decided, the position it moves to, and its actions. */
 export type DecisionV = { decided: boolean; target: Vertex; pub: V; mem: V; [action: string]: V };
-/** New values of world fields; per flag, which agents raise it; per agent, new values of the component's agent fields. */
-export type Effect = { world: Record<string, V>; raise: Record<string, boolean[]>; agents?: (Record<string, V> | undefined)[] };
+/**
+ * New values of world fields; per flag, which agents raise it; per agent, new values of the component's agent fields; for a
+ * scheduler, which agents take their next event.
+ */
+export type Effect = {
+  world: Record<string, V>; raise: Record<string, boolean[]>; agents?: (Record<string, V> | undefined)[]; activate?: boolean[];
+};
 
 /** What an activated agent observes: its view, presented under one morphism of its frames. */
 export class Look {
@@ -335,6 +340,7 @@ export class Compiler {
         let ft: Type;
         let read: (a: AgentV) => V;
         if (field === 'pos') { ft = T.pos; read = a => a.pos; }
+        else if (field === 'phase') { ft = T.nat; read = a => a.phase ?? 0; }
         else if (field === 'pub') { ft = this.lay.pub; read = a => a.pub; }
         else if (field === 'mem') { ft = this.lay.mem; read = a => a.mem; }
         else if (this.lay.flags.some(f => f.name === field)) { ft = T.bool; read = a => !!a.f[field]; }
@@ -430,25 +436,28 @@ export class Compiler {
     const worldNames = Object.keys(expr.world ?? {});
     const world = worldNames.map(n => this.compile(expr.world![n], scope, rc, defs));
     const raiseNames = Object.keys(expr.raise ?? {});
-    const cs = raiseNames.length || expr.agents ? this.configSlot(scope, 'an effect on agents') : -1;
+    const cs = raiseNames.length || expr.agents || expr.activate ? this.configSlot(scope, 'an effect on agents') : -1;
     // New values of the component's agent fields, agent by agent.
     const update = expr.agents && this.lambda(expr.agents, [T.agent], scope, rc, defs).fn;
     // Each raise becomes a function from the frame to "which agents raise the flag".
-    const raises: Compiled[] = raiseNames.map(n => {
-      const e = expr.raise![n];
+    // Agents or a predicate on agents, as marks: "which agents" (raise, activate).
+    const marks = (e: Expr): Compiled => {
       if (e.e === 'fn') {
         const pred = this.lambda(e, [T.agent], scope, rc, defs).fn;
         return { t: T.unit, det: fr => fr[cs].agents.map((_: AgentV, i: number) => !!pred(fr, i)) };
       }
       return this.lift(T.unit, [this.compile(e, scope, rc, defs)], ([idx]) => indexMarks(idx));
-    });
+    };
+    const raises: Compiled[] = raiseNames.map(n => marks(expr.raise![n]));
     const agents: Compiled[] = update ? [{ t: T.unit, det: fr => fr[cs].agents.map((_: AgentV, i: number) => update(fr, i)) }] : [];
-    const all = [...world, ...raises, ...agents];
+    const activate: Compiled[] = expr.activate ? [marks(expr.activate)] : [];
+    const all = [...world, ...raises, ...agents, ...activate];
     return this.lift(T.effect, all, vs => {
       const eff: Effect = { world: {}, raise: {} };
       worldNames.forEach((n, i) => { eff.world[n] = vs[i]; });
       raiseNames.forEach((n, j) => { eff.raise[n] = vs[worldNames.length + j]; });
       if (update) eff.agents = vs[worldNames.length + raiseNames.length];
+      if (expr.activate) eff.activate = vs[all.length - 1];
       return eff;
     });
   }
@@ -607,6 +616,7 @@ export class Compiler {
       case 'toMultiset': { const sort = canonicalSort(elemOf(types[0])); return ([l]) => sort(l); }
       case 'toList': return ([l]) => l.slice();
       case 'subsets': return ([l]) => subsetsOf(l, l.length, types[0]);
+      case 'nonemptySubsets': return ([l]) => subsetsOf(l, l.length, types[0]).filter(S => S.length > 0);
       case 'subsetsUpTo': return ([l, k]) => subsetsOf(l, k, types[0]);
       case 'dedup': {
         const enc = encoder(elemOf(types[0]));
@@ -637,6 +647,7 @@ export class Compiler {
       case 'show': { const s = show(types[0]); return ([x]) => s(x); }
       case 'concat': return xs => xs.join('');
       case 'agents': return ([C]) => agentIndices(C);
+      case 'eligible': return ([C]) => C.agents.flatMap((a: AgentV, i: number) => rt.acts(a) === 'never' ? [] : [i]);
       case 'decisionOf': return ([a]) => rt.decisions[a];
       case 'pos': return ([v]) => {
         if (!rt.space) this.fail('pos: no space yet (a parameter of the space is not fixed)');

@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { check } from '@bramas/simulant-lang/check';
 import {
-  agents, algorithm, component, cycle, effect, experiment as exp, flag, frames, here, ite, lit, locationSensor, model, neighbors,
-  occupants, param, pos, present, radius, rec, sense, sensor, task, unit, verdict,
+  agents, algorithm, component, cycle, effect, eligible, experiment as exp, flag, frames, here, ite, lit, locationSensor, model, neighbors,
+  occupants, param, pos, present, radius, rec, scheduler, sense, sensor, task, unit, verdict,
 } from '@bramas/simulant-lang/builder';
 import { IR_VERSION } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
@@ -172,7 +172,10 @@ test('the builder constructs a model on a cycle that typechecks', () => {
   const lonely = sensor('lonely', T.bool, ({ L }) => occupants(L, L.here).count(a => present(a)).eq(1));
   const e = exp({
     name: 'built',
-    model: model({ name: 'm', space: cycle(), observation: radius(1), frames: frames.identity, sensors: [crowded, lonely], components: [paint, hole] }),
+    model: model({
+      name: 'm', space: cycle(), observation: radius(1), frames: frames.identity, sensors: [crowded, lonely], components: [paint, hole],
+      scheduler: scheduler({ name: 'FSync', fairness: 'none', schedule: C => effect({ activate: eligible(C) }) }),
+    }),
     algorithm: algorithm({
       name: 'A', uses: ['crowded', 'lonely'], pub: T.unit, init: { pub: () => unit() },
       step: () => ({ move: ite(sense('lonely').and(sense('crowded', neighbors(here()).at(0)).not()), neighbors(here()).at(0), here()) }),

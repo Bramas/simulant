@@ -17,8 +17,8 @@
 import { BUILTINS } from '../builtins';
 import { check, type Diagnostic as CheckDiagnostic } from '../check';
 import type {
-  Action, Algorithm, Automorphisms, Component, DeclSource, Def, Experiment, Expr, Field, Flag, Frames, Goal, Json, Model, Observation,
-  Param, Sensor, Space, Task, Type,
+  Action, Algorithm, Automorphisms, Component, DeclSource, Def, Experiment, Expr, Fairness, Field, Flag, Frames, Goal, Instant, Json,
+  Model, Observation, Param, Scheduler, Sensor, Space, Task, Type,
 } from '../ir';
 import { IR_VERSION } from '../ir';
 import type { SArg, SDecl, SExpr, SRecordItem, SType, SWhereItem } from '../parse/ast';
@@ -49,6 +49,7 @@ type MV =
   | { m: 'list'; items: MV[] }
   | { m: 'option'; value?: MV }
   | { m: 'component'; ir: Component }
+  | { m: 'scheduler'; ir: Scheduler }
   | { m: 'model'; ir: Model }
   | { m: 'sensor'; ir: Sensor }
   | { m: 'space'; ir: Space }
@@ -59,15 +60,16 @@ type MV =
   | { m: 'expr'; e: Expr };
 
 const metaEnum = (name: string, ctors: string[]) => T.enum(name, ctors) as Type & { k: 'enum' };
-const ROUND = metaEnum('Round', ['fsync', 'ssync', 'sequential']);
+const INSTANT = metaEnum('Instant', ['look', 'compute', 'move']);
+const FAIRNESS = metaEnum('Fairness', ['activation', 'none']);
 const MEMORY = metaEnum('Memory', ['persistent', 'oblivious']);
 const SYMMETRIES = metaEnum('Symmetries', ['derived', 'none']);
 const MOVEMENT = metaEnum('Movement', ['alongEdges']);
 const PERSISTENCE = metaEnum('Persistence', ['perLook', 'perRobot']);
 const PORT_PERMUTATIONS = metaEnum('PortPermutations', ['all', 'symmetries']);
 const AUTOMORPHISMS = metaEnum('Automorphisms', ['computed', 'translationsAndReflection']);
-const META_ENUMS = [ROUND, MEMORY, SYMMETRIES, MOVEMENT, PERSISTENCE, PORT_PERMUTATIONS, AUTOMORPHISMS];
-const META_TYPES = new Set(['Component', 'Model', 'Sensor', 'Space', 'Observation', 'Frames', ...META_ENUMS.map(e => e.name)]);
+const META_ENUMS = [INSTANT, FAIRNESS, MEMORY, SYMMETRIES, MOVEMENT, PERSISTENCE, PORT_PERMUTATIONS, AUTOMORPHISMS];
+const META_TYPES = new Set(['Component', 'Scheduler', 'Model', 'Sensor', 'Space', 'Observation', 'Frames', ...META_ENUMS.map(e => e.name)]);
 
 function isMetaType(t: SType | undefined): boolean {
   if (!t || t.t !== 'name') return false;
@@ -81,7 +83,7 @@ function isObjectDef(d: SDecl | undefined): d is Extract<SDecl, { d: 'def' }> {
 
 const COLLECTION_METHODS_WITH_FN = new Set(['filter', 'map', 'any', 'all', 'count']);
 const BUILTIN_FUNCTIONS = new Set([
-  'present', 'correct', 'decisionOf', 'pos', 'neighbors', 'distance', 'range', 'subsets', 'subsetsUpTo', 'ofFn', 'show', 'min',
+  'present', 'correct', 'decisionOf', 'pos', 'neighbors', 'distance', 'range', 'subsets', 'nonemptySubsets', 'subsetsUpTo', 'ofFn', 'show', 'min',
   'max', 'some', 'toInt', 'toNat',
 ]);
 /** Builtins written as names, without arguments. */
@@ -123,7 +125,8 @@ function declKind(d: SDecl): DeclSource['kind'] | undefined {
     case 'experiment': case 'algorithm': case 'task': case 'sensor': return d.d;
     case 'def': {
       const t = d.type?.t === 'name' ? d.type.name : undefined;
-      return t === 'Component' ? 'component' : t === 'Model' ? 'model' : t === 'Sensor' ? 'sensor' : t === 'Space' ? 'space' : 'definition';
+      return t === 'Component' ? 'component' : t === 'Scheduler' ? 'scheduler' : t === 'Model' ? 'model' : t === 'Sensor' ? 'sensor'
+        : t === 'Space' ? 'space' : 'definition';
     }
   }
   return undefined;
@@ -327,6 +330,7 @@ export class Elaborator {
     const t = decl.type as Extract<SType, { t: 'name' }>;
     if (decl.body) return this.meval(decl.body, bound, decl.type);
     if (t.name === 'Component') return { m: 'component', ir: this.component(decl, bound) };
+    if (t.name === 'Scheduler') return { m: 'scheduler', ir: this.scheduler(decl, bound) };
     if (t.name === 'Model') return { m: 'model', ir: this.model(decl, bound) };
     if (t.name === 'Space') return { m: 'space', ir: this.space(decl, bound) };
     return fail(`a ${t.name} is defined by a value (:=), not a where block`, decl.span);
@@ -376,7 +380,8 @@ export class Elaborator {
   // -------------------------------------------------------------------------
   // Components, sensors, models
 
-  private component(decl: Extract<SDecl, { d: 'def' }>, args: Map<string, MV>): Component {
+  /** What components and schedulers share: parameters, `World` and `Agent` fields, initial values and hooks. */
+  private parts(decl: Extract<SDecl, { d: 'def' }>, args: Map<string, MV>) {
     const name = decl.name.split('.').pop()!;
     const items = new Map(decl.items!.map(i => [i.name + (i.args.length ? '/' + i.args.length : ''), i]));
     const typeItem = (n: string) => {
@@ -385,9 +390,51 @@ export class Elaborator {
       if (i.value.t !== 'typeValue' || i.value.type.t !== 'record') fail(`${n} is a record type: { f : T, ... }`, i.span);
       return (i.value as { type: Extract<SType, { t: 'record' }> }).type.fields.map(f => ({ name: f.name, type: this.type(f.type) }));
     };
-    const params: Field[] = decl.params.map(p => ({ name: p.name, type: this.type(p.type) }));
+    // Model-level parameters (a scheduler's events) are used when the piece is built, not at run time.
+    const params: Field[] = decl.params.filter(p => !isMetaType(p.type)).map(p => ({ name: p.name, type: this.type(p.type) }));
     const scope = new Map(params.map(p => [p.name, p.name]));
     const ctx = (extra: [string, string][] = []): OCtx => ({ scope: new Map([...scope, ...extra]), params: new Set(), owner: name });
+    const initRecord = (item: SWhereItem | undefined, extra: [string, string][]) => {
+      if (!item) return undefined;
+      if (item.value.t !== 'record' || item.value.base) fail('init is a record of initial values: { f := e, ... }', item.value.span);
+      const out: Record<string, Expr> = {};
+      for (const it of (item.value as { items: SRecordItem[] }).items) {
+        if (it.t !== 'field') fail('unexpected raise in init', it.span);
+        const f = it as { name: string; value?: SExpr; span: Span };
+        out[f.name] = this.tr(f.value ?? { t: 'name', name: f.name, span: f.span }, { ...ctx(extra), letName: f.name });
+      }
+      return out;
+    };
+    const agentInit = items.get('init/1');
+    const hook = (n: string) => {
+      const i = [...items.values()].find(i => i.name === n);
+      if (!i) return undefined;
+      if (i.args.length !== 1) fail(`${n} takes the configuration: ${n} C := ...`, i.span);
+      return this.tr(i.value, { ...ctx([[i.args[0], 'C']]), effects: true });
+    };
+    const known = (what: string, names: string[]) => {
+      for (const i of decl.items!) {
+        if (!names.includes(i.name)) fail(`unknown ${what} field ${i.name} (expected one of ${names.join(', ')})`, i.span);
+      }
+    };
+    return {
+      name, items, scope, known, hook,
+      common: dropUndefined({
+        params: params.length ? params : undefined,
+        args: params.length ? Object.fromEntries(params.map(p => [p.name, this.json(args.get(p.name)!, decl.span)])) : undefined,
+        world: typeItem('World'),
+        agent: typeItem('Agent'),
+        init: dropUndefined({
+          world: initRecord(items.get('init'), []),
+          agent: agentInit && initRecord(agentInit, [[agentInit.args[0], 'i']]),
+        }),
+        equivariant: this.equivariant(decl),
+      }),
+    };
+  }
+
+  private component(decl: Extract<SDecl, { d: 'def' }>, args: Map<string, MV>): Component {
+    const { name, items, scope, known, hook, common } = this.parts(decl, args);
     const listItem = <X>(n: string, f: (e: SExpr) => X): X[] => {
       const i = items.get(n);
       if (!i) return [];
@@ -411,49 +458,49 @@ export class Elaborator {
       this.use(s);
       return this.sensor(s, new Map(), { owner: name, scope });
     });
-    const initRecord = (item: SWhereItem | undefined, extra: [string, string][]) => {
-      if (!item) return undefined;
-      if (item.value.t !== 'record' || item.value.base) fail('init is a record of initial values: { f := e, ... }', item.value.span);
-      const out: Record<string, Expr> = {};
-      for (const it of (item.value as { items: SRecordItem[] }).items) {
-        if (it.t !== 'field') fail('unexpected raise in init', it.span);
-        const f = it as { name: string; value?: SExpr; span: Span };
-        out[f.name] = this.tr(f.value ?? { t: 'name', name: f.name, span: f.span }, { ...ctx(extra), letName: f.name });
-      }
-      return out;
-    };
-    const agentInit = items.get('init/1');
-    const hook = (n: string) => {
-      const i = [...items.values()].find(i => i.name === n);
-      if (!i) return undefined;
-      if (i.args.length !== 1) fail(`${n} takes the configuration: ${n} C := ...`, i.span);
-      return this.tr(i.value, { ...ctx([[i.args[0], 'C']]), effects: true });
-    };
+    known('component', ['World', 'Agent', 'flags', 'actions', 'sensors', 'init', 'beforeLook', 'onCompute', 'beforeMove', 'afterMove']);
     const c: Component = {
       name,
-      params: params.length ? params : undefined,
-      args: params.length ? Object.fromEntries(params.map(p => [p.name, this.json(args.get(p.name)!, decl.span)])) : undefined,
-      world: typeItem('World'),
-      agent: typeItem('Agent'),
+      ...common,
       flags: flags.length ? flags : undefined,
       sensors: sensors.length ? sensors : undefined,
       actions: actions.length ? actions : undefined,
-      init: dropUndefined({
-        world: initRecord(items.get('init'), []),
-        agent: agentInit && initRecord(agentInit, [[agentInit.args[0], 'i']]),
-      }),
       beforeLook: hook('beforeLook'),
       onCompute: hook('onCompute'),
       beforeMove: hook('beforeMove'),
       afterMove: hook('afterMove'),
-      equivariant: this.equivariant(decl),
     };
-    for (const i of decl.items!) {
-      const known = ['World', 'Agent', 'flags', 'actions', 'sensors', 'init', 'beforeLook', 'onCompute', 'beforeMove', 'afterMove'];
-      if (!known.includes(i.name)) fail(`unknown component field ${i.name} (expected one of ${known.join(', ')})`, i.span);
-    }
     if (c.init && !c.init.world && !c.init.agent) delete c.init;
     return dropUndefined(c);
+  }
+
+  /** A scheduler: like a component, with its cut of the cycle, its fairness, and `schedule C := { activate := ..., ... }`. */
+  private scheduler(decl: Extract<SDecl, { d: 'def' }>, args: Map<string, MV>): Scheduler {
+    const { name, items, known, hook, common } = this.parts(decl, args);
+    known('scheduler', ['World', 'Agent', 'init', 'events', 'fairness', 'schedule']);
+    const named = (n: string, ...targs: SType[]): SType => ({ t: 'name', name: n, args: targs, span: decl.span });
+    const eventsItem = items.get('events');
+    let events: Instant[][] = [['look', 'compute', 'move']];
+    if (eventsItem) {
+      const v = this.meval(eventsItem.value, args, named('List', named('List', named('Instant'))));
+      const groups = v.m === 'list' ? v.items : fail('events is a list of events, each a list of instants: [[.look, .compute], [.move]]', eventsItem.span);
+      events = groups.map(g => g.m === 'list' && g.items.every(i => i.m === 'enum' && i.type === INSTANT)
+        ? g.items.map(i => (i as { ctor: string }).ctor as Instant)
+        : fail('each event is a list of instants (.look, .compute, .move)', eventsItem.span));
+    }
+    const fairnessItem = items.get('fairness');
+    const fairnessValue = fairnessItem && this.meval(fairnessItem.value, args, named('Fairness'));
+    if (fairnessValue && !(fairnessValue.m === 'enum' && fairnessValue.type === FAIRNESS)) fail('fairness is .activation or .none', fairnessItem!.span);
+    const schedule = hook('schedule') ?? fail('a scheduler needs `schedule C := { activate := ... }`', decl.span);
+    const sc: Scheduler = {
+      name,
+      ...common,
+      events,
+      fairness: (fairnessValue as { ctor?: Fairness } | undefined)?.ctor ?? 'activation',
+      schedule,
+    };
+    if (sc.init && !sc.init.world && !sc.init.agent) delete sc.init;
+    return dropUndefined(sc);
   }
 
   /**
@@ -537,15 +584,16 @@ export class Elaborator {
   private model(decl: Extract<SDecl, { d: 'def' }>, env: Map<string, MV>): Model {
     const meta = (n: string) => ({ t: 'name', name: n, args: [], span: decl.span }) as SType;
     const expected: Record<string, SType> = {
-      memory: meta('Memory'), round: meta('Round'), symmetries: meta('Symmetries'), movement: meta('Movement'),
+      memory: meta('Memory'), symmetries: meta('Symmetries'), movement: meta('Movement'),
     };
     const v = (n: string) => {
       const i = decl.items!.find(i => i.name === n);
       return i && this.meval(i.value, env, expected[n]);
     };
-    const known = ['space', 'observation', 'frames', 'sensors', 'memory', 'movement', 'round', 'components', 'symmetries'];
+    const known = ['space', 'observation', 'frames', 'sensors', 'memory', 'movement', 'scheduler', 'components', 'symmetries'];
     for (const i of decl.items!) {
       if (i.name === 'topology' || i.name === 'frame') fail(`${i.name} is gone: a model has space, observation and frames`, i.span);
+      if (i.name === 'round') fail('round is gone: a model has a scheduler (Schedulers.FSync, Schedulers.SSync, Schedulers.Sequential, ...)', i.span);
       if (!known.includes(i.name)) fail(`unknown model field ${i.name} (expected one of ${known.join(', ')})`, i.span);
     }
     const list = (x: MV | undefined, m: string, span: Span) => !x ? [] : x.m === 'list'
@@ -565,7 +613,7 @@ export class Elaborator {
       sensors: list(v('sensors'), 'sensor', decl.span) as Sensor[],
       memory: ctor('memory', 'persistent') as Model['memory'],
       movement: ctor('movement', 'alongEdges') as Model['movement'],
-      round: ctor('round', 'fsync') as Model['round'],
+      scheduler: piece('scheduler', 'scheduler').ir,
       components: list(v('components'), 'component', decl.span) as Component[],
       symmetries: ctor('symmetries', 'derived') as Model['symmetries'],
     });
@@ -1013,6 +1061,7 @@ export class Elaborator {
       const world: Record<string, Expr> = {};
       const raise: Record<string, Expr> = {};
       let agentsUpdate: Expr | undefined;
+      let activate: Expr | undefined;
       for (const it of e.items) {
         if (it.t === 'raise') {
           const v = it.value;
@@ -1021,17 +1070,22 @@ export class Elaborator {
           // New values of the component's own agent fields: `agents := fun a => { field := value }`.
           if (!it.value) fail('agents := fun a => { field := value, ... }', it.span);
           agentsUpdate = this.lambda(it.value!, inner);
+        } else if (it.name === 'activate') {
+          // The agents that take their next event (a scheduler's `schedule`): agents or a predicate.
+          if (!it.value) fail('activate := agents, or activate := fun a => condition', it.span);
+          activate = this.tr(it.value!, inner);
         } else if (it.name === 'world') {
           const w = it.value;
           if (!w || w.t !== 'record' || !w.base) fail('world := { C.world with f := v, ... }', it.span);
           Object.assign(world, fieldsOf((w as { items: SRecordItem[] }).items, inner));
         } else {
-          fail(`an effect has \`world :=\`, \`raise flag :=\` and \`agents :=\`, not ${it.name}`, it.span);
+          fail(`an effect has \`world :=\`, \`raise flag :=\`, \`agents :=\` and, in a scheduler, \`activate :=\`, not ${it.name}`, it.span);
         }
       }
       return this.mark({
         e: 'effect', ...(Object.keys(world).length ? { world } : {}), ...(Object.keys(raise).length ? { raise } : {}),
         ...(agentsUpdate ? { agents: agentsUpdate } : {}),
+        ...(activate ? { activate } : {}),
       }, span);
     }
     if (e.base) return this.mark({ e: 'with', on: this.tr(e.base, inner), fields: fieldsOf(e.items, inner) }, span);
@@ -1105,7 +1159,7 @@ export class Elaborator {
       case 'isEmpty': case 'sum': case 'isSome': case 'isNone': case 'toMultiset': case 'toList': case 'dedup':
         noArgs(); return this.call(field, [on], span);
       case 'toNat': noArgs(); return this.call('toNat', [on], span);
-      case 'agents':
+      case 'agents': case 'eligible':
         // On the configuration (always `C` in IR): builtins.
         if (on.e === 'var' && on.name === 'C') { noArgs(); return this.call(field, [on], span); }
         break;

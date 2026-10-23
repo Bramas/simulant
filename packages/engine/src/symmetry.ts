@@ -1,7 +1,7 @@
 /**
  * Symmetry reduction (docs/ir.md, docs/core-redesign.md section 7). The group is derived from
  * the model: the automorphisms of the space that preserve what the frames keep, provided every
- * component and the task claim equivariance. Sensors read only their Look and need no claim.
+ * component, the scheduler and the task claim equivariance. Sensors read only their Look and need no claim.
  * Agent permutations need no declaration: anonymous agents are stored sorted.
  */
 import type { Experiment, Type } from '@bramas/simulant-lang/ir';
@@ -17,6 +17,7 @@ export function derivedGroup(exp: Experiment): GroupInfo {
   if (model.symmetries === 'none') return { enabled: false, reasons: ['symmetries := none'] };
   const reasons = [
     ...model.components.filter(c => !c.equivariant).map(c => `component ${c.name} is not declared equivariant`),
+    ...(model.scheduler.equivariant ? [] : [`scheduler ${model.scheduler.name} is not declared equivariant`]),
     ...(task.equivariant ? [] : [`task ${task.name} is not declared equivariant`]),
   ];
   return { enabled: reasons.length === 0, reasons };

@@ -54,7 +54,7 @@ Attributes go before a declaration: `@[equivariant]` on a component or a task (a
 
 ## Two levels
 
-- **Model level.** A `def` whose type is `Component`, `Model`, `Sensor`, `Space`, `Observation`, `Frames`, `Round`, `Memory`, `Movement`, `Symmetries` or a list of them is evaluated when an experiment is compiled. Arguments are positional or named (`blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Faults.CrashStop 1])`), with defaults. Lists, `++`, `if ... then ... else`, `=` on constructors are available. Round constructors are `.fsync`, `.ssync` (fair nonempty subsets), and `.sequential` (fair singleton activations, with no bounded activation gap). Experiment parameters may appear in model arguments: an experiment names them directly (`Graphs.Cycle N`), a model-level definition reads them as `param phi` (`Observe.radius (param phi)`). They stay symbolic and are evaluated per setting. Built in:
+- **Model level.** A `def` whose type is `Component`, `Scheduler`, `Model`, `Sensor`, `Space`, `Observation`, `Frames`, `Memory`, `Movement`, `Symmetries`, `Instant`, `Fairness` or a list of them is evaluated when an experiment is compiled. Arguments are positional or named (`blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Faults.CrashStop 1])`), with defaults. Lists, `++`, `if ... then ... else`, `=` on constructors are available. A model's scheduler is a library or user `Scheduler` (`Schedulers.FSync` by default; see [Schedulers](#schedulers)). Experiment parameters may appear in model arguments: an experiment names them directly (`Graphs.Cycle N`), a model-level definition reads them as `param phi` (`Observe.radius (param phi)`). They stay symbolic and are evaluated per setting. Built in:
 
 | Built in | Meaning |
 | --- | --- |
@@ -103,14 +103,37 @@ def Hazards.BlackHole (policy : HolePolicy) : Component where
   init := { site := param site, active := policy = .initiallyPresent }   -- world fields
   init i := { light := 0 }                                                -- agent fields, agent index i
   beforeLook C := nothing
-  beforeMove C := ...                             -- may read `decisionOf a`: decided, target, actions
+  onCompute C := ...                              -- at Compute; may read `decisionOf a`: decided, target, actions
+  beforeMove C := ...                             -- before Move; may read `decisionOf a` of the agents that move
   afterMove C :=
     let active := if policy = .mayEmerge ∧ !C.world.active then choose [false, true] labels ["stays inactive", "activates"]
                   else C.world.active
     { world := { C.world with active }, raise dead := fun a => present a ∧ active ∧ a.pos = C.world.site }
 ```
 
-A component reads only its own world fields, flags and agent fields; others' state only through `correct a` and `present a`. A hook returns an effect: `{ world := { C.world with f := v }, raise flag := agents or predicate, agents := fun a => { field := v } }` (each part optional, `agents` setting its own agent fields), or `nothing`.
+A component reads only its own world fields, flags and agent fields; others' state only through `correct a` and `present a`. A hook returns an effect: `{ world := { C.world with f := v }, raise flag := agents or predicate, agents := fun a => { field := v } }` (each part optional, `agents` setting its own agent fields), or `nothing`. Hooks run at four points of a step (`docs/ir.md`, "A step"): `beforeLook`; `onCompute`, which reads the decisions taking effect (`decisionOf a`) before their public states and memories apply; `beforeMove`, which reads the moves about to happen; and `afterMove`. With atomic cycles, both decision hooks see the same decisions in the same step: effects of Compute (a light, a pebble) belong in `onCompute`, those of Move (a crash instead of moving) in `beforeMove`.
+
+## Schedulers
+
+A scheduler chooses, at each step, the agents that take the next event of their Look-Compute-Move cycle ([scheduler-design.md](scheduler-design.md)). It is declared like a component, and may own world and agent fields:
+
+```lean
+/-- Every agent takes an event at least once every k steps. -/
+@[equivariant]
+def Schedulers.Bounded (k : Nat) : Scheduler where
+  Agent := { waited : Nat }
+  init i := { waited := 0 }
+  events := [[.look], [.compute], [.move]]       -- how a cycle is cut; default [[.look, .compute, .move]]
+  fairness := .none                              -- .activation (default) or .none
+  schedule C :=
+    let S := choose ((nonemptySubsets C.eligible).filter fun S => C.eligible.all fun a => a.waited + 1 < k ∨ S.contains a)
+      labels fun S => "activates " ++ show S
+    { activate := S, agents := fun a => { waited := if S.contains a then 0 else a.waited + 1 } }
+```
+
+`schedule C` returns an effect whose `activate` part (agents, or a predicate on agents) lists the agents that take their next event; its other parts update the scheduler's own fields. Only a scheduler activates agents. `C.eligible` lists the agents whose flags allow acting; `a.phase` is the number of events of its current cycle an agent has taken. A step with no eligible agent idles without asking the scheduler.
+
+`events` cuts the cycle into atomic events: `[[.look, .compute, .move]]` (one event per cycle, the default), `[[.look, .compute], [.move]]` (LC-atomic), `[[.look], [.compute, .move]]` (CM-atomic), `[[.look], [.compute], [.move]]` (ASYNC). Between its events an agent's decision is pending: others see its previous public state and light until its Compute, its position until its Move. `fairness := .activation` admits only executions in which every agent that keeps acting takes events infinitely often; `.none` admits all of them. The library's schedulers are `Schedulers.FSync` (every eligible agent), `Schedulers.SSync` (a nonempty set chosen by the adversary) and `Schedulers.Sequential` (one agent chosen by the adversary).
 
 ## Sensors
 
@@ -138,7 +161,7 @@ sensor lossyOccupied (k : Nat) (L : Look) where
 | `param N` | an experiment parameter (initial values, domains, model arguments) |
 | `∧ ∨ ¬ ! = ≠ < > ≤ ≥ + - * / % ++` | operators (`++` joins lists or strings; `<` and the others compare numbers, and lists of `Bool` or `Nat` lexicographically, `false < true`; positions and locations only compare with `=` and `≠`; `!b` and `¬b`, as in Lean, take everything up to `∧`, `∨` or `then`: `!v.at i` is `!(v.at i)`) |
 
-Collections: `xs.filter p`, `xs.map f`, `xs.any p`, `xs.all p`, `xs.count p`, `xs.length`, `xs.isEmpty`, `xs.sum`, `xs.contains x`, `xs.at i` (an error beyond the end), `xs.diff ys`, `xs.dedup`, `xs.toMultiset`, `xs.toList` (not on agents or locations). Options: `o.isSome`, `o.isNone`, `o.getD d`, `some x`. Numbers: `min a b`, `max a b`, `toInt n`, `i.toNat`. Configurations, in hooks and tasks: `C.agents` (a multiset), `C.positions` (finite spaces), `C.world.f`, `a.pos`, `a.pub`, `a.flag`, `a.field`, `C.resolve a i` and `C.follow a i k` (the agent's port `i`, once or `k` times, in its kept frame). In algorithms: `here`, `visible`, `neighbors l`, `distance a b` (within the visible domain), and the sensors of `uses`, by name (`otherStates`) or at a location (`occupied l`). Elsewhere: `present a`, `correct a`, `decisionOf a`, `pos v`, `positions`, `range n`, `subsets xs`, `subsetsUpTo k xs`, `ofFn n f`, `show x`.
+Collections: `xs.filter p`, `xs.map f`, `xs.any p`, `xs.all p`, `xs.count p`, `xs.length`, `xs.isEmpty`, `xs.sum`, `xs.contains x`, `xs.at i` (an error beyond the end), `xs.diff ys`, `xs.dedup`, `xs.toMultiset`, `xs.toList` (not on agents or locations). Options: `o.isSome`, `o.isNone`, `o.getD d`, `some x`. Numbers: `min a b`, `max a b`, `toInt n`, `i.toNat`. Configurations, in hooks and tasks: `C.agents` (a multiset), `C.eligible` (in schedulers), `C.positions` (finite spaces), `C.world.f`, `a.pos`, `a.pub`, `a.phase`, `a.flag`, `a.field`, `C.resolve a i` and `C.follow a i k` (the agent's port `i`, once or `k` times, in its kept frame). In algorithms: `here`, `visible`, `neighbors l`, `distance a b` (within the visible domain), and the sensors of `uses`, by name (`otherStates`) or at a location (`occupied l`). Elsewhere: `present a`, `correct a`, `decisionOf a`, `pos v`, `positions`, `range n`, `subsets xs`, `nonemptySubsets xs`, `subsetsUpTo k xs`, `ofFn n f`, `show x`.
 
 ## Structured algorithms
 

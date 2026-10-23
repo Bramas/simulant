@@ -4,7 +4,7 @@
  * docs/scheduler-design.md).
  */
 import { check } from '@bramas/simulant-lang/check';
-import type { Component, Def, Experiment, Expr, Sensor, Space, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Def, Experiment, Expr, Scheduler, Sensor, Space, Type } from '@bramas/simulant-lang/ir';
 import type { Layout } from '@bramas/simulant-lang/layout';
 import { resolvePub, T } from '@bramas/simulant-lang/types';
 import {
@@ -16,7 +16,7 @@ import {
   type AutomorphismSpec, type Presentation, type Vertex, type View,
 } from './space';
 import { encoder, equality, mapper, show, vertexKey, type V } from './values';
-import { roundScheduler, type Instant, type SchedulerRuntime } from './scheduler';
+import type { Instant, SchedulerRuntime } from './scheduler';
 
 export type { AgentV, Choice, Config, DecisionV, TraceCall };
 export { Look };
@@ -173,7 +173,7 @@ export class System {
     rt.frames = model.frames;
     this.radius = model.observation.kind === 'radius' ? runDet(compiler.root(model.observation.r, [], defsOf(model.defs)), []) : Infinity;
     this.key0 = instantiation(exp, compiler);
-    this.scheduler = opts.scheduler ?? roundScheduler(model.round);
+    this.scheduler = opts.scheduler ?? this.compileScheduler(model.scheduler);
     this.anonymous = opts.sortAgents ?? this.scheduler.anonymous;
 
     this.sensors = lay.used.map(s => this.compileSensor(s, model.components.find(c => c.name === s.owner)));
@@ -231,6 +231,22 @@ export class System {
       return s + fieldsKey(a.f) + '|' + pubKey(a.pub) + '|' + memKey(a.mem) + cycle;
     };
     this.worldKey = encoder(lay.worldType);
+  }
+
+  /**
+   * The model's scheduler: its `schedule` hook, like a component's, chooses an effect whose
+   * `activate` marks the agents that take their next event (among the eligible ones).
+   */
+  private compileScheduler(sc: Scheduler): SchedulerRuntime {
+    const [vars, args] = componentParams(sc);
+    const fn = this.compiler.root(sc.schedule, [['C', T.config], ...vars], defsOf(this.exp.model.defs, sc.defs));
+    return {
+      events: sc.events,
+      fairness: sc.fairness,
+      // Agents keep their identity while fairness is tracked per agent.
+      anonymous: sc.fairness === 'none',
+      schedule: (C, eligible, _w, k) => runND(fn, [C, ...args], eff => k(eligible.filter(i => eff.activate?.[i]), eff)),
+    };
   }
 
   /** Parameters holding positions must hold vertices of the space. */
@@ -445,14 +461,15 @@ export class System {
         });
       }
     }
-    for (const c of exp.model.components) {
+    const owners = [...exp.model.components, exp.model.scheduler];
+    for (const c of owners) {
       const [vars, args] = componentParams(c);
       for (const f of c.agent ?? []) {
         const fn = compiler.root(c.init!.agent![f.name], [['i', T.nat], ...vars], defsOf(exp.model.defs, c.defs));
         for (let i = 0; i < k; i++) slots.push({ run: kk => runND(fn, [i, ...args], kk), agent: i, set: (agents, _w, v) => { agents[i].f[f.name] = v; } });
       }
     }
-    for (const c of exp.model.components) {
+    for (const c of owners) {
       const [vars, args] = componentParams(c);
       for (const f of c.world ?? []) {
         const fn = compiler.root(c.init!.world![f.name], vars, defsOf(exp.model.defs, c.defs));
@@ -500,9 +517,11 @@ export class System {
       if (states.length > 1) rt.witness.push({ site: 'edges', index: si, label });
       this.parallel(C, this.hooks.beforeLook, eff => {
         const C1 = this.apply(C, eff);
-        // The agents that take their next event, and the scheduler's own effect.
+        // The agents that take their next event, and the scheduler's own effect. With no eligible
+        // agent, the step idles without asking the scheduler.
         const eligible = C1.agents.flatMap((a, i) => rt.acts(a) === 'never' ? [] : [i]);
-        scheduler.schedule(C1, eligible, rt.witness, (active, effS) => {
+        const schedule = (k: (active: number[], eff?: Effect) => void) => eligible.length ? scheduler.schedule(C1, eligible, rt.witness, k) : k([]);
+        schedule((active, effS) => {
           const C2 = this.apply(C1, effS);
           const event = (i: number) => scheduler.events[C2.agents[i].phase ?? 0];
           const has = (i: number, instant: Instant) => event(i).includes(instant);
@@ -777,8 +796,8 @@ export function decisionType(lay: Layout): Type {
   ]);
 }
 
-/** A component's parameters, as extra root variables, and their values. */
-function componentParams(c: Component | undefined): [[string, Type][], V[]] {
+/** A component's (or the scheduler's) parameters, as extra root variables, and their values. */
+function componentParams(c: Component | Scheduler | undefined): [[string, Type][], V[]] {
   const params = c?.params ?? [];
   return [params.map(p => [p.name, p.type]), params.map(p => c!.args![p.name])];
 }

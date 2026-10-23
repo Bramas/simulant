@@ -12,7 +12,7 @@ import type { Algorithm, Experiment, Model, Task, Type } from '@bramas/simulant-
 import { T } from '@bramas/simulant-lang/types';
 import {
   blackHoleRobots, colors, count, Cycle, Dispersion, edgeTo, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
-  robots, Star, Storage,
+  robots, Schedulers, Star, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
   AlwaysClockwise, cautiousPairExperiment, CycleLight, Disperse, EveryoneActivated, MarkActivated, NearestNeighbour, Observe,
@@ -28,7 +28,7 @@ function placed(m: Model, algorithm: Algorithm, task: Task, extra: { name: strin
   });
 }
 
-const onCycle = (round: Model['round']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round });
+const onCycle = (scheduler: Model['scheduler']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], scheduler });
 const exploring = (f: Model['frames'], space = Cycle()) =>
   robots({ space, observation: radius(1), frames: f, sensors: [count], components: [Monitors.Visited()] });
 const three = (name: string, m: Model, accepts?: boolean) => experiment({
@@ -77,9 +77,9 @@ export const builderExperiments: Record<string, Experiment> = {
   'dynamic-ring': placed(exploring(frames.identity, dynamic(Cycle(), 1)), AlwaysClockwise, Exploration),
   'own-orientation': placed(exploring(frames.portPermutations('perRobot')), AlwaysClockwise, Exploration),
   'port-permutations': placed(exploring(frames.portPermutations('perLook', 'symmetries')), AlwaysClockwise, Exploration),
-  ssync: three('ssync', onCycle('ssync')),
-  sequential: three('sequential', onCycle('sequential')),
-  'parameter-acceptance': three('parameterAcceptance', onCycle('sequential'), true),
+  ssync: three('ssync', onCycle(Schedulers.SSync)),
+  sequential: three('sequential', onCycle(Schedulers.Sequential)),
+  'parameter-acceptance': three('parameterAcceptance', onCycle(Schedulers.Sequential), true),
   lights: experiment({
     name: 'lights',
     model: robots({ space: Line(), observation: radius(param('phi')), frames: frames.isomorphisms, sensors: [colors], components: [Storage.Lights(3), Faults.CrashAt()] }),

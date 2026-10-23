@@ -13,7 +13,7 @@ import { Explorer, explore, type Result } from '@bramas/simulant-engine/explorer
 import { equivarianceViolations, Symmetry } from '@bramas/simulant-engine/symmetry';
 import { parameterValues, System } from '@bramas/simulant-engine/system';
 import {
-  blackHoleRobots, count, Cycle, Exploration, Faults, Gathering, Hazards, Monitors, occupied, otherStatesLossy, robots, Storage,
+  blackHoleRobots, count, Cycle, Exploration, Faults, Gathering, Hazards, Monitors, occupied, otherStatesLossy, robots, Schedulers, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
   AlwaysClockwise, cautiousPairExperiment, EveryoneActivated, MarkActivated, NearestNeighbour, Observe, PebbleTest,
@@ -197,7 +197,8 @@ describe('robots on a dynamic cycle: the adversary removes an edge each round', 
 
 describe('executions: synchronous rounds check every cycle, SSYNC only scheduler-fair ones', () => {
   const exp = (round: 'fsync' | 'ssync') => experiment({
-    name: `mark ${round}`, model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round }),
+    name: `mark ${round}`,
+    model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], scheduler: round === 'fsync' ? Schedulers.FSync : Schedulers.SSync }),
     algorithm: MarkActivated, task: EveryoneActivated,
     params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => pos(i) },
   });

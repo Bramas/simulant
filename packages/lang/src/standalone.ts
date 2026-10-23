@@ -34,7 +34,11 @@ export function standaloneExperiment(c: Component): Experiment {
         automorphisms: { kind: 'computed' },
       },
       observation: { kind: 'radius', r: lit(T.nat, 1) }, frames: { kind: 'identity' },
-      sensors: [], memory: 'persistent', round: 'fsync', movement: 'alongEdges', components: [c], symmetries: 'derived',
+      sensors: [], memory: 'persistent', movement: 'alongEdges', components: [c], symmetries: 'derived',
+      scheduler: {
+        name: 'FSync', events: [['look', 'compute', 'move']], fairness: 'none',
+        schedule: { e: 'effect', activate: { e: 'call', fn: 'eligible', args: [{ e: 'var', name: 'C' }] } },
+      },
     },
     algorithm: {
       name: 'idle', uses: [], pub: T.unit, mem: T.unit, init: { pub: lit(T.unit, null), mem: lit(T.unit, null) },

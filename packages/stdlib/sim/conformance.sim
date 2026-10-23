@@ -51,9 +51,9 @@ task Observe (C : Config) : Verdict := .inProgress
 
 goal Observe := always ¬ .failure
 
-/-- Agents on a cycle that see nothing, under a given round. -/
-def cycleRobots (round : Round) : Model :=
-  robots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [] (round := round)
+/-- Agents on a cycle that see nothing, under a given scheduler. -/
+def cycleRobots (scheduler : Scheduler) : Model :=
+  robots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [] (scheduler := scheduler)
 
 experiment blackHoleEmerging where
   model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
@@ -134,7 +134,7 @@ experiment portPermutations where
   position i := positions.at i
 
 experiment ssync where
-  model := cycleRobots .ssync
+  model := cycleRobots Schedulers.SSync
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat
@@ -142,7 +142,7 @@ experiment ssync where
   position i := pos i
 
 experiment sequential where
-  model := cycleRobots .sequential
+  model := cycleRobots Schedulers.Sequential
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat
@@ -151,7 +151,7 @@ experiment sequential where
 
 /-- A predicate-only domain accepts arbitrary cycle sizes satisfying its bound. -/
 experiment parameterAcceptance where
-  model := cycleRobots .sequential
+  model := cycleRobots Schedulers.Sequential
   algorithm := MarkActivated
   task := EveryoneActivated
   param N : Nat where N ≥ 3
