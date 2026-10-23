@@ -1,5 +1,6 @@
 import Examples.CautiousPair.Model
 import Simulant.LibraryLemmas.BlackHole
+import Simulant.LibraryLemmas.Schedulers
 
 /-! Hand-written proofs about the generated model. Regenerating the model never touches this file. -/
 
@@ -7,10 +8,12 @@ namespace Examples.CautiousPair
 open Simulant
 
 /-- The hole never moves: the library lemma `BlackHole.site_stays`, applied to this composition
-without restating it. The side condition is the generated `others_preserve_BlackHole`. -/
+without restating it. The side conditions are the generated `others_preserve_BlackHole` and
+`scheduler_preserves_BlackHole`. -/
 theorem site_invariant (N : Nat) [NeZero N] (k : Nat) {C C' : Config (sig N k)} {w : Witness}
     (h : (model N k).Step act0 C w C') : C'.world.BlackHole.site = C.world.BlackHole.site :=
-  Simulant.Library.BlackHole.site_stays (model N k) act0 _ (ctx_BlackHole N k) (others_preserve_BlackHole N k) h
+  Simulant.Library.BlackHole.site_stays (model N k) act0 _ (ctx_BlackHole N k) (others_preserve_BlackHole N k)
+    (scheduler_preserves_BlackHole N k) h
 
 end Examples.CautiousPair
 
@@ -27,6 +30,7 @@ theorem nonVacuity : NonVacuity := by
       simp only [model, List.mem_singleton] at hc
       subst hc
       exact Simulant.Library.BlackHole.component_total _ _)
+    (Simulant.Library.FSync.total _ _)
     (fun a => by simp [Model.presentations, model])
     (fun L => ⟨_, ND.can_bind_of (ND.can_pure.2 rfl) (ND.can_pure.2 rfl)⟩)
   have hinit : (model N 2).HasInitial (init N site) :=

@@ -66,7 +66,7 @@ export function BranchPicker(props: BranchPickerProps) {
           <Icon name="branch" />
           <div class="bp-title">
             <h3>{props.branches.length} branches at this step</h3>
-            <p class="bp-help">Each branch is one way the adversary can play this round; only the choices that differ between branches and are not the first option are listed.</p>
+            <p class="bp-help">Each branch is one way the adversary can play this step; only the choices that differ between branches and are not the first option are listed.</p>
           </div>
           <span class="sim-spacer" />
           <Show when={props.branches.length > 8}>

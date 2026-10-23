@@ -1,12 +1,12 @@
 /**
  * Symmetry reduction (docs/ir.md, docs/core-redesign.md section 7). The group is derived from
  * the model: the automorphisms of the space that preserve what the frames keep, provided every
- * component and the task claim equivariance. Sensors read only their Look and need no claim.
+ * component, the scheduler and the task claim equivariance. Sensors read only their Look and need no claim.
  * Agent permutations need no declaration: anonymous agents are stored sorted.
  */
 import type { Experiment, Type } from '@bramas/simulant-lang/ir';
 import type { Automorphism, Group } from './space';
-import type { Config, System } from './system';
+import { decisionType, type Config, type System } from './system';
 import { mapper, type V } from './values';
 
 /** Why the derived group is what it is, for diagnostics. */
@@ -17,6 +17,7 @@ export function derivedGroup(exp: Experiment): GroupInfo {
   if (model.symmetries === 'none') return { enabled: false, reasons: ['symmetries := none'] };
   const reasons = [
     ...model.components.filter(c => !c.equivariant).map(c => `component ${c.name} is not declared equivariant`),
+    ...(model.scheduler.equivariant ? [] : [`scheduler ${model.scheduler.name} is not declared equivariant`]),
     ...(task.equivariant ? [] : [`task ${task.name} is not declared equivariant`]),
   ];
   return { enabled: reasons.length === 0, reasons };
@@ -121,6 +122,7 @@ function stateMappers(system: System) {
     pub: field(lay.pub),
     mem: field(lay.mem),
     world: field(lay.worldType),
+    decision: field(decisionType(lay))!,
   };
 }
 
@@ -135,7 +137,8 @@ function configMapper(system: System): (C: Config, g: Automorphism) => Config {
         for (const [n, mm] of m.agentFields) f[n] = mm!(a.f[n], g);
       }
       const frame = a.frame && g.ports ? a.frame.map(p => g.ports![p]) : a.frame;
-      return { pos: g.vertex(a.pos), ...(frame ? { frame } : {}), pub: m.pub ? m.pub(a.pub, g) : a.pub, mem: m.mem ? m.mem(a.mem, g) : a.mem, f };
+      const cycle = a.phase ? { phase: a.phase, pending: m.decision(a.pending!, g) as typeof a.pending } : {};
+      return { pos: g.vertex(a.pos), ...(frame ? { frame } : {}), pub: m.pub ? m.pub(a.pub, g) : a.pub, mem: m.mem ? m.mem(a.mem, g) : a.mem, f, ...cycle };
     }),
     world: m.world ? m.world(C.world, g) : C.world,
   });

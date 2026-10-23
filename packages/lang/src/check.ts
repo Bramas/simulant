@@ -5,8 +5,10 @@
  * locations; algorithms see only their Look and sensors, and keep no location across a round.
  */
 import { BUILTINS, type Context } from './builtins';
-import type { Def, Experiment, Expr, Space, Type } from './ir';
+import type { Component, Def, Experiment, Expr, Instant, Scheduler, Space, Type } from './ir';
 import { IR_VERSION } from './ir';
+
+const INSTANTS: Instant[] = ['look', 'compute', 'move'];
 import { layout, type Layout } from './layout';
 import { fieldType, graphOf, isCollection, isStorable, mentions, resolvePub, showType, T, typeEq, VERDICTS } from './types';
 
@@ -300,6 +302,7 @@ export class Checker {
         return this.fail(unit, `a Look has no field ${name} (me, here, visible, visibleAgents, world, spaceSize; occupants l, position l, edgePresent a b)`);
       case 'agent': {
         if (name === 'pos') return T.pos;
+        if (name === 'phase') return T.nat;
         if (name === 'pub') return this.lay.pub;
         if (name === 'mem') {
           if (unit.ctx !== 'task') this.fail(unit, 'the private memory of an agent can only be read by a task');
@@ -323,7 +326,7 @@ export class Checker {
   }
 
   private effect(expr: Extract<Expr, { e: 'effect' }>, scope: Map<string, Type>, unit: Unit): Inferred {
-    if (!['hook', 'beforeMove', 'def'].includes(unit.ctx)) this.fail(unit, 'effects are only returned by hooks');
+    if (!['hook', 'decisionHook', 'schedule', 'def'].includes(unit.ctx)) this.fail(unit, 'effects are only returned by hooks');
     let nd = false;
     for (const [name, e] of Object.entries(expr.world ?? {})) {
       const f = this.lay.world.find(f => f.name === name) ?? this.fail(unit, `unknown world field ${name}`);
@@ -340,6 +343,16 @@ export class Checker {
       } else {
         const r = this.infer(e, scope, unit);
         if (!(isCollection(r.t) && r.t.of.k === 'agent')) this.fail(unit, `raise ${name}: expected agents or a predicate on agents`);
+        nd ||= r.nd;
+      }
+    }
+    if (expr.activate) {
+      if (unit.ctx !== 'schedule' && unit.ctx !== 'def') this.fail(unit, 'activate: only a scheduler\'s schedule activates agents');
+      if (expr.activate.e === 'fn') {
+        this.lambda(expr.activate, [T.agent], T.bool, scope, unit, 'activate');
+      } else {
+        const r = this.infer(expr.activate, scope, unit);
+        if (!(isCollection(r.t) && r.t.of.k === 'agent')) this.fail(unit, 'activate: expected agents or a predicate on agents');
         nd ||= r.nd;
       }
     }
@@ -531,14 +544,12 @@ export class Checker {
       if (body?.nd && s.perLocation) this.report(`${where}: a per-location sensor is deterministic; put its choices in its Look-level part (where x := choose ..., at (l : Loc) : T := ...)`);
     };
     for (const s of model.sensors) sensor(s, `sensor ${s.name}`, modelDefs);
-    for (const c of model.components) {
-      const defs = defsOf(model.defs, c.defs);
-      const params = Object.fromEntries((c.params ?? []).map(p => [p.name, p.type]));
+    // Parameters, fields and initial values of a component or of the scheduler.
+    const owner = (c: Component | Scheduler, defs: Map<string, Def>, params: Record<string, Type>) => {
       for (const p of c.params ?? []) {
         if (!isStorable(p.type)) this.report(`${c.name}: parameter ${p.name} cannot be stored`);
         if (!(p.name in (c.args ?? {}))) this.report(`${c.name}: no value for parameter ${p.name}`);
       }
-      for (const s of c.sensors ?? []) sensor(s, `${c.name}.${s.name}`, defs, c.name, params);
       for (const f of c.world ?? []) {
         if (!isStorable(f.type)) this.report(`${c.name}: world field ${f.name} cannot be stored`);
         const init = c.init?.world?.[f.name];
@@ -557,10 +568,28 @@ export class Checker {
       for (const name of Object.keys(c.init?.agent ?? {})) {
         if (!c.agent?.some(f => f.name === name)) this.report(`${c.name}: initial value for unknown agent field ${name}`);
       }
-      for (const hook of ['beforeLook', 'beforeMove', 'afterMove'] as const) {
+    };
+    for (const c of model.components) {
+      const defs = defsOf(model.defs, c.defs);
+      const params = Object.fromEntries((c.params ?? []).map(p => [p.name, p.type]));
+      owner(c, defs, params);
+      for (const s of c.sensors ?? []) sensor(s, `${c.name}.${s.name}`, defs, c.name, params);
+      for (const hook of ['beforeLook', 'onCompute', 'beforeMove', 'afterMove'] as const) {
         const body = c[hook];
-        if (body) this.root(body, { ...params, C: T.config }, unit(hook === 'beforeMove' ? 'beforeMove' : 'hook', `${c.name}.${hook}`, defs, c.name), T.effect);
+        const decisions = hook === 'onCompute' || hook === 'beforeMove';
+        if (body) this.root(body, { ...params, C: T.config }, unit(decisions ? 'decisionHook' : 'hook', `${c.name}.${hook}`, defs, c.name), T.effect);
       }
+    }
+    {
+      const sc = model.scheduler;
+      const defs = defsOf(model.defs, sc.defs);
+      const params = Object.fromEntries((sc.params ?? []).map(p => [p.name, p.type]));
+      owner(sc, defs, params);
+      const instants = sc.events.flat();
+      if (sc.events.some(e => !e.length) || instants.length !== 3 || INSTANTS.some(i => instants.indexOf(i) !== INSTANTS.indexOf(i))) {
+        this.report(`${sc.name}: events cut the cycle into nonempty groups that list look, compute and move once each, in this order`);
+      }
+      this.root(sc.schedule, { ...params, C: T.config }, unit('schedule', `${sc.name}.schedule`, defs, sc.name), T.effect);
     }
 
     // Algorithm: only its Look and sensors; deterministic; memory model; no positions.
@@ -624,7 +653,7 @@ function isVertexType(t: Type): boolean {
 function showContext(ctx: Context): string {
   return ({
     init: 'initial values', domain: 'parameter domains and model arguments', sensor: 'a sensor', hook: 'a hook',
-    beforeMove: 'a hook', task: 'a task', algorithm: 'an algorithm', def: 'a definition', space: 'a space',
+    decisionHook: 'a hook', task: 'a task', algorithm: 'an algorithm', def: 'a definition', space: 'a space',
   } as Record<Context, string>)[ctx];
 }
 

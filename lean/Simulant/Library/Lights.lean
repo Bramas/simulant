@@ -39,7 +39,8 @@ variable {σ : Sig} [FlagSet σ.F] [Flags σ.F] [Actions σ.A]
 /-- The hooks, on the parts of the state the component owns. -/
 def hooks (colors : Nat) (L : Ctx σ) : Hooks σ (World σ.S.Pos) (Fields σ.S.Pos) where
   beforeLook := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
-  beforeMove := fun ts C ds => (pure ({ world := id, raise := fun a => FlagSet.none, fields := fun a _ => (fun (a : Fin σ.k) => (let c := (Actions.setLight (ds a).act); ({ light := (if (((ds a).decided) && c.isSome && (decide ((c.getD 0) < colors))) then (c.getD 0) else (L.fields.get C.agents[a].fields).light) } : Fields σ.S.Pos))) a } : OwnEffect σ (World σ.S.Pos) (Fields σ.S.Pos)))
+  onCompute := fun ts C ds => (pure ({ world := id, raise := fun agent' => FlagSet.none, fields := fun agent' _ => (fun (a : Fin σ.k) => (let c := (Actions.setLight (ds a).act); ({ light := (if (((ds a).decided) && c.isSome && (decide ((c.getD 0) < colors))) then (c.getD 0) else (L.fields.get C.agents[a].fields).light) } : Fields σ.S.Pos))) agent' } : OwnEffect σ (World σ.S.Pos) (Fields σ.S.Pos)))
+  beforeMove := fun ts C ds => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
   afterMove := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
 
 def component (colors : Nat) (L : Ctx σ) : Component σ :=

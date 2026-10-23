@@ -9,7 +9,7 @@ import { experimentOf } from './compile';
 
 const pair = (policy: string) => experimentOf(`import "std/examples.sim"
 experiment e where
-  model := blackHoleRobots (Graphs.Cycle N) ${policy} .unknown
+  model := blackHoleSearch (Graphs.Cycle N) ${policy} .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in (range 7).filter (· ≥ 3)
@@ -48,7 +48,7 @@ test('settings that differ by a model argument do not share a graph', async () =
 algorithm Idle uses occupied where
   main := stay
 experiment e where
-  model := robots Graphs.Line (Observe.radius phi) Frames.isomorphisms [occupied]
+  model := obliviousRobots Graphs.Line (Observe.radius phi) Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
   param phi : Nat in [1, 2]

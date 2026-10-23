@@ -8,8 +8,8 @@
  * (`agents(C).filter(b => b.pos.eq(C.world.site))`).
  */
 import type {
-  Action, Algorithm, Automorphisms, Component, Experiment, Expr, Field, Flag, Frames, Goal, Json, Model, Observation, Param,
-  Sensor, Space, Task, Type,
+  Action, Algorithm, Automorphisms, Component, Experiment, Expr, Fairness, Field, Flag, Frames, Goal, Instant, Json, Model,
+  Observation, Param, Scheduler, Sensor, Space, Task, Type,
 } from './ir';
 import { IR_VERSION } from './ir';
 import { T } from './types';
@@ -173,12 +173,16 @@ export function choose(site: string, from: Arg, opts: { such?: (x: X) => Arg; la
 }
 
 /** A hook's result: world fields, flags raised on agents (a collection or a predicate), and its own agent fields. */
-export function effect(e: { world?: Record<string, Arg>; raise?: Record<string, X | ((a: X) => Arg)>; agents?: (a: X) => Arg } = {}): X {
+export function effect(e: {
+  world?: Record<string, Arg>; raise?: Record<string, X | ((a: X) => Arg)>; agents?: (a: X) => Arg; activate?: X | ((a: X) => Arg);
+} = {}): X {
+  const agentsOrPredicate = (r: X | ((a: X) => Arg)) => typeof r === 'function' ? lambda(1, r as (a: X) => Arg) : ir(r as X);
   return wrap({
     e: 'effect',
     ...(e.world ? { world: mapValues(e.world, ir) } : {}),
-    ...(e.raise ? { raise: mapValues(e.raise, r => typeof r === 'function' ? lambda(1, r as (a: X) => Arg) : ir(r as X)) } : {}),
+    ...(e.raise ? { raise: mapValues(e.raise, agentsOrPredicate) } : {}),
     ...(e.agents ? { agents: lambda(1, e.agents) } : {}),
+    ...(e.activate ? { activate: agentsOrPredicate(e.activate) } : {}),
   });
 }
 
@@ -189,6 +193,9 @@ export const callDef = (name: string, ...args: Arg[]) => call(name, ...args);
 
 // Builtins that are not methods
 export const agents = (C: X) => call('agents', C);
+/** The agents whose flags allow acting, for schedulers. */
+export const eligible = (C: X) => call('eligible', C);
+export const nonemptySubsets = (xs: Arg) => call('nonemptySubsets', xs);
 export const correct = (a: X) => call('correct', a);
 export const present = (a: X) => call('present', a);
 export const decisionOf = (a: X) => call('decisionOf', a);
@@ -269,6 +276,7 @@ export type ComponentSpec = {
   actions?: Action[];
   init?: { world?: Record<string, Arg | ((p: Params) => Arg)>; agent?: Record<string, (i: X, p: Params) => Arg> };
   beforeLook?: (C: X, p: Params) => Arg;
+  onCompute?: (C: X, p: Params) => Arg;
   beforeMove?: (C: X, p: Params) => Arg;
   afterMove?: (C: X, p: Params) => Arg;
   defs?: Component['defs'];
@@ -292,12 +300,47 @@ export function component(spec: ComponentSpec): Component {
       agent: spec.init.agent && mapValues(spec.init.agent, f => ir(f(v('i'), p))),
     }),
     beforeLook: hook(spec.beforeLook),
+    onCompute: hook(spec.onCompute),
     beforeMove: hook(spec.beforeMove),
     afterMove: hook(spec.afterMove),
     defs: spec.defs,
     equivariant: spec.equivariant,
   };
   return dropUndefined(c);
+}
+
+export type SchedulerSpec = {
+  name: string;
+  params?: Record<string, Type>;
+  args?: Record<string, Json>;
+  world?: Record<string, Type>;
+  agent?: Record<string, Type>;
+  init?: { world?: Record<string, Arg | ((p: Params) => Arg)>; agent?: Record<string, (i: X, p: Params) => Arg> };
+  events?: Instant[][];
+  fairness?: Fairness;
+  schedule: (C: X, p: Params) => Arg;
+  defs?: Scheduler['defs'];
+  equivariant?: boolean;
+};
+
+export function scheduler(spec: SchedulerSpec): Scheduler {
+  const p: Params = Object.fromEntries(Object.keys(spec.params ?? {}).map(name => [name, v(name)]));
+  return dropUndefined({
+    name: spec.name,
+    params: fields(spec.params),
+    args: spec.args,
+    world: fields(spec.world),
+    agent: fields(spec.agent),
+    init: spec.init && dropUndefined({
+      world: spec.init.world && mapValues(spec.init.world, x => ir(typeof x === 'function' ? x(p) : x)),
+      agent: spec.init.agent && mapValues(spec.init.agent, f => ir(f(v('i'), p))),
+    }),
+    events: spec.events ?? [['look', 'compute', 'move']],
+    fairness: spec.fairness ?? 'activation',
+    schedule: ir(spec.schedule(v('C'), p)),
+    defs: spec.defs,
+    equivariant: spec.equivariant,
+  });
 }
 
 export type ModelSpec = {
@@ -307,7 +350,7 @@ export type ModelSpec = {
   frames: Frames;
   sensors: Sensor[];
   memory?: Model['memory'];
-  round?: Model['round'];
+  scheduler: Scheduler;
   components?: Component[];
   symmetries?: Model['symmetries'];
   defs?: Model['defs'];
@@ -321,7 +364,7 @@ export function model(spec: ModelSpec): Model {
     frames: spec.frames,
     sensors: spec.sensors,
     memory: spec.memory ?? 'persistent',
-    round: spec.round ?? 'fsync',
+    scheduler: spec.scheduler,
     movement: 'alongEdges' as const,
     components: spec.components ?? [],
     symmetries: spec.symmetries ?? 'derived',

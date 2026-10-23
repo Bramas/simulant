@@ -1,7 +1,7 @@
 /**
  * The model view: the experiment's semantics in words (left) beside the declarations it is built
  * from, as written in their files (right), so that a reader can check them against the paper.
- * Each fact links to the declarations it comes from; the round lists, phase by phase, which
+ * Each fact links to the declarations it comes from; the step lists, phase by phase, which
  * components act and what the adversary chooses. Definitions, which can be many, are grouped
  * and folded below the other declarations; a reference or a click on a name opens one. In place
  * of the facts, the generated Lean model (LeanView), linked to the same sources both ways.
@@ -23,7 +23,7 @@ export interface ModelViewProps {
 }
 
 const KIND_LABEL: Record<SourceExcerpt['kind'], string> = {
-  experiment: 'experiment', model: 'model', space: 'space', component: 'component', sensor: 'sensor',
+  experiment: 'experiment', model: 'model', space: 'space', component: 'component', scheduler: 'scheduler', sensor: 'sensor',
   algorithm: 'algorithm', task: 'task', goal: 'goal', definition: 'definition',
 };
 
@@ -215,9 +215,9 @@ export function ModelView(props: ModelViewProps) {
           <For each={sections().slice(0, 2)}>{s => <Section section={s} />}</For>
 
           <section class="sim-card mv-section">
-            <h3>Round <span class="sim-muted">what happens in each round, in order</span></h3>
+            <h3>Step <span class="sim-muted">what happens in each step, in order</span></h3>
             <ol class="mv-round">
-              <For each={d().round}>
+              <For each={d().step}>
                 {p => (
                   <li classList={{ 'mv-idle': p.by?.length === 0 && !p.choices?.length }}>
                     <div class="mv-phase">{p.phase}</div>

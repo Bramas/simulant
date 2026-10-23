@@ -13,7 +13,7 @@ import { Explorer, explore, type Result } from '@bramas/simulant-engine/explorer
 import { equivarianceViolations, Symmetry } from '@bramas/simulant-engine/symmetry';
 import { parameterValues, System } from '@bramas/simulant-engine/system';
 import {
-  blackHoleRobots, count, Cycle, Exploration, Faults, Gathering, Hazards, Monitors, occupied, otherStatesLossy, robots, Storage,
+  blackHoleSearch, count, Cycle, Exploration, Faults, Gathering, Hazards, Monitors, occupied, otherStatesLossy, robots, Schedulers, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
   AlwaysClockwise, cautiousPairExperiment, EveryoneActivated, MarkActivated, NearestNeighbour, Observe, PebbleTest,
@@ -46,27 +46,27 @@ const finiteGroup = (sys: System) => {
 
 describe('black-hole search: radius-1 views, persistent memory, chirality', () => {
   test('a hole present from the start is identified by the cautious pair', () => {
-    for (const { params, result } of checkAll(cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' })))) {
+    for (const { params, result } of checkAll(cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown' })))) {
       assert.equal(result.status, 'success', JSON.stringify(params));
     }
   });
 
   test('an emerging hole defeats it, and the hole activates in the counterexample', () => {
-    const result = explore(new System(cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })), { N: 5, site: 2 }));
+    const result = explore(new System(cautiousPairExperiment(blackHoleSearch({ policy: 'mayEmerge', size: 'unknown' })), { N: 5, site: 2 }));
     assert.equal(result.status, 'failure');
     assert.ok(labels(result).includes('activates'));
   });
 
   test('a hole that never activates is a repeatable cycle that fails "eventually always success"', () => {
-    const result = explore(new System(cautiousPairExperiment(blackHoleRobots({ policy: 'none', size: 'unknown' })), { N: 5, site: 2 }));
+    const result = explore(new System(cautiousPairExperiment(blackHoleSearch({ policy: 'none', size: 'unknown' })), { N: 5, site: 2 }));
     assert.equal(result.status, 'failure');
     assert.equal(result.counterexample?.kind, 'lasso');
   });
 
   test('crash-stop with no budget is the fault-free model; with a budget of 1 it defeats the pair', () => {
-    const base = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
-    const none = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(0)] }));
-    const one = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(1)] }));
+    const base = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown' }));
+    const none = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(0)] }));
+    const one = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown', extra: [Faults.CrashStop(1)] }));
     const params = { N: 5, site: 3 };
     const r0 = explore(new System(base, params));
     const r1 = explore(new System(none, params));
@@ -78,9 +78,9 @@ describe('black-hole search: radius-1 views, persistent memory, chirality', () =
   });
 
   test('a lossy view with k = 0 is the exact view; with k = 1 the waiter can miss the leader', () => {
-    const exact = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
-    const lossy0 = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(0) }));
-    const lossy1 = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) }));
+    const exact = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown' }));
+    const lossy0 = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(0) }));
+    const lossy1 = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) }));
     const params = { N: 5, site: 3 };
     assert.equal(explore(new System(lossy0, params)).stats.states, explore(new System(exact, params)).stats.states);
     const r = explore(new System(lossy1, params));
@@ -89,13 +89,13 @@ describe('black-hole search: radius-1 views, persistent memory, chirality', () =
   });
 
   test('knowing the size of the space adds a sensor and changes nothing for an algorithm that does not use it', () => {
-    const unknown = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
-    const known = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'known' }));
+    const unknown = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown' }));
+    const known = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'known' }));
     assert.equal(explore(new System(known, { N: 6, site: 4 })).stats.states, explore(new System(unknown, { N: 6, site: 4 })).stats.states);
   });
 
   test('pebbles: an action read in beforeMove; two agents cannot pick up the same pebble', () => {
-    const m = blackHoleRobots({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] });
+    const m = blackHoleSearch({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] });
     const exp = experiment({
       name: 'pebbles', model: m, algorithm: PebbleTest, task: Observe,
       params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.pos }],
@@ -186,7 +186,7 @@ describe('robots on a dynamic cycle: the adversary removes an edge each round', 
   });
 
   test('the black-hole family over a dynamic cycle reuses the black-hole component unchanged', () => {
-    const dyn = blackHoleRobots({ policy: 'mayEmerge', size: 'unknown', space: dynamic(Cycle(), 1) });
+    const dyn = blackHoleSearch({ policy: 'mayEmerge', size: 'unknown', space: dynamic(Cycle(), 1) });
     assert.deepEqual(dyn.components[0], Hazards.BlackHole('mayEmerge'));
     const sys = new System(cautiousPairExperiment(dyn), { N: 4, site: 2 });
     assert.equal(explore(sys).status, 'failure');
@@ -197,7 +197,8 @@ describe('robots on a dynamic cycle: the adversary removes an edge each round', 
 
 describe('executions: synchronous rounds check every cycle, SSYNC only scheduler-fair ones', () => {
   const exp = (round: 'fsync' | 'ssync') => experiment({
-    name: `mark ${round}`, model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round }),
+    name: `mark ${round}`,
+    model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], scheduler: round === 'fsync' ? Schedulers.FSync : Schedulers.SSync }),
     algorithm: MarkActivated, task: EveryoneActivated,
     params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => pos(i) },
   });

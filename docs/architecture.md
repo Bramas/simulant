@@ -32,7 +32,7 @@ The IR is versioned JSON. A semantic change updates its types and documentation,
 | `packages/language-server/` | Node source access and LSP transport |
 | `extensions/vscode-simulant/` | VS Code client, highlighting, snippets and extension packaging |
 | `packages/engine/` | Values, topologies, rounds, successor enumeration, exploration and symmetry reduction |
-| `packages/stdlib/sim/` | Sensors, components, model families, tasks and examples |
+| `packages/stdlib/sim/` | Spaces, sensors, components, schedulers, tasks, the model families (`obliviousRobots`, `agentsWithMemory`), predefined models and examples |
 | `packages/stdlib/test/helpers/` | Hand-written builder counterparts for conformance, engine and typechecker tests |
 | `packages/lean-gen/` | Model generation, proof checks and differential tests |
 | `packages/vite-plugin/` | `.sim` imports, source watching, diagnostics and snapshot types under Vite and Node |
@@ -54,7 +54,7 @@ An oblivious model permits no private program counter or local values retained a
 
 Components own their world fields, agent fields, flags and actions. At each hook point, all components read the same snapshot. Their owned field updates are disjoint, and raised flags merge by logical OR. Hooks cannot write another component's fields or move agents. Flags are never cleared; their visibility and behavior determine `present`, `correct` and whether an agent acts.
 
-The standard round chooses the space state, runs `beforeLook`, chooses activations and morphisms, evaluates sensors and algorithm decisions, runs `beforeMove`, applies movement along edges, and runs `afterMove`. Each activated agent uses one morphism and one sensor environment (one outcome of the sensors' Look-level choices) throughout that activation. Actions such as pebble operations are decisions consumed by component hooks; simultaneous pebble picks are truncated to the pebbles present.
+A step chooses the space state, runs `beforeLook`, lets the scheduler choose the agents that take their next event, evaluates the Looks (morphisms, sensors and algorithm decisions) of those whose event includes Look, runs `onCompute` and applies the computed states, runs `beforeMove` and applies movement along edges, and runs `afterMove` ([scheduler-design.md](scheduler-design.md)). With atomic cycles (FSYNC, SSYNC, sequential) every scheduled agent does all of this in one step; under asynchronous cuts of the cycle an agent keeps its pending decision between its events. Each activated agent uses one morphism and one sensor environment (one outcome of the sensors' Look-level choices) throughout that activation. Actions such as pebble operations are decisions consumed by component hooks; simultaneous pebble picks are truncated to the pebbles present.
 
 Graph spaces, views, presentations and rounds (`fsync`, `ssync`, `sequential`) are implemented in the semantic core (`packages/engine/src/space.ts`, `system.ts`). In a dynamic space (`Graphs.Dynamic base k`), the missing edges are chosen anew each round and forgotten afterwards. The interpreter's reference ordering is the physical order of the vertices; it can leak information on views without symmetry, which the model view and the CLI's check output say for models under `Frames.isomorphisms`, while Lean quantifies over every lawful ordering. Successors with equal full configurations merge, retaining the first witness and, under SSYNC or sequential scheduling, the union of possible activations for fairness analysis. History-dependent tasks store history in monitor components such as `Monitors.Visited`.
 
@@ -120,7 +120,7 @@ Compiled modules and check results carry source revisions. Superseded checks are
 
 ## Lean guarantees and limits
 
-The hand-written Lean core defines nondeterminism, graph spaces and their views, rounds, executions, fairness and goals. Nondeterminism is a list of witness/value pairs; `Step` is membership in the computable round. There is no separate set semantics to reconcile with evaluation.
+The hand-written Lean core defines nondeterminism, graph spaces and their views, the step over events (with schedulers and pending decisions), executions, fairness and goals. Nondeterminism is a list of witness/value pairs; `Step` is membership in the computable round. There is no separate set semantics to reconcile with evaluation.
 
 Library components and model files are generated from the same IR used by the interpreter. Components are generic over the composition: lenses expose their owned state, and classes expose their flags and actions. A composed model supplies the instances and preservation lemmas. Hand-written library lemmas live separately from generated files.
 

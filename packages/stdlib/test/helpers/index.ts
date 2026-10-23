@@ -4,5 +4,6 @@
  */
 export * from './components';
 export * from './models';
+export * from './schedulers';
 export * from './sensors';
 export * from './tasks';

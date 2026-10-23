@@ -14,7 +14,7 @@ Status: version 2, the generic core of [Phase 0](core-redesign.md). The frontend
 | Values, canonical encodings, symmetry action on values | `packages/engine/src/values.ts` |
 | Compiler from IR to closures | `packages/engine/src/compile.ts` |
 | Spaces, views, presentations of a Look, automorphisms | `packages/engine/src/space.ts` |
-| Initial configurations and the standard round | `packages/engine/src/system.ts` |
+| Initial configurations and the step | `packages/engine/src/system.ts`, `packages/engine/src/scheduler.ts` |
 | Explorer: state graph, verdicts, liveness, counterexamples | `packages/engine/src/explorer.ts` |
 | Symmetry reduction, bounded equivariance test | `packages/engine/src/symmetry.ts` |
 | Conformance fixtures | `packages/engine/conformance/*.json` (regenerate with `npx tsx packages/engine/conformance/generate.ts`) |
@@ -30,7 +30,9 @@ Experiment parameters may appear in the model's arguments: a space's `args`, the
 
 ## Models
 
-A `Model` gives its `space`, `observation` and `frames`, its round (`fsync`, `ssync` or `sequential`), its sensors and components, its memory model (`persistent` or `oblivious`), its movement (`alongEdges`) and its symmetries (`derived` or `none`).
+A `Model` gives its `space`, `observation` and `frames`, its `scheduler`, its sensors and components, its memory model (`persistent` or `oblivious`), its movement (`alongEdges`) and its symmetries (`derived` or `none`).
+
+A `Scheduler` (IR version 3; version 2 had a `round` instead) owns world and agent fields with initial values, like a component, and gives `events`, the cut of the Look-Compute-Move cycle into atomic events (nonempty lists of instants that together list `look`, `compute` and `move` once each, in order), its `fairness` (`activation` or `none`), and `schedule`, an expression with `C` in scope that returns an effect. The effect's `activate` part (agents, or a predicate on agents; only in `schedule`) marks the agents that take their next event; its other parts set the scheduler's own fields. `equivariant` is a claim, as for components.
 
 **Spaces.** A `graph` space has a vertex type (`Nat`, `Int`, or a record of them), an optional `vertices` list (omitted: an infinite vertex set with finite neighborhoods), and `neighbors`, an expression with one vertex in scope that lists its neighbors in order: that order is its port numbering, and a vertex may appear twice (parallel edges, as in the two-node cycle) but never in its own list: self-loops are rejected (a move along one would be a stay). A finite graph is checked when the space is built, so `Graphs.Cycle 1` is an error rather than a vertex with two loops. `params` and `args` are the space's own parameters and their values, expressions over experiment parameters; the space's expressions see its parameters as variables. `automorphisms` is `computed` (finite graphs), `dihedral n` (the cycle `Nat` mod `n`, whose reflections swap ports 0 and 1) or `translationsAndReflection` (`Int` vertices); an infinite graph must give one. A `dynamic` space wraps a graph: the adversary removes up to `missing` edges at the start of every round. A `euclidean` space is an interface only: the checker rejects it.
 
@@ -38,7 +40,7 @@ A `Model` gives its `space`, `observation` and `frames`, its round (`fsync`, `ss
 
 **Frames.** The declared morphisms through which agents see their view: `isomorphisms` (any isomorphism of the visible domain fixing the observer, chosen at each Look), `identity` (the space's ports as they are), and `portPermutations` with `when` (`perLook` or `perRobot`) and `among` (`all` or `symmetries`, the permutations induced by automorphisms of the space). A `perRobot` permutation is chosen once per agent, at initialization.
 
-A `Component` owns world fields, agent fields, flags, sensors and actions, gives their initial values, and may define three hooks (`beforeLook`, `beforeMove`, `afterMove`), each an expression with `C : Config` in scope that returns an `effect`. An effect sets the component's own world fields, raises its own flags (on a collection of agents or on those satisfying a predicate), and, with `agents`, a function from an agent to a record, sets its own agent fields. Fields may have type `Pos`. `equivariant` is a claim: the component commutes with the automorphisms that the model's frames keep.
+A `Component` owns world fields, agent fields, flags, sensors and actions, gives their initial values, and may define four hooks (`beforeLook`, `onCompute`, `beforeMove`, `afterMove`), each an expression with `C : Config` in scope that returns an `effect`. An effect sets the component's own world fields, raises its own flags (on a collection of agents or on those satisfying a predicate), and, with `agents`, a function from an agent to a record, sets its own agent fields. Fields may have type `Pos`. `equivariant` is a claim: the component commutes with the automorphisms that the model's frames keep.
 
 A `Sensor` is what an agent learns from its Look `L`. A per-location sensor (`perLocation`) also receives a location `l`. Its `look` bindings are its Look-level part, evaluated once per Look, which may contain choices; its body sees them, and is deterministic when the sensor is per location. A sensor's result contains no `Pos`, `Agent` or `Loc`. The Look offers `me`, `here`, `visible`, `visibleAgents`, `world` (the components' world fields; a component's sensor reads only its own) and `spaceSize` (finite spaces) as fields, and `occupants(L, l)`, `position(L, l)` and `edgePresent(L, a, b)` as builtins. Edge presence requires an actual edge between the positions behind the two locations, even when no edges are missing. With parallel edges it is true if at least one remains; it is false for the observer itself and for locations that are not neighbors.
 
@@ -56,7 +58,7 @@ Every expression is pure, except `choose`, which is an adversary choice. Context
 | initial values (`init`, agent positions) | yes | yes | choices give several initial configurations |
 | space vertices and neighbors | no | no | the space's parameters and one vertex in scope |
 | sensors (`L`, `l`) | no | in the Look-level part, and in Look-level sensors | the choices are fixed for the whole Look |
-| hooks (`C`) | no | yes | `decisionOf(a)` only in `beforeMove` |
+| hooks (`C`) | no | yes | `decisionOf(a)` only in `onCompute` and `beforeMove` |
 | algorithms (`mem`, `pub`) | no | no | the Look and the sensors in `uses`; no builtin that reads the configuration |
 | tasks (`C`) | no | no | may read `a.mem` (nothing else may) |
 
@@ -85,18 +87,20 @@ A configuration's key is its agents' keys, then the world's. An agent's key is i
 
 Arithmetic follows Lean: `Nat` subtraction and division are truncated, division by zero is zero, `Int` division and modulo are Euclidean. Number literals are `Nat` unless an `Int` is expected.
 
-## The standard round
+## A step
 
-`System.successors(C)`:
+`System.successors(C)` follows [scheduler-design.md](scheduler-design.md#1-cycles-events-and-phases). Each agent's Look-Compute-Move cycle is cut into atomic events by its scheduler (`SchedulerRuntime.events`); an agent's `phase` counts the events of its current cycle it has taken, and `pending` holds the decision of its last Look meanwhile. Both are absent between cycles, hence always with atomic cycles, and are part of the state key only when present.
 
 1. The adversary chooses the space state (in a dynamic space: at most `missing` missing edges). Then all `beforeLook` hooks run on the same snapshot and their effects are merged (fields have one owner; flags are merged by "or").
-2. Activation: FSYNC activates every agent whose flags do not say `acts never`; SSYNC lets the adversary choose a nonempty set of them; `sequential` chooses exactly one. If none is eligible, the round idles. Both adversarial activation modes require every continuously acting agent to be activated infinitely often, without a bound on finite activation gaps.
-3. For each activated agent, its Look: the visible domain around its position, and the order of its locations, the reference ordering followed by a morphism. The interpreter's reference ordering is the order of the physical vertices, which can leak information on views without symmetry (see the warning in [core-redesign.md](core-redesign.md#3-observations-ordering-and-frames)). The morphism is chosen by the adversary from the declared frames: under `isomorphisms`, among the isomorphisms of the visible domain fixing the observer; under `portPermutations`, the agent's kept permutation or one chosen for this Look; under `identity`, none. Then its sensors (one environment per Look, with their choices) and `step`. The decision's location is mapped back to a position through the Look. An agent's decisions are deduplicated by their effect (target position, new state, actions). Agents with `acts adversary` choose any destination the movement allows. The decisions are combined over agents (a product).
-4. `beforeMove` hooks, which read the decisions through `decisionOf(a)`: `decided`, `target` (the position it moves to) and its actions. Agents that did not decide have `decided = false` and `target` their position.
-5. Move (`alongEdges`): agents that decided and still act move to their target, which must be their position or one of its neighbors; through an edge missing this round, they stay.
-6. `afterMove` hooks.
+2. If no agent is eligible (whose flags do not say `acts never`), the step idles. Otherwise the scheduler's `schedule` runs on the configuration: the agents marked by its effect's `activate` part, among the eligible ones, take their next event, and the rest of the effect updates the scheduler's own fields. Under `fairness = activation`, every continuously acting agent must take events infinitely often, without a bound on finite gaps.
+3. Each scheduled agent whose event includes Look takes its Look, from the configuration of step 2: the visible domain around its position, and the order of its locations, the reference ordering followed by a morphism. The interpreter's reference ordering is the order of the physical vertices, which can leak information on views without symmetry (see the warning in [core-redesign.md](core-redesign.md#3-observations-ordering-and-frames)). The morphism is chosen by the adversary from the declared frames: under `isomorphisms`, among the isomorphisms of the visible domain fixing the observer; under `portPermutations`, the agent's kept permutation or one chosen for this Look; under `identity`, none. Then its sensors (one environment per Look, with their choices) and `step`. The decision's location is mapped back to a position through the Look. An agent's decisions are deduplicated by their effect (target position, new state, actions). Agents with `acts adversary` choose any destination the movement allows. The decisions are combined over agents (a product). Other scheduled agents use their pending decision.
+4. `onCompute` hooks read, through `decisionOf(a)`, the decisions of the agents whose event includes Compute: `decided`, `target` (the position it moves to) and its actions; other agents have `decided = false` and `target` their position. Then those agents, if they still act, take the decision's public state and memory.
+5. `beforeMove` hooks read, in the same way, the decisions of the agents whose event includes Move. Then those agents, if they still act, move (`alongEdges`) to their target, which must be their position or one of its neighbors; through an edge missing this step, they stay.
+6. `afterMove` hooks. Then each scheduled agent advances in its cycle, keeping its decision as `pending` until its last event.
 
-The space state is then forgotten, and successors with the same key merge. Choices are enumerated in order, so successors come in the lexicographic order of their witnesses; a merged successor keeps the first witness, and under SSYNC or sequential scheduling the union of the agents activated by its witnesses.
+With atomic cycles a step is the previous round. A robot that a `beforeMove` hook crashes has taken its new state at Compute, before it.
+
+The space state is then forgotten, and successors with the same key merge. Choices are enumerated in order, so successors come in the lexicographic order of their witnesses; a merged successor keeps the first witness, and the union of the agents scheduled by its witnesses.
 
 Initial configurations are the product of the choices of the components' initial values (agent fields per agent, then world fields) and, under `portPermutations .perRobot`, of each agent's permutation.
 
@@ -106,7 +110,7 @@ Initial configurations are the product of the choices of the components' initial
 
 - A state with verdict `failure` is a counterexample (the shortest path to it).
 - Under `eventually`, `success` states are not expanded. Bad cycles are searched among the expanded non-`success` states. Under `eventuallyAlways`, among all expanded states, in a strongly connected component containing a non-`success` state.
-- A component counts only if it has a cycle (two states, or a self-loop) and, under SSYNC or sequential scheduling, if it is scheduler-fair: every agent that acts in it (flags are constant in a component, since they are never cleared) is activated on one of its edges. The lasso then visits those edges.
+- A component counts only if it has a cycle (two states, or a self-loop) and, under activation fairness, if every agent that acts in it (flags are constant in a component, since they are never cleared) takes an event on one of its edges. The lasso then visits those edges.
 - `incomplete` is returned only when a limit was reached and no counterexample was found. A lasso among expanded states is a genuine counterexample even then.
 
 Counterexamples are replayed concretely, from a concrete initial configuration, so their configurations do not jump around the space.
@@ -121,15 +125,15 @@ The Lean package is in `lean/` (Lake, no Mathlib). Build with `cd lean && lake b
 
 | Layer | Where | Origin |
 | --- | --- | --- |
-| Semantic core: nondeterminism, spaces and views, the round, executions | `lean/Simulant/{ND,Space,Round,Builtins,Exec}.lean` | hand-written |
+| Semantic core: nondeterminism, spaces and views, the step over events, executions | `lean/Simulant/{ND,Space,Round,Builtins,Exec}.lean` | hand-written |
 | Library spaces with closed forms (`Graphs.Cycle`, `Graphs.Line`) | `lean/Simulant/Spaces.lean` | hand-written |
 | Generic lemmas: flags, preservation, views under automorphisms, equivariance, non-vacuity, invariants | `lean/Simulant/{Lemmas,Views,Equivariance,NonVacuity,Invariants}.lean` | hand-written |
-| Component library | `lean/Simulant/Library/*.lean` | generated: `npx tsx packages/lean-gen/src/library.ts` |
-| Library lemmas about components | `lean/Simulant/LibraryLemmas/*.lean` | hand-written |
+| Component and scheduler library | `lean/Simulant/Library/*.lean` | generated: `npx tsx packages/lean-gen/src/library.ts` |
+| Library lemmas about components and schedulers | `lean/Simulant/LibraryLemmas/*.lean` | hand-written |
 | Model files | `lean/Examples/<Name>/Model.lean` | generated: `npx tsx packages/lean-gen/src/examples.ts` |
 | Proofs | `lean/Examples/<Name>/{Proofs,Equivariance}.lean` | hand-written, checked by `packages/lean-gen/src/check-proofs.ts` |
 
-**Translation.** A choice is `ND.choose site list` in the list monad `ND α := List (Witness × α)`; `Step C w C'` is membership of `(w, C')` in the round, so the computable round is the semantics. Every stage of `Model.roundA` mirrors the interpreter (same order of choices, same sites and indices): the space state (`edges`), the hooks, the activation, then per agent its presentations (`frame aI`, when there are several), its sensors' Look-level choices and its step. The differential test checks this on every conformance fixture (`packages/lean-gen/src/differential.ts`).
+**Translation.** A choice is `ND.choose site list` in the list monad `ND α := List (Witness × α)`; `Step C w C'` is membership of `(w, C')` in the round, so the computable round is the semantics. Every stage of `Model.roundA` mirrors the interpreter's step (same order of choices, same sites and indices): the space state (`edges`), `beforeLook`, the scheduler's `schedule` (generated from its IR, like a component's hook), then per agent that looks its presentations (`frame aI`, when there are several), its sensors' Look-level choices and its step, then `onCompute`, `beforeMove` and `afterMove`. Agents carry their `phase` and `pending` decision, and a configuration map (`CfgMap`) moves pending targets with the positions. A scheduler is generated like a component, with lenses on the parts of the state it owns; its cut of the cycle is an argument of the generated `scheduler`, so a library scheduler is generated once. `Model.atomic_step` shows that under atomic cycles no decision is ever pending. Admissible executions require `Exec.Fair` when the scheduler's fairness is `activation`. The differential test checks this on every conformance fixture (`packages/lean-gen/src/differential.ts`).
 
 **Spaces and views.** A `Space` has positions with decidable equality, ordered neighbor lists, optionally its vertices, its largest degree, the interpreter's physical order of positions, and the position of a vertex number (`ofNat`, `ofInt`), which generated components use for `pos v`, since they are generic over the space. `Graphs.Cycle n` (positions `Fin n`) and `Graphs.Line` (positions `Int`) are written by hand in `Spaces.lean`; the generator uses them when an experiment's space has the library's IR, and generates other graph spaces from their IR (positions `Nat` or `Int`). The r-hop view, the rooted isomorphisms of a view, the presentations under port-based frames and under isomorphisms, the edges of a finite graph and the missing-edge states of a dynamic space follow `packages/engine/src/space.ts`. A location is a `Nat`; a `Look` gives the position behind each location to sensors, and the algorithm reads only `here`, the neighbor lists and distances.
 

@@ -35,7 +35,8 @@ variable {σ : Sig} [FlagSet σ.F] [Flags σ.F] [Actions σ.A]
 /-- The hooks, on the parts of the state the component owns. -/
 def hooks  (L : Ctx σ) : Hooks σ (World σ.S.Pos) Unit where
   beforeLook := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
-  beforeMove := fun ts C ds => (do let S ← (ND.choose "CrashAt.S" (B.subsets ((List.finRange σ.k).filter (fun (a : Fin σ.k) => ((FlagSet.correct C.agents[a].flags) && ((C.agents[a].pos) == ((L.world.get C.world).crashNode))))))); (pure ({ world := id, raise := fun a => (if (S).contains a then (Flags.raise_crashed : σ.F) else FlagSet.none) } : OwnEffect σ (World σ.S.Pos) Unit)))
+  onCompute := fun ts C ds => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
+  beforeMove := fun ts C ds => (do let S ← (ND.choose "CrashAt.S" (B.subsets ((List.finRange σ.k).filter (fun (a : Fin σ.k) => ((FlagSet.correct C.agents[a].flags) && ((C.agents[a].pos) == ((L.world.get C.world).crashNode))))))); (pure ({ world := id, raise := fun agent' => (if (S).contains agent' then (Flags.raise_crashed : σ.F) else FlagSet.none) } : OwnEffect σ (World σ.S.Pos) Unit)))
   afterMove := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
 
 def component  (L : Ctx σ) : Component σ :=

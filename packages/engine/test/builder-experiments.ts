@@ -11,8 +11,8 @@ import {
 import type { Algorithm, Experiment, Model, Task, Type } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
 import {
-  blackHoleRobots, colors, count, Cycle, Dispersion, edgeTo, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
-  robots, Star, Storage,
+  blackHoleSearch, colors, count, Cycle, Dispersion, edgeTo, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
+  robots, Schedulers, Star, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
   AlwaysClockwise, cautiousPairExperiment, CycleLight, Disperse, EveryoneActivated, MarkActivated, NearestNeighbour, Observe,
@@ -28,9 +28,14 @@ function placed(m: Model, algorithm: Algorithm, task: Task, extra: { name: strin
   });
 }
 
-const onCycle = (round: Model['round']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], round });
+const onCycle = (scheduler: Model['scheduler']) => robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [], scheduler });
 const exploring = (f: Model['frames'], space = Cycle()) =>
   robots({ space, observation: radius(1), frames: f, sensors: [count], components: [Monitors.Visited()] });
+const lightsOnCycle = (name: string, scheduler: Model['scheduler']) => experiment({
+  name, algorithm: CycleLight, task: Observe,
+  model: robots({ space: Cycle(), observation: radius(1), frames: frames.identity, sensors: [colors], components: [Storage.Lights(3)], scheduler }),
+  params: [{ name: 'N', type: T.nat }], agents: { count: 2, pos: i => pos(i) },
+});
 const three = (name: string, m: Model, accepts?: boolean) => experiment({
   name, model: m, algorithm: MarkActivated, task: EveryoneActivated,
   params: [{ name: 'N', type: T.nat, ...(accepts ? { accepts: param('N').ge(3) } : {}) }], agents: { count: 3, pos: i => pos(i) },
@@ -63,12 +68,12 @@ export const builderExperiments: Record<string, Experiment> = {
     task: Observe,
     params: [{ name: 'N', type: T.nat }], agents: { count: 1, pos: () => pos(0) },
   }),
-  'black-hole-emerging': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
-  'black-hole-crash-stop': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
-  'black-hole-lossy': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),
-  'two-node-cycle': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
+  'black-hole-emerging': cautiousPairExperiment(blackHoleSearch({ policy: 'mayEmerge', size: 'unknown' })),
+  'black-hole-crash-stop': cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
+  'black-hole-lossy': cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),
+  'two-node-cycle': cautiousPairExperiment(blackHoleSearch({ policy: 'mayEmerge', size: 'unknown' })),
   pebbles: experiment({
-    name: 'pebbles', model: blackHoleRobots({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
+    name: 'pebbles', model: blackHoleSearch({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
     params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.pos }], agents: { count: 2, pos: () => pos(0) },
   }),
   'gathering-with-crash': placed(
@@ -77,9 +82,9 @@ export const builderExperiments: Record<string, Experiment> = {
   'dynamic-ring': placed(exploring(frames.identity, dynamic(Cycle(), 1)), AlwaysClockwise, Exploration),
   'own-orientation': placed(exploring(frames.portPermutations('perRobot')), AlwaysClockwise, Exploration),
   'port-permutations': placed(exploring(frames.portPermutations('perLook', 'symmetries')), AlwaysClockwise, Exploration),
-  ssync: three('ssync', onCycle('ssync')),
-  sequential: three('sequential', onCycle('sequential')),
-  'parameter-acceptance': three('parameterAcceptance', onCycle('sequential'), true),
+  ssync: three('ssync', onCycle(Schedulers.SSync)),
+  sequential: three('sequential', onCycle(Schedulers.Sequential)),
+  'parameter-acceptance': three('parameterAcceptance', onCycle(Schedulers.Sequential), true),
   lights: experiment({
     name: 'lights',
     model: robots({ space: Line(), observation: radius(param('phi')), frames: frames.isomorphisms, sensors: [colors], components: [Storage.Lights(3), Faults.CrashAt()] }),
@@ -93,6 +98,11 @@ export const builderExperiments: Record<string, Experiment> = {
     params: [{ name: 'k', type: T.nat }, { name: 'start', type: T.list(T.nat) }],
     agents: { count: param('start').length(), pos: i => pos(param('start').at(i)) },
   }),
+  'async-lights': lightsOnCycle('asyncLights', Schedulers.Async()),
+  'lc-atomic-lights': lightsOnCycle('lcAtomicLights', Schedulers.Async([['look', 'compute'], ['move']])),
+  'cm-atomic-lights': lightsOnCycle('cmAtomicLights', Schedulers.Async([['look'], ['compute', 'move']])),
+  bounded: three('bounded', onCycle(Schedulers.Bounded(2))),
+  permutation: three('permutation', onCycle(Schedulers.Permutation)),
   'star-dispersion': experiment({
     name: 'starDispersion', model: robots({ space: Star(), observation: radius(1), frames: frames.isomorphisms, sensors: [count] }),
     algorithm: Disperse, task: Dispersion,

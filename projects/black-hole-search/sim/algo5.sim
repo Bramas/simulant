@@ -73,7 +73,7 @@ algorithm NAgentEBSLatency uses spaceSize where
 multigraph cycle), one agent per node, the hole anywhere: checked exhaustively. It fails on
 2 nodes. -/
 experiment algo5Sync where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .known
   algorithm := NAgentEBS
   task := IdentifyEmergingBlackHoleAt
   param N : Nat in (range 13).filter (· ≥ 2)
@@ -84,7 +84,7 @@ experiment algo5Sync where
 /-- The variant with pseudo-random idling. Its state space is
 infinite: checks stop at the state limit. -/
 experiment algo5 where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .known
   algorithm := NAgentEBSLatency
   task := IdentifyEmergingBlackHoleAt
   param N : Nat in (range 13).filter (· ≥ 2)

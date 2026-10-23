@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch
 import { render } from 'solid-js/web';
 
 import {
-  analyze, build, byName, components, isCustom, locate, models, newDraft, sensorArgs, syntaxError, tasks, undeclared, useOf, viewSensors, widget, withCustom,
+  analyze, build, byName, components, isCustom, isPredefined, locate, models, newDraft, sensorArgs, syntaxError, tasks, undeclared, useOf, viewSensors, widget, withCustom,
   type Draft, type Region, type Use,
 } from './builder';
 import type { SiteDiagnostic } from './compile';
@@ -287,14 +287,15 @@ function Builder() {
     const m = e.model;
     return [
       ['Space', m.space.kind === 'dynamic'
-        ? `${m.space.base.kind === 'graph' ? m.space.base.name : 'a graph'}, with edges removed by the adversary each round`
+        ? `${m.space.base.kind === 'graph' ? m.space.base.name : 'a graph'}, with edges removed by the adversary each step`
         : m.space.kind === 'graph' ? m.space.name : 'a Euclidean space'],
       ['Observation', m.observation.kind === 'full' ? 'the whole space' : 'the r-hop view'],
       ['Frames', m.frames.kind === 'identity' ? 'the ports as they are (common sense of direction)'
         : m.frames.kind === 'isomorphisms' ? 'any symmetry of the view, chosen by the adversary at each Look'
         : m.frames.when === 'perRobot' ? 'each robot’s own port numbering' : 'a port numbering chosen at each Look'],
-      ['Round', m.round.toUpperCase()],
-      ['Memory', m.memory === 'oblivious' ? 'oblivious (no private state across rounds)' : 'persistent'],
+      ['Scheduler', `${m.scheduler.name}${m.scheduler.events.length > 1
+        ? ` (${m.scheduler.events.map((e) => e.join('-')).join(' | ')})` : ''}${m.scheduler.fairness === 'activation' ? ', fair' : ''}`],
+      ['Memory', m.memory === 'oblivious' ? 'oblivious (no private state across activations)' : 'persistent'],
       ['Sensors', m.sensors.map((s) => s.name).join(', ') || 'none'],
       ['Components', m.components.map((c) => c.name).join(', ') || 'none'],
       ['Goal', `${e.task.name}: ${goalText[e.task.goal] ?? e.task.goal}`],
@@ -317,19 +318,29 @@ function Builder() {
       <div class="builder">
         <form class="builder-form" onSubmit={(e) => e.preventDefault()}>
           <fieldset>
-            <legend>1. Model family</legend>
-            <div class="choices">
-              <For each={models(lib())}>
-                {(m) => (
-                  <label class="choice" classList={{ on: draft().model === m.name }}>
-                    <input type="radio" name="model" aria-label={m.name} checked={draft().model === m.name} onChange={() => chooseModel(m.name)} />
-                    <code>{m.name}</code>
-                    <Yours entry={m} />
-                    <span class="hint">{firstSentence(m.doc)}</span>
-                  </label>
-                )}
-              </For>
-            </div>
+            <legend>1. Model</legend>
+            <For each={[
+              { title: 'Families', hint: 'Oblivious robots or agents with memory: every assumption is an argument.', entries: models(lib()).filter((m) => !isPredefined(m)) },
+              { title: 'Predefined models', hint: 'A family with the assumptions of a line of work fixed.', entries: models(lib()).filter(isPredefined) },
+            ].filter((g) => g.entries.length)}>
+              {(group) => (
+                <>
+                  <p class="choice-group"><strong>{group.title}</strong> <span class="hint">{group.hint}</span></p>
+                  <div class="choices">
+                    <For each={group.entries}>
+                      {(m) => (
+                        <label class="choice" classList={{ on: draft().model === m.name }}>
+                          <input type="radio" name="model" aria-label={m.name} checked={draft().model === m.name} onChange={() => chooseModel(m.name)} />
+                          <code>{m.name}</code>
+                          <Yours entry={m} />
+                          <span class="hint">{firstSentence(m.doc)}</span>
+                        </label>
+                      )}
+                    </For>
+                  </div>
+                </>
+              )}
+            </For>
           </fieldset>
 
           <fieldset>

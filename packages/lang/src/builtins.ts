@@ -6,7 +6,7 @@ import type { Type } from './ir';
 import { isCollection, isData, mentions, showType, T, typeEq } from './types';
 
 /** Where an expression is evaluated. `space`: vertex lists and neighbor functions of a space. */
-export type Context = 'init' | 'domain' | 'sensor' | 'hook' | 'beforeMove' | 'task' | 'algorithm' | 'def' | 'space';
+export type Context = 'init' | 'domain' | 'sensor' | 'hook' | 'decisionHook' | 'schedule' | 'task' | 'algorithm' | 'def' | 'space';
 
 export type Signature = {
   /** Number of arguments; `undefined` means at least one. */
@@ -68,7 +68,7 @@ function predicate(name: string, ret: (l: Type) => Type) {
   } satisfies Signature;
 }
 
-const CONFIG_CONTEXTS: Context[] = ['init', 'hook', 'beforeMove', 'task', 'def'];
+const CONFIG_CONTEXTS: Context[] = ['init', 'hook', 'decisionHook', 'schedule', 'task', 'def'];
 
 export const BUILTINS: Record<string, Signature> = {
   // Logic and comparison
@@ -128,6 +128,8 @@ export const BUILTINS: Record<string, Signature> = {
   },
   /** All sub-collections, smallest first. */
   subsets: { arity: 1, ret: ([l]) => collection('subsets', l) ?? T.list(l) },
+  /** The nonempty sub-collections, smallest first. */
+  nonemptySubsets: { arity: 1, ret: ([l]) => collection('nonemptySubsets', l) ?? T.list(l) },
   /** Sub-collections with at most `k` elements. */
   subsetsUpTo: {
     arity: 2,
@@ -156,12 +158,14 @@ export const BUILTINS: Record<string, Signature> = {
   // Configurations and agents
   /** A multiset: anonymous agents have no order. */
   agents: { arity: 1, config: true, only: CONFIG_CONTEXTS, ret: ([c]) => c.k === 'config' ? T.multiset(T.agent) : err('agents: expected a Config') },
+  /** The agents whose flags allow acting (not `acts never`), for schedulers. */
+  eligible: { arity: 1, config: true, only: ['schedule', 'def'], ret: ([c]) => c.k === 'config' ? T.multiset(T.agent) : err('eligible: expected a Config') },
   /** No flag is raised. */
   correct: { arity: 1, config: true, ret: ([a]) => a.k === 'agent' ? T.bool : err('correct: expected an Agent') },
   /** No hidden flag is raised. */
   present: { arity: 1, config: true, ret: ([a]) => a.k === 'agent' ? T.bool : err('present: expected an Agent') },
   /** The decision of an agent this round; `decided` is false for agents that did not decide (then `target` is its position). */
-  decisionOf: { arity: 1, config: true, only: ['beforeMove', 'def'], ret: ([a]) => a.k === 'agent' ? T.decision : err('decisionOf: expected an Agent') },
+  decisionOf: { arity: 1, config: true, only: ['decisionHook', 'def'], ret: ([a]) => a.k === 'agent' ? T.decision : err('decisionOf: expected an Agent') },
   /** The neighbor of `a.pos` behind the agent's port `i`, in its kept frame (Frames.identity, .perRobot). */
   resolve: {
     arity: 3, config: true, only: CONFIG_CONTEXTS,

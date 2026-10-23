@@ -22,7 +22,7 @@ export type AlgorithmSource = {
 
 /** A declaration as written, with the doc comment and attributes before it, numbered as in its file. */
 export type SourceExcerpt = {
-  kind: 'experiment' | 'model' | 'space' | 'component' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition';
+  kind: 'experiment' | 'model' | 'space' | 'component' | 'scheduler' | 'sensor' | 'algorithm' | 'task' | 'goal' | 'definition';
   name: string;
   file?: string;
   lines: { number: number; text: string }[];
@@ -37,7 +37,7 @@ export type ModelFact = { label: string; value: string; code?: boolean; note?: s
 
 /**
  * What the model view shows to compare an experiment with its paper: its semantics in words,
- * the round with what the adversary chooses in each phase, and the declarations as written.
+ * the step with what the adversary chooses in each phase, and the declarations as written.
  */
 export type ModelDescription = {
   experiment: string;
@@ -46,8 +46,8 @@ export type ModelDescription = {
   /** Short facts for the page header. */
   summary: string[];
   sections: { title: string; facts: ModelFact[] }[];
-  /** The round, in order: what happens, which components act, what the adversary chooses. */
-  round: { phase: string; what: string; by?: string[]; choices?: string[] }[];
+  /** A step, in order: what happens, which components act, what the adversary chooses. */
+  step: { phase: string; what: string; by?: string[]; choices?: string[] }[];
   sources: SourceExcerpt[];
   /** Warnings about what the checks do not cover. */
   caveats: string[];
@@ -87,6 +87,12 @@ export type StepExplanation = {
   /** Where the agent moved: `stay`, or the location and the position behind it. */
   move: string;
   calls: TraceCall[];
+  /** With several events per cycle: the instants of the event the agent took. */
+  event?: string;
+  /** Its decision stays pending after this step. */
+  pending?: boolean;
+  /** It took no Look in this step: it applied the decision of an earlier one. */
+  applies?: boolean;
 };
 
 /** A configuration as plain values, for the state inspector. */
@@ -109,7 +115,7 @@ export type InspectedState = {
 /** Where an agent is in the algorithm's source. */
 export interface AgentExecutionState {
   agentId: string;
-  /** The source line of the agent's program counter: the statement of its last round (not in `lines` while it idles). */
+  /** The source line of the agent's program counter: the statement of its last step (not in `lines` while it idles). */
   line: number;
   /** The lines of the procedure calls the agent is inside, outermost first. */
   calls?: number[];

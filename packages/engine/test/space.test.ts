@@ -143,7 +143,7 @@ algorithm Jump uses occupied where
   main :=
     move ((visible.filter fun l => distance here l = 2).at 0)
 experiment e where
-  model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied]
+  model := obliviousRobots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied]
   algorithm := Jump
   task := Gathering
   param N : Nat

@@ -377,9 +377,9 @@ export function ConfigGraphGenerator<T, ConfigType, ModelType>(props: ConfigGrap
         <div class="cg-controls">
           <label class="cg-depth">
             <span>Max depth</span>
-            <input type="number" value={maxDepth()} min="0" max="1000" aria-label="Max depth (rounds)"
+            <input type="number" value={maxDepth()} min="0" max="1000" aria-label="Max depth (steps)"
               onInput={e => { const n = e.currentTarget.valueAsNumber; if (Number.isInteger(n) && n >= 0) setMaxDepth(n); }} />
-            <span class="sim-muted">rounds</span>
+            <span class="sim-muted">steps</span>
           </label>
           <Show when={!isGenerating()} fallback={<button class="sim-btn" onClick={stop}><Icon name="stop" size={14} /> Stop</button>}>
             <button class="sim-primary" onClick={generate}><Icon name="play" size={14} /> Generate graph</button>

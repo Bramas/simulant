@@ -26,7 +26,8 @@ test('every public project and the library examples compile without diagnostics'
     'packages/stdlib/sim/examples.sim': ['cautiousPair', 'cautiousPairCrash'],
     'packages/stdlib/sim/conformance.sim': [
       'blackHoleEmerging', 'blackHoleCrashStop', 'blackHoleLossy', 'pebbles', 'gatheringRobots', 'dynamicRing', 'ownOrientation',
-      'portPermutations', 'ssync', 'sequential', 'parameterAcceptance', 'lights', 'starGathering', 'starDispersion',
+      'portPermutations', 'ssync', 'sequential', 'parameterAcceptance', 'lights', 'asyncLights', 'lcAtomicLights', 'cmAtomicLights',
+      'bounded', 'permutation', 'starGathering', 'starDispersion',
       'agentFields', 'edgePresence',
     ],
     'projects/starter/src/main.sim': ['cautiousPair'],
@@ -60,5 +61,5 @@ test('the project models compose the declared spaces, observations and frames', 
   assert.deepEqual(line.components.map(c => c.name), ['Lights', 'CrashAt']);
   assert.deepEqual(line.components[0].agent, [{ name: 'light', type: { k: 'nat' } }]);
 
-  assert.equal(model('black-hole-search/sim/algo6.sim', 'algo6Async').round, 'ssync');
+  assert.equal(model('black-hole-search/sim/algo6.sim', 'algo6Async').scheduler.name, 'SSync');
 });

@@ -31,7 +31,7 @@ export function experiment(source: string, name = 'e') {
 }
 
 /** A model on a cycle, with an algorithm `A` and the task `Gathering`. */
-export const CYCLE = (algorithm: string, model = 'robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates] (memory := .persistent)') => `import "std/models.sim"
+export const CYCLE = (algorithm: string, model = 'agentsWithMemory (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates]') => `import "std/models.sim"
 ${algorithm}
 experiment e where
   model := ${model}

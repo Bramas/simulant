@@ -1,9 +1,10 @@
 /**
  * An experiment with concrete parameters: its space, its initial configurations, the
- * successors of a configuration under the model's round, and the task's verdict (docs/ir.md).
+ * successors of a configuration under the model's scheduler, and the task's verdict (docs/ir.md,
+ * docs/scheduler-design.md).
  */
 import { check } from '@bramas/simulant-lang/check';
-import type { Component, Def, Experiment, Expr, Sensor, Space, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Def, Experiment, Expr, Scheduler, Sensor, Space, Type } from '@bramas/simulant-lang/ir';
 import type { Layout } from '@bramas/simulant-lang/layout';
 import { resolvePub, T } from '@bramas/simulant-lang/types';
 import {
@@ -15,6 +16,7 @@ import {
   type AutomorphismSpec, type Presentation, type Vertex, type View,
 } from './space';
 import { encoder, equality, mapper, show, vertexKey, type V } from './values';
+import type { Instant, SchedulerRuntime } from './scheduler';
 
 export type { AgentV, Choice, Config, DecisionV, TraceCall };
 export { Look };
@@ -40,6 +42,12 @@ export type Explanation = {
   move: string;
   /** The definitions the step called, with their arguments, results and return lines. */
   calls: TraceCall[];
+  /** With several events per cycle: the instants of the event the agent took (`Look`, `Compute, Move`). */
+  event?: string;
+  /** Its decision stays pending after this step (its Compute or Move is still to come). */
+  pending?: boolean;
+  /** It took no Look in this step: it applied the decision of an earlier one (`locations` is then empty). */
+  applies?: boolean;
 };
 
 export type Successor = {
@@ -47,7 +55,7 @@ export type Successor = {
   key: string;
   /** The choices of the first (smallest) witness leading to this configuration. */
   witness: Choice[];
-  /** Agents (indices in the source configuration) activated by some witness of this step. */
+  /** Agents (indices in the source configuration) that take an event in some witness of this step. */
   activated: Set<number>;
   /** When recording (`explain`): each agent's inputs (by index in the source configuration), and the source index of each agent of `config`. */
   inputs?: (StepInput | undefined)[];
@@ -57,8 +65,10 @@ export type Successor = {
 export type Verdict = 'success' | 'failure' | 'inProgress';
 
 export type SystemOptions = {
-  /** Store anonymous agents sorted (default: under FSYNC). Off, agents keep their index, as in Lean. */
+  /** Store anonymous agents sorted (default: when the scheduler allows it). Off, agents keep their index, as in Lean. */
   sortAgents?: boolean;
+  /** The scheduler (default: the model's). */
+  scheduler?: SchedulerRuntime;
   /** Remember the step's result for each input (default: on). */
   memoStep?: boolean;
 };
@@ -131,11 +141,12 @@ export class System {
   readonly space: SpaceRuntime;
   /** The observation radius (`Infinity` for a full view). */
   readonly radius: number;
-  /** Anonymous agents are stored as a sorted multiset; under SSYNC (or when asked) they keep their identity. */
+  /** Anonymous agents are stored as a sorted multiset, when the scheduler allows it (or when asked). */
   readonly anonymous: boolean;
+  readonly scheduler: SchedulerRuntime;
   private readonly compiler: Compiler;
   private readonly sensors: CompiledSensor[];
-  private readonly hooks: Record<'beforeLook' | 'beforeMove' | 'afterMove', Bound[]>;
+  private readonly hooks: Record<HookPoint, Bound[]>;
   private readonly step: (mem: V, pub: V, look: Look, env: SensorEnv) => Record<string, V>;
   private readonly verdictFn: RootFn;
   private readonly lineFn?: RootFn;
@@ -168,14 +179,15 @@ export class System {
     rt.frames = model.frames;
     this.radius = model.observation.kind === 'radius' ? runDet(compiler.root(model.observation.r, [], defsOf(model.defs)), []) : Infinity;
     this.key0 = instantiation(exp, compiler);
-    this.anonymous = opts.sortAgents ?? model.round === 'fsync';
+    this.scheduler = opts.scheduler ?? this.compileScheduler(model.scheduler);
+    this.anonymous = opts.sortAgents ?? this.scheduler.anonymous;
 
     this.sensors = lay.used.map(s => this.compileSensor(s, model.components.find(c => c.name === s.owner)));
 
-    this.hooks = { beforeLook: [], beforeMove: [], afterMove: [] };
+    this.hooks = { beforeLook: [], onCompute: [], beforeMove: [], afterMove: [] };
     for (const c of model.components) {
       const [vars, args] = componentParams(c);
-      for (const hook of ['beforeLook', 'beforeMove', 'afterMove'] as const) {
+      for (const hook of HOOK_POINTS) {
         const body = c[hook];
         if (body) this.hooks[hook].push({ fn: compiler.root(body, [['C', T.config], ...vars], defsOf(model.defs, c.defs)), args });
       }
@@ -217,15 +229,30 @@ export class System {
     ]));
     const pubKey = encoder(lay.pub);
     const memKey = encoder(lay.mem);
+    const decisionKey = this.decisionKey = encoder(decisionType(lay));
     this.agentKey = a => {
       const s = vertexKey(a.pos) + (a.frame ? `/${a.frame.join(',')}` : '') + '|';
-      return s + fieldsKey(a.f) + '|' + pubKey(a.pub) + '|' + memKey(a.mem);
+      // Between cycles (always, with atomic cycles) the key is the same as without phases.
+      const cycle = a.phase ? `|@${a.phase}:${decisionKey(a.pending!)}` : '';
+      return s + fieldsKey(a.f) + '|' + pubKey(a.pub) + '|' + memKey(a.mem) + cycle;
     };
     this.worldKey = encoder(lay.worldType);
-    this.decisionKey = encoder(T.record([
-      { name: 'decided', type: T.bool }, { name: 'target', type: T.pos }, { name: 'pub', type: lay.pub }, { name: 'mem', type: lay.mem },
-      ...lay.actions.map(({ name, type }) => ({ name, type })),
-    ]));
+  }
+
+  /**
+   * The model's scheduler: its `schedule` hook, like a component's, chooses an effect whose
+   * `activate` marks the agents that take their next event (among the eligible ones).
+   */
+  private compileScheduler(sc: Scheduler): SchedulerRuntime {
+    const [vars, args] = componentParams(sc);
+    const fn = this.compiler.root(sc.schedule, [['C', T.config], ...vars], defsOf(this.exp.model.defs, sc.defs));
+    return {
+      events: sc.events,
+      fairness: sc.fairness,
+      // Agents keep their identity while fairness is tracked per agent.
+      anonymous: sc.fairness === 'none',
+      schedule: (C, eligible, _w, k) => runND(fn, [C, ...args], eff => k(eligible.filter(i => eff.activate?.[i]), eff)),
+    };
   }
 
   /** Parameters holding positions must hold vertices of the space. */
@@ -299,9 +326,20 @@ export class System {
       this.recording = false;
     }
     if (!succ?.order || !succ.inputs) return [];
+    const events = this.scheduler.events;
     return succ.order.map(from => {
+      const a = C.agents[from];
+      const event = events[a.phase ?? 0];
+      // With atomic cycles every event is a whole cycle: nothing to say about it.
+      const label = events.length > 1 ? event.map(i => i[0].toUpperCase() + i.slice(1)).join(', ') : undefined;
       const input = succ!.inputs![from];
-      return input && this.explainStep(C.agents[from], input);
+      if (input) {
+        const e = this.explainStep(a, input);
+        return label ? { ...e, event: label, pending: !event.includes('move') } : e;
+      }
+      if (!label || !a.pending || !succ!.activated.has(from)) return undefined;
+      const move = vertexKey(a.pending.target) === vertexKey(a.pos) ? 'stay' : show(T.pos)(a.pending.target);
+      return { frame: '', view: {}, locations: [], move, calls: [], event: label, pending: !event.includes('move'), applies: true };
     });
   }
 
@@ -440,14 +478,15 @@ export class System {
         });
       }
     }
-    for (const c of exp.model.components) {
+    const owners = [...exp.model.components, exp.model.scheduler];
+    for (const c of owners) {
       const [vars, args] = componentParams(c);
       for (const f of c.agent ?? []) {
         const fn = compiler.root(c.init!.agent![f.name], [['i', T.nat], ...vars], defsOf(exp.model.defs, c.defs));
         for (let i = 0; i < k; i++) slots.push({ run: kk => runND(fn, [i, ...args], kk), agent: i, set: (agents, _w, v) => { agents[i].f[f.name] = v; } });
       }
     }
-    for (const c of exp.model.components) {
+    for (const c of owners) {
       const [vars, args] = componentParams(c);
       for (const f of c.world ?? []) {
         const fn = compiler.root(c.init!.world![f.name], vars, defsOf(exp.model.defs, c.defs));
@@ -481,10 +520,10 @@ export class System {
   }
 
   // -------------------------------------------------------------------------
-  // The standard round
+  // A step (docs/scheduler-design.md, section 1)
 
   successors(C: Config): Successor[] {
-    const { rt, space } = this;
+    const { rt, space, scheduler } = this;
     if (!this.degree) this.degree = space.maxDegree(C.agents.map(a => a.pos));
     const out = new Map<string, Successor>();
     const states = space.states();
@@ -495,24 +534,42 @@ export class System {
       if (states.length > 1) rt.witness.push({ site: 'edges', index: si, label });
       this.parallel(C, this.hooks.beforeLook, eff => {
         const C1 = this.apply(C, eff);
-        // 2. Activation.
-        this.activate(C1, active => {
-          // 3. Looks and compute.
-          this.decide(C1, active, (decisions, inputs) => {
-            rt.decisions = decisions;
-            // 4. beforeMove, with the decisions.
-            this.parallel(C1, this.hooks.beforeMove, eff2 => {
-              // 5. Move.
-              const C3 = this.move(this.apply(C1, eff2), decisions);
-              // 6. afterMove.
-              this.parallel(C3, this.hooks.afterMove, eff3 => {
-                const { config, order } = this.canonicalOrder(this.apply(C3, eff3));
-                const key = this.key(config);
-                const known = out.get(key);
-                if (known) for (const i of active) known.activated.add(i);
-                else out.set(key, {
-                  config, key, witness: rt.witness.slice(), activated: new Set(active),
-                  ...(this.recording ? { inputs: inputs.slice(), order } : {}),
+        // The agents that take their next event, and the scheduler's own effect. With no eligible
+        // agent, the step idles without asking the scheduler.
+        const eligible = C1.agents.flatMap((a, i) => rt.acts(a) === 'never' ? [] : [i]);
+        const schedule = (k: (active: number[], eff?: Effect) => void) => eligible.length ? scheduler.schedule(C1, eligible, rt.witness, k) : k([]);
+        schedule((active, effS) => {
+          const C2 = this.apply(C1, effS);
+          const event = (i: number) => scheduler.events[C2.agents[i].phase ?? 0];
+          const has = (i: number, instant: Instant) => event(i).includes(instant);
+          // 2. Looks, all from the configuration at the start of the step, and their decisions.
+          this.decide(C2, active.filter(i => has(i, 'look')), (looked, inputs) => {
+            const decisions = C2.agents.map((a, i) => looked[i].decided ? looked[i] : a.pending ?? looked[i]);
+            const at = (instant: Instant) => {
+              const now = new Set(active.filter(i => has(i, instant)));
+              return decisions.map((d, i) => now.has(i) ? d : this.idle(C2.agents[i]));
+            };
+            // 3. onCompute, with the decisions taking effect now; then their states apply.
+            const computing = at('compute');
+            rt.decisions = computing;
+            this.parallel(C2, this.hooks.onCompute, effC => {
+              const C3 = this.compute(this.apply(C2, effC), computing);
+              // 4. beforeMove, with the moves happening now; then the moves.
+              const moving = at('move');
+              rt.decisions = moving;
+              this.parallel(C3, this.hooks.beforeMove, effM => {
+                const C4 = this.move(this.apply(C3, effM), moving);
+                // 5. afterMove; then the scheduled agents advance in their cycle.
+                this.parallel(C4, this.hooks.afterMove, effA => {
+                  const C5 = this.advance(this.apply(C4, effA), active, decisions);
+                  const { config, order } = this.canonicalOrder(C5);
+                  const key = this.key(config);
+                  const known = out.get(key);
+                  if (known) for (const i of active) known.activated.add(i);
+                  else out.set(key, {
+                    config, key, witness: rt.witness.slice(), activated: new Set(active),
+                    ...(this.recording ? { inputs: inputs.slice(), order } : {}),
+                  });
                 });
               });
             });
@@ -563,36 +620,11 @@ export class System {
     return this.lay.agentFields.find(f => f.name === name)!.type;
   }
 
-  /** FSYNC: all eligible agents; SSYNC: any nonempty subset; sequential: any singleton. */
-  private activate(C: Config, k: (active: number[]) => void) {
-    const eligible = C.agents.flatMap((a, i) => this.rt.acts(a) === 'never' ? [] : [i]);
-    if (this.exp.model.round === 'fsync' || eligible.length === 0) return k(eligible);
-    const w = this.rt.witness;
-    let index = 0;
-    const maxSize = this.exp.model.round === 'sequential' ? 1 : eligible.length;
-    for (let size = 1; size <= maxSize; size++) {
-      const pick = (from: number, current: number[]) => {
-        if (current.length === size) {
-          w.push({ site: 'activation', index: index++, label: `activates ${current.map(i => `a${i}`).join(', ')}` });
-          k(current.slice());
-          w.pop();
-          return;
-        }
-        for (let i = from; i < eligible.length; i++) {
-          current.push(eligible[i]);
-          pick(i + 1, current);
-          current.pop();
-        }
-      };
-      pick(0, []);
-    }
-  }
-
   private idle(a: AgentV): DecisionV {
     return { decided: false, target: a.pos, pub: a.pub, mem: a.mem, ...this.actionDefaults };
   }
 
-  /** The product, over the activated agents, of their possible decisions (with the inputs of each, by agent). */
+  /** The product, over the looking agents, of their possible decisions (with the inputs of each, by agent); idle for the others. */
   private decide(C: Config, active: number[], k: (decisions: DecisionV[], inputs: (StepInput | undefined)[]) => void) {
     const options = active.map(i => this.options(C, i));
     const decisions = C.agents.map(a => this.idle(a));
@@ -724,32 +756,65 @@ export class System {
     return s;
   }
 
-  /** Movement along edges: to the agent's position or a neighbor; through an edge missing this round, the agent stays. */
+  /** Compute: the public states and memories of the decisions taking effect, for agents that still act. */
+  private compute(C: Config, decisions: DecisionV[]): Config {
+    const { rt } = this;
+    let changed = false;
+    const agents = C.agents.map((a, i) => {
+      const d = decisions[i];
+      if (!d.decided || rt.acts(a) === 'never' || (d.pub === a.pub && d.mem === a.mem)) return a;
+      changed = true;
+      return { ...a, pub: d.pub, mem: d.mem };
+    });
+    return changed ? { agents, world: C.world } : C;
+  }
+
+  /** Movement along edges: to the agent's position or a neighbor; through an edge missing this step, the agent stays. */
   private move(C: Config, decisions: DecisionV[]): Config {
     const { rt, space } = this;
     let changed = false;
     const agents = C.agents.map((a, i) => {
       const d = decisions[i];
-      if (!d.decided || rt.acts(a) === 'never') return a;
-      let pos = a.pos;
-      if (vertexKey(d.target) !== vertexKey(a.pos)) {
-        if (!space.neighbors(a.pos).some(w => vertexKey(w) === vertexKey(d.target))) {
-          throw new Error(`a${i} moves from u${vertexKey(a.pos)} to u${vertexKey(d.target)}, which is not a neighbor`);
-        }
-        if (space.edgePresent(rt.spaceState, a.pos, d.target)) pos = d.target;
+      if (!d.decided || rt.acts(a) === 'never' || vertexKey(d.target) === vertexKey(a.pos)) return a;
+      if (!space.neighbors(a.pos).some(w => vertexKey(w) === vertexKey(d.target))) {
+        throw new Error(`a${i} moves from u${vertexKey(a.pos)} to u${vertexKey(d.target)}, which is not a neighbor`);
       }
-      if (pos === a.pos && d.pub === a.pub && d.mem === a.mem) return a;
+      if (!space.edgePresent(rt.spaceState, a.pos, d.target)) return a;
       changed = true;
-      return { ...a, pos, pub: d.pub, mem: d.mem };
+      return { ...a, pos: d.target };
     });
     return changed ? { agents, world: C.world } : C;
+  }
+
+  /** The scheduled agents take their event: the next one of their cycle, keeping the decision until its last. */
+  private advance(C: Config, active: number[], decisions: DecisionV[]): Config {
+    const n = this.scheduler.events.length;
+    if (n === 1) return C;
+    const agents = C.agents.slice();
+    for (const i of active) {
+      const phase = ((agents[i].phase ?? 0) + 1) % n;
+      const { phase: _p, pending: _d, ...rest } = agents[i];
+      agents[i] = phase ? { ...rest, phase, pending: decisions[i] } : rest;
+    }
+    return { agents, world: C.world };
   }
 }
 
 type Bound = { fn: RootFn; args: V[] };
 
-/** A component's parameters, as extra root variables, and their values. */
-function componentParams(c: Component | undefined): [[string, Type][], V[]] {
+const HOOK_POINTS = ['beforeLook', 'onCompute', 'beforeMove', 'afterMove'] as const;
+type HookPoint = typeof HOOK_POINTS[number];
+
+/** The type of a decision: whether the agent decided, its target, its new state and its actions. */
+export function decisionType(lay: Layout): Type {
+  return T.record([
+    { name: 'decided', type: T.bool }, { name: 'target', type: T.pos }, { name: 'pub', type: lay.pub }, { name: 'mem', type: lay.mem },
+    ...lay.actions.map(({ name, type }) => ({ name, type })),
+  ]);
+}
+
+/** A component's (or the scheduler's) parameters, as extra root variables, and their values. */
+function componentParams(c: Component | Scheduler | undefined): [[string, Type][], V[]] {
   const params = c?.params ?? [];
   return [params.map(p => [p.name, p.type]), params.map(p => c!.args![p.name])];
 }

@@ -2,16 +2,18 @@ import Simulant.ND
 import Simulant.Space
 
 /-!
-# The standard round (docs/ir.md, "The standard round")
+# A step (docs/ir.md, "A step"; docs/scheduler-design.md)
 
 Everything is generic over a signature `Sig`: the space, the number of agents, and the composed
 types of flags, component agent fields, public state, memory, actions, world and sensor
 environment. A generated model file instantiates it.
 
-The round follows the interpreter step by step, so that the interpreter's witnesses are
-witnesses here: the space state, `beforeLook`, activation, for each activated agent its Look
-(a presentation of its view under one morphism) and its sensors, the decisions, `beforeMove`,
-movement along edges, and `afterMove`.
+The step follows the interpreter stage by stage, so that the interpreter's witnesses are
+witnesses here: the space state, `beforeLook`, the scheduler's choice of the agents that take
+their next event, for each of them whose event includes Look its Look (a presentation of its
+view under one morphism), its sensors and its decision, `onCompute` and the new states, `beforeMove`
+and movement along edges, `afterMove`, and the agents' advance in their cycles. An agent between
+two events of its cycle keeps its pending decision (`Agent.pending`).
 -/
 
 namespace Simulant
@@ -55,6 +57,25 @@ abbrev TState (S : Space) := List S.Edge
 
 variable {σ : Sig}
 
+structure Decision (σ : Sig) where
+  decided : Bool
+  /-- The position the agent moves to (its own to stay). -/
+  target : σ.S.Pos
+  pub : σ.P
+  mem : σ.M
+  act : σ.A
+
+/-- An instant of an agent's Look-Compute-Move cycle. -/
+inductive Instant where
+  | look | compute | move
+deriving DecidableEq, Repr
+
+/-- Which executions are admissible: those in which every agent that acts forever takes events
+infinitely often (`activation`), or all of them (`none`). -/
+inductive Fairness where
+  | activation | none
+deriving DecidableEq, Repr
+
 structure Agent (σ : Sig) where
   pos : σ.S.Pos
   /-- The agent's kept port permutation (`Frames.portPermutations .perRobot`); empty otherwise. -/
@@ -63,6 +84,10 @@ structure Agent (σ : Sig) where
   fields : σ.X
   pub : σ.P
   mem : σ.M
+  /-- The number of events of its current cycle the agent has taken (0 between cycles). -/
+  phase : Nat := 0
+  /-- Meanwhile, the decision of its last Look, not yet applied. -/
+  pending : Option (Decision σ) := none
 
 /-- The space's port behind the agent's local port `i`: through its kept permutation, if any. -/
 def Agent.port (a : Agent σ) (i : Nat) : Nat := if a.frame.isEmpty then i else a.frame.getD i i
@@ -93,14 +118,6 @@ def Config.apply [FlagSet σ.F] (C : Config σ) (e : Effect σ) : Config σ :=
   { agents := Vector.ofFn fun i =>
       { C.agents[i] with flags := FlagSet.merge C.agents[i].flags (e.raise i), fields := e.fields i C.agents[i].fields },
     world := e.world C.world }
-
-structure Decision (σ : Sig) where
-  decided : Bool
-  /-- The position the agent moves to (its own to stay). -/
-  target : σ.S.Pos
-  pub : σ.P
-  mem : σ.M
-  act : σ.A
 
 /-- What the algorithm returns: the move is a location of its Look. -/
 structure Out (σ : Sig) where
@@ -168,6 +185,9 @@ end Look
 
 structure Component (σ : Sig) where
   beforeLook : TState σ.S → Config σ → ND (Effect σ)
+  /-- At Compute, with the decisions taking effect. -/
+  onCompute : TState σ.S → Config σ → (Fin σ.k → Decision σ) → ND (Effect σ)
+  /-- Before Move, with the moves about to happen. -/
   beforeMove : TState σ.S → Config σ → (Fin σ.k → Decision σ) → ND (Effect σ)
   afterMove : TState σ.S → Config σ → ND (Effect σ)
 
@@ -188,13 +208,39 @@ def OwnEffect.lift (L : Lens σ.W Wc) (Lx : Lens σ.X Xc) (e : OwnEffect σ Wc X
 /-- The hooks of a component that owns world part `Wc` and agent-field part `Xc`. -/
 structure Hooks (σ : Sig) (Wc Xc : Type) where
   beforeLook : TState σ.S → Config σ → ND (OwnEffect σ Wc Xc)
+  onCompute : TState σ.S → Config σ → (Fin σ.k → Decision σ) → ND (OwnEffect σ Wc Xc)
   beforeMove : TState σ.S → Config σ → (Fin σ.k → Decision σ) → ND (OwnEffect σ Wc Xc)
   afterMove : TState σ.S → Config σ → ND (OwnEffect σ Wc Xc)
 
 def Hooks.toComponent (h : Hooks σ Wc Xc) (L : Lens σ.W Wc) (Lx : Lens σ.X Xc) : Component σ where
   beforeLook ts C := do let e ← h.beforeLook ts C; pure (e.lift L Lx)
+  onCompute ts C ds := do let e ← h.onCompute ts C ds; pure (e.lift L Lx)
   beforeMove ts C ds := do let e ← h.beforeMove ts C ds; pure (e.lift L Lx)
   afterMove ts C := do let e ← h.afterMove ts C; pure (e.lift L Lx)
+
+/-! ## Schedulers -/
+
+/-- What a scheduler's `schedule` returns: the agents that take their next event, and its effect
+on the parts of the state it owns. -/
+structure Scheduled (σ : Sig) where
+  activate : Fin σ.k → Bool
+  effect : Effect σ
+
+structure Scheduler (σ : Sig) where
+  /-- The cut of the cycle: its events, in order, each a list of instants. -/
+  events : List (List Instant)
+  fairness : Fairness
+  schedule : TState σ.S → Config σ → ND (Scheduled σ)
+
+/-- The `schedule` hook of a scheduler that owns world part `Wc` and agent-field part `Xc`. -/
+structure SchedulerHooks (σ : Sig) (Wc Xc : Type) where
+  schedule : TState σ.S → Config σ → ND ((Fin σ.k → Bool) × OwnEffect σ Wc Xc)
+
+def SchedulerHooks.toScheduler (h : SchedulerHooks σ Wc Xc) (events : List (List Instant)) (fairness : Fairness)
+    (L : Lens σ.W Wc) (Lx : Lens σ.X Xc) : Scheduler σ where
+  events := events
+  fairness := fairness
+  schedule ts C := do let s ← h.schedule ts C; pure ⟨s.1, s.2.lift L Lx⟩
 
 /-- The lens of a component that owns no part of `S`. -/
 def Lens.unit (S : Type) : Lens S Unit := ⟨fun _ => (), fun s _ => s⟩
@@ -215,17 +261,13 @@ inductive Frames (S : Space) where
   /-- The ports, through the agent's kept permutation (`Agent.frame`). -/
   | perRobot
 
-inductive RoundKind where
-  | fsync | ssync | sequential
-deriving DecidableEq, Repr
-
 structure Model (σ : Sig) where
   tstates : List (TState σ.S)
   components : List (Component σ)
   /-- The radius of the view (the number of positions, for the full view of a finite space). -/
   radius : Nat
   frames : Frames σ.S
-  round : RoundKind
+  scheduler : Scheduler σ
   /-- The sensors of a Look, with their Look-level choices. -/
   env : Look σ → ND σ.E
   step : σ.M → σ.P → Look σ → σ.E → Out σ
@@ -242,8 +284,15 @@ def parallel [FlagSet σ.F] : List (Config σ → ND (Effect σ)) → Config σ 
 def Decision.idle (a : Agent σ) (act : σ.A) : Decision σ :=
   { decided := false, target := a.pos, pub := a.pub, mem := a.mem, act }
 
+/-- Compute: agents whose decision takes effect and that still act take its public state and memory. -/
+def computeAll [FlagSet σ.F] (C : Config σ) (ds : Fin σ.k → Decision σ) : Config σ :=
+  { C with agents := Vector.ofFn fun i =>
+      let a := C.agents[i]
+      let d := ds i
+      if d.decided && FlagSet.acts a.flags != .never then { a with pub := d.pub, mem := d.mem } else a }
+
 /-- Movement along edges: agents that decided and still act move to their target when it is a
-neighbor through an edge present this round, and take their new state. -/
+neighbor through an edge present this step. -/
 def moveAll [FlagSet σ.F] (ts : TState σ.S) (C : Config σ) (ds : Fin σ.k → Decision σ) : Config σ :=
   { C with agents := Vector.ofFn fun i =>
       let a := C.agents[i]
@@ -251,9 +300,12 @@ def moveAll [FlagSet σ.F] (ts : TState σ.S) (C : Config σ) (ds : Fin σ.k →
       if d.decided && FlagSet.acts a.flags != .never then
         { a with
           pos := if d.target != a.pos && (σ.S.neighbors a.pos).contains d.target && σ.S.edgePresent ts a.pos d.target
-            then d.target else a.pos,
-          pub := d.pub, mem := d.mem }
+            then d.target else a.pos }
       else a }
+
+/-- The agents able to act. -/
+def Config.eligible [FlagSet σ.F] (C : Config σ) : List (Fin σ.k) :=
+  (List.finRange σ.k).filter fun i => FlagSet.acts C.agents[i].flags != .never
 
 /-- Sub-lists of `l` with `n` elements, in lexicographic order of positions. -/
 def combos : Nat → List α → List (List α)
@@ -276,13 +328,38 @@ namespace Model
 
 variable [FlagSet σ.F] (m : Model σ)
 
-/-- FSYNC: all eligible agents; SSYNC: a nonempty subset; sequential: a singleton. -/
-def activate (C : Config σ) : ND (List (Fin σ.k)) :=
-  let eligible := (List.finRange σ.k).filter fun i => FlagSet.acts C.agents[i].flags != .never
-  match m.round with
-  | .fsync => pure eligible
-  | .ssync => if eligible.isEmpty then pure eligible else ND.choose "activation" (nonemptySubsets eligible)
-  | .sequential => if eligible.isEmpty then pure eligible else ND.choose "activation" (eligible.map ([·]))
+/-- The agents that take their next event, among the eligible ones, and the scheduler's effect.
+With no eligible agent, the step idles without asking the scheduler. -/
+def schedule (ts : TState σ.S) (C : Config σ) : ND (List (Fin σ.k) × Effect σ) :=
+  if C.eligible.isEmpty then pure ([], Effect.none) else do
+    let s ← m.scheduler.schedule ts C
+    pure (C.eligible.filter s.activate, s.effect)
+
+/-- The instants of the next event of agent `i`. -/
+def event (C : Config σ) (i : Fin σ.k) : List Instant := m.scheduler.events.getD C.agents[i].phase []
+
+/-- The scheduled agents whose event includes Look. -/
+def lookers (C : Config σ) (active : List (Fin σ.k)) : List (Fin σ.k) :=
+  active.filter fun i => (m.event C i).contains .look
+
+/-- Each agent's decision: from its Look in this step, or pending from an earlier one. -/
+def decisions (C : Config σ) (looked : Fin σ.k → Decision σ) : Fin σ.k → Decision σ :=
+  fun j => if (m.event C j).contains .look then looked j else C.agents[j].pending.getD (looked j)
+
+/-- The decisions taking effect at instant `x`: those of the scheduled agents whose event includes it. -/
+def taking (act0 : σ.A) (C : Config σ) (active : List (Fin σ.k)) (ds : Fin σ.k → Decision σ) (x : Instant) :
+    Fin σ.k → Decision σ :=
+  fun j => if active.contains j && (m.event C j).contains x then ds j else Decision.idle C.agents[j] act0
+
+/-- The scheduled agents take their event: the next one of their cycle, keeping their decision
+until its last. -/
+def advance (C : Config σ) (active : List (Fin σ.k)) (ds : Fin σ.k → Decision σ) : Config σ :=
+  { C with agents := Vector.ofFn fun i =>
+      let a := C.agents[i]
+      if active.contains i then
+        let p := (a.phase + 1) % m.scheduler.events.length
+        { a with phase := p, pending := if p = 0 then none else some (ds i) }
+      else a }
 
 /-- The presentations of an agent's view, one per morphism its frames allow. -/
 def presentations (a : Agent σ) : List Space.Presentation :=
@@ -313,24 +390,29 @@ def options (act0 : σ.A) (ts : TState σ.S) (C : Config σ) (i : Fin σ.k) : ND
     let o := m.step a.mem a.pub L e
     pure { decided := true, target := L.position o.move, pub := o.pub, mem := o.mem, act := o.act }
 
-/-- The product, over the activated agents, of their decisions. -/
+/-- The product, over the agents that look, of their decisions. -/
 def decideAll (act0 : σ.A) (ts : TState σ.S) (C : Config σ) (active : List (Fin σ.k)) : ND (Fin σ.k → Decision σ) :=
   active.foldlM (fun ds i => do
       let d ← m.options act0 ts C i
       pure fun j => if j = i then d else ds j)
     (fun j => Decision.idle C.agents[j] act0)
 
-/-- One round, with the activated agents. `act0` is the default value of the actions. -/
+/-- One step, with the agents that take an event. `act0` is the default value of the actions. -/
 def roundA (act0 : σ.A) (C : Config σ) : ND (List (Fin σ.k) × Config σ) := do
   let ts ← chooseIfMany "edges" m.tstates
-  let e ← parallel (m.components.map fun c => c.beforeLook ts) C
-  let C := C.apply e
-  let active ← m.activate C
-  let ds ← m.decideAll act0 ts C active
-  let e ← parallel (m.components.map fun c D => c.beforeMove ts D ds) C
-  let C := moveAll ts (C.apply e) ds
-  let e ← parallel (m.components.map fun c => c.afterMove ts) C
-  pure (active, C.apply e)
+  let e1 ← parallel (m.components.map fun c => c.beforeLook ts) C
+  let s ← m.schedule ts (C.apply e1)
+  let C2 := (C.apply e1).apply s.2
+  let looked ← m.decideAll act0 ts C2 (m.lookers C2 s.1)
+  let ds := m.decisions C2 looked
+  let dc := m.taking act0 C2 s.1 ds .compute
+  let dm := m.taking act0 C2 s.1 ds .move
+  let e2 ← parallel (m.components.map fun c D => c.onCompute ts D dc) C2
+  let C3 := computeAll (C2.apply e2) dc
+  let e3 ← parallel (m.components.map fun c D => c.beforeMove ts D dm) C3
+  let C4 := moveAll ts (C3.apply e3) dm
+  let e4 ← parallel (m.components.map fun c => c.afterMove ts) C4
+  pure (s.1, m.advance (C4.apply e4) s.1 ds)
 
 /-- The step relation, with witnesses. -/
 def Step (act0 : σ.A) (C : Config σ) (w : Witness) (C' : Config σ) : Prop :=

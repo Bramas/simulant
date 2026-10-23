@@ -819,6 +819,18 @@ code {
   margin-left: 24px;
 }
 
+.choice-group {
+  margin: 14px 0 6px;
+}
+
+.choice-group:first-of-type {
+  margin-top: 0;
+}
+
+.choice-group .hint {
+  display: block;
+}
+
 .pick-head {
   cursor: pointer;
 }

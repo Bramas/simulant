@@ -3,7 +3,7 @@
  * derived from the IR, and the declarations it is built from as written in their files, so that a
  * reader can compare the experiment with the paper it comes from.
  */
-import type { Component, Experiment, Expr, Frames, Json, Observation, Space, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Experiment, Expr, Frames, Json, Observation, Scheduler, Space, Type } from '@bramas/simulant-lang/ir';
 import { referenceOrderingWarning } from '@bramas/simulant-lang/caveats';
 import { derivedGroup } from '@bramas/simulant-engine/symmetry';
 import { parameterValues } from '@bramas/simulant-engine/system';
@@ -117,7 +117,7 @@ const GOALS = {
   safety: { formula: '□ ¬failure', text: 'no execution reaches a configuration with verdict failure' },
 } as const;
 
-const HOOKS = ['beforeLook', 'beforeMove', 'afterMove'] as const;
+const HOOKS = ['beforeLook', 'onCompute', 'beforeMove', 'afterMove'] as const;
 
 /** A model argument as written: a literal, a parameter, or a variable of the space. */
 function exprText(e: Expr): string {
@@ -131,7 +131,7 @@ function spaceFact(s: Space): { value: string; note: string; summary: string } {
       const name = `${s.name}${args.length ? ` ${args.join(' ')}` : ''}`;
       return {
         value: name,
-        note: `A graph whose ${s.vertices ? 'vertices' : 'vertices (infinitely many, with finite neighborhoods)'} and ordered neighbors (its ports) come from the space's definition. Every edge is present in every round.`,
+        note: `A graph whose ${s.vertices ? 'vertices' : 'vertices (infinitely many, with finite neighborhoods)'} and ordered neighbors (its ports) come from the space's definition. Every edge is present in every step.`,
         summary: name,
       };
     }
@@ -140,7 +140,7 @@ function spaceFact(s: Space): { value: string; note: string; summary: string } {
       const k = exprText(s.missing);
       return {
         value: `${base.value}, dynamic`,
-        note: `${base.note.replace(' Every edge is present in every round.', '')} In every round, the adversary removes up to ${k} edge${k === '1' ? '' : 's'}; missing edges are chosen anew each round and forgotten afterwards.`,
+        note: `${base.note.replace(' Every edge is present in every step.', '')} In every step, the adversary removes up to ${k} edge${k === '1' ? '' : 's'}; missing edges are chosen anew each step and forgotten afterwards.`,
         summary: `dynamic ${base.summary}`,
       };
     }
@@ -154,6 +154,34 @@ function observationFact(o: Observation): { value: string; note: string } {
   return {
     value: `Radius ${r}`,
     note: `The ${r}-hop view: positions at distance at most ${r}, and the edges with an endpoint at distance less than ${r}. The structure of the view is information the observation grants; sensors decide what is known about each location.`,
+  };
+}
+
+const INSTANT = { look: 'Look', compute: 'Compute', move: 'Move' } as const;
+
+/** The scheduler, in words: which agents take an event at each step, how cycles are cut, and its fairness. */
+function schedulerFact(sc: Scheduler): { value: string; note: string; summary: string; scheduling: string; fair: boolean } {
+  const atomic = sc.events.length === 1;
+  const cut = sc.events.map(e => e.map(i => INSTANT[i]).join('-')).join(' | ');
+  const scheduling = ({
+    FSync: 'Every agent able to act takes its next event.',
+    SSync: 'The adversary chooses a nonempty set of the agents able to act, which take their next event.',
+    Sequential: 'The adversary chooses one agent able to act, which takes its next event.',
+    Async: 'The adversary chooses a nonempty set of the agents able to act, which take their next event.',
+    Bounded: `The adversary chooses a nonempty set of the agents able to act, which take their next event; each of them takes one at least every ${
+      sc.args?.k ?? 'k'} steps.`,
+    Permutation: 'One agent able to act takes its next event, and every agent takes one per pass, in an order the adversary chooses for each pass.',
+  } as Record<string, string>)[sc.name] ?? `${sc.name} chooses the agents that take their next event (its schedule).`;
+  const fair = sc.fairness === 'activation';
+  return {
+    value: atomic ? sc.name : `${sc.name} (${cut})`,
+    note: `${scheduling} ${atomic
+      ? 'Each event is a whole Look-Compute-Move cycle.'
+      : `A cycle is cut into ${sc.events.length} atomic events (${cut}): between them, the agent's decision is pending, and others see its previous state.`} `
+      + (fair ? 'Only fair executions count: every agent that keeps acting takes events infinitely often.' : 'Every execution the scheduler allows counts.'),
+    summary: atomic ? sc.name : `${sc.name} ${cut}`,
+    scheduling,
+    fair,
   };
 }
 
@@ -198,7 +226,7 @@ function lineTable(exp: Experiment): Record<string, number> {
   return Object.fromEntries(Object.entries(l.cases).flatMap(([pc, e]) => e.e === 'lit' && typeof e.value === 'number' ? [[pc, e.value]] : []));
 }
 
-const KIND_ORDER: SourceExcerpt['kind'][] = ['experiment', 'model', 'space', 'sensor', 'component', 'algorithm', 'task', 'goal', 'definition'];
+const KIND_ORDER: SourceExcerpt['kind'][] = ['experiment', 'model', 'space', 'sensor', 'component', 'scheduler', 'algorithm', 'task', 'goal', 'definition'];
 
 export function describeExperiment(exp: Experiment, sources: Record<string, string>, revision?: string, lean?: SimLean, checkSettings?: () => Iterable<unknown>): ModelDescription {
   const { model, algorithm, task } = exp;
@@ -244,21 +272,12 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   const space = spaceFact(model.space);
   const observation = observationFact(model.observation);
   const frame = framesFact(model.frames);
+  const scheduler = schedulerFact(model.scheduler);
 
   const modelFacts: ModelFact[] = [
     { label: 'Space', value: space.value, note: space.note, refs: modelRef('space') },
     { label: 'Observation', value: observation.value, note: observation.note, refs: modelRef('observation') },
-    {
-      label: 'Synchrony',
-      value: model.round === 'fsync' ? 'FSYNC (fully synchronous)' : model.round === 'sequential' ? 'Sequential (fair)' : 'SSYNC (semi-synchronous)',
-      note: model.round === 'fsync'
-        ? 'Every agent able to act is activated in every round.'
-        : (model.round === 'sequential'
-          ? 'In every round, the adversary activates exactly one agent able to act (or none if no agent can act). '
-          : 'In every round, the adversary activates a nonempty set of the agents able to act. ')
-          + 'Only fair executions count: every agent that keeps acting is activated infinitely often.',
-      refs: modelRef('round'),
-    },
+    { label: 'Scheduler', value: scheduler.value, note: scheduler.note, refs: modelRef('scheduler') },
     {
       label: 'Memory',
       value: model.memory === 'persistent' ? 'Persistent' : 'Oblivious',
@@ -268,7 +287,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
       refs: modelRef('memory'),
     },
     { label: 'Frames', value: frame.value, note: frame.note, refs: modelRef('frames') },
-    { label: 'Movement', value: 'Along edges', note: "An agent moves to its own location or to a neighbor; through an edge missing this round, it stays." },
+    { label: 'Movement', value: 'Along edges', note: "An agent moves to its own location or to a neighbor; through an edge missing this step, it stays." },
     {
       label: 'Sensors',
       value: sensors.length ? sensors.map(x => x.s.name).join(', ') : 'none',
@@ -352,14 +371,14 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
         {
           label: 'Goal',
           value: GOALS[task.goal].formula,
-          note: `${model.round !== 'fsync' ? 'Over every fair execution' : 'Over every execution'}: ${GOALS[task.goal].text}.`,
+          note: `${scheduler.fair ? 'Over every fair execution' : 'Over every execution'}: ${GOALS[task.goal].text}.`,
           refs: refTo('goal', task.name),
         },
         {
           label: 'Adversary',
           value: 'Unrestricted',
           note: 'No fairness assumption forces an adversary choice (a hazard to appear, a missing edge to return)'
-            + (model.round !== 'fsync' ? ', apart from fair activation.' : '.'),
+            + (scheduler.fair ? ', apart from fair scheduling.' : '.'),
         },
       ],
     },
@@ -385,7 +404,8 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     ({ phase: h, what: acting(h).length ? what : 'No component acts in this phase.', by: acting(h), choices: hookChoices(h) });
   const hookChoices = (h: typeof HOOKS[number]) => choices(...model.components.map(c => c[h]));
   const adversaryFlags = flags.filter(f => f.acts === 'adversary').map(f => f.name);
-  const round: ModelDescription['round'] = [
+  const atomicCycles = model.scheduler.events.length === 1;
+  const step: ModelDescription['step'] = [
     {
       phase: 'Initialisation',
       what: 'Once: the agents are placed and the components set their initial values from the parameters.',
@@ -394,29 +414,31 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     },
     {
       phase: 'Space',
-      what: model.space.kind === 'dynamic' ? `The adversary removes up to ${exprText(model.space.missing)} edges for this round.` : 'Every edge is present.',
+      what: model.space.kind === 'dynamic' ? `The adversary removes up to ${exprText(model.space.missing)} edges for this step.` : 'Every edge is present.',
       choices: model.space.kind === 'dynamic' ? ['missing edges'] : [],
     },
     hook('beforeLook', 'Components update their state, all reading the same configuration.'),
     {
-      phase: 'Activation',
-      what: (model.round === 'fsync' ? 'Every agent able to act is activated.'
-        : model.round === 'sequential' ? 'Exactly one agent able to act is activated (none if no agent can act).'
-          : 'A nonempty set of the agents able to act is activated.')
-        + (frame.chosen ? ` The adversary chooses how each activated agent sees its view (${frame.chosen}).` : ''),
+      phase: 'Scheduling',
+      what: `${scheduler.scheduling} No agent takes an event if none can act.`
+        + (frame.chosen ? ` The adversary chooses how each agent that looks sees its view (${frame.chosen}).` : ''),
+      by: [model.scheduler.name],
       choices: [
-        ...(model.round !== 'fsync' ? ['activated agents (fair)'] : []),
+        ...choices(model.scheduler.schedule).map(c => scheduler.fair ? `${c} (fair)` : c),
         ...(frame.chosen ? [frame.chosen] : []),
       ],
     },
     {
-      phase: 'Look & Compute',
-      what: `Each activated agent looks at its visible domain and reads ${algorithm.uses.length ? algorithm.uses.join(', ') : 'its sensors'}, then ${algorithm.name} decides where it moves${actions.length ? ` and its actions (${actions.map(a => a.name).join(', ')})` : ''}.`
+      phase: 'Look',
+      what: `Each scheduled agent ${atomicCycles ? '' : 'whose event includes Look '}looks at its visible domain, all from the configuration at the start of the step, and reads ${algorithm.uses.length ? algorithm.uses.join(', ') : 'its sensors'}; then ${algorithm.name} decides where it moves${actions.length ? ` and its actions (${actions.map(a => a.name).join(', ')})` : ''}.`
+        + (atomicCycles ? '' : ' The decision stays pending until its Compute and its Move.')
         + (adversaryFlags.length ? ` The adversary decides for agents flagged ${adversaryFlags.join(', ')}.` : ''),
       choices: [...choices(...sensors.flatMap(x => [x.s.body, ...(x.s.look ?? []).map(b => b.value)])), ...(adversaryFlags.length ? ['moves of agents flagged ' + adversaryFlags.join(', ')] : [])],
     },
-    hook('beforeMove', 'Components read the decisions and update their state.'),
-    { phase: 'Move', what: 'Agents that decided and still act move to the location they chose, along edges present this round.' },
+    hook('onCompute', 'Components read the decisions taking effect and update their state.'),
+    { phase: 'Compute', what: `${atomicCycles ? 'The agents that looked' : 'Agents whose event includes Compute'} take their new public state and memory.` },
+    hook('beforeMove', 'Components read the moves and update their state.'),
+    { phase: 'Move', what: `${atomicCycles ? 'Agents' : 'Agents whose event includes Move'} that decided and still act move to the location they chose, along edges present this step.` },
     hook('afterMove', 'Components update their state after the moves.'),
   ];
 
@@ -424,9 +446,10 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   const pcLines = lineTable(exp);
   const origin = (o: LeanOrigin): { label: string; refs: SourceRef[] } => {
     switch (o.kind) {
-      case 'composition': return { label: 'composition of the components', refs: modelRef('components') };
+      case 'composition': return { label: 'composition of the components and the scheduler', refs: modelRef('components') };
       case 'model': return { label: `model ${model.name}`, refs: modelRef('space') };
       case 'component': return { label: `component ${o.name}`, refs: refTo('component', o.name!) };
+      case 'scheduler': return { label: `scheduler ${o.name}`, refs: refTo('scheduler', o.name!) };
       case 'sensor': return { label: `sensor ${o.name}`, refs: refTo('sensor', o.name!) };
       case 'definition': return { label: `definition ${o.name}`, refs: refTo('definition', o.name!) };
       case 'task': return { label: `task ${task.name}`, refs: refTo('task', task.name) };
@@ -465,7 +488,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
     summary: [
       space.summary,
       model.observation.kind === 'full' ? 'full view' : `radius ${exprText(model.observation.r)}`,
-      model.round.toUpperCase(),
+      scheduler.summary,
       model.memory === 'persistent' ? 'persistent memory' : 'oblivious',
       frame.summary,
       sensors.length ? `${sensors.length === 1 ? 'sensor' : 'sensors'}: ${sensors.map(x => x.s.name).join(', ')}` : 'no sensor',
@@ -473,7 +496,7 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
       `${task.name}: ${GOALS[task.goal].formula}`,
     ],
     sections,
-    round,
+    step,
     sources: excerpts,
     caveats,
     ir: exp,

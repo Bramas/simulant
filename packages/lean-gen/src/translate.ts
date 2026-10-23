@@ -51,8 +51,9 @@ export interface Env {
   /** Experiment parameters (initialisation and domains only). */
   param(name: string): string;
   paramType(name: string): Type;
-  /** An effect, in a component's hook. */
-  effect?(world: [string, string][], raise: [string, { pred?: string; set?: string }][], agents?: string): string;
+  /** An effect, in a component's hook or a scheduler's `schedule` (which also activates agents). */
+  effect?(world: [string, string][], raise: [string, { pred?: string; set?: string }][], agents?: string,
+    activate?: { pred?: string; set?: string }): string;
   /** The decisions, in `beforeMove` hooks. */
   ds?: string;
   /** In algorithms and their local definitions: the Look and the sensor environment. */
@@ -251,13 +252,17 @@ export class Translator {
           return [flag, { set: this.tr(x, scope) }] as const;
         });
         const agents = e.agents ? this.lambda(e.agents, [T.agent], scope).code : undefined;
-        const parts = [...world.map(([, t]) => t), ...raises.flatMap(([, r]) => 'set' in r ? [r.set!] : [])];
+        const activate = !e.activate ? undefined
+          : e.activate.e === 'fn' ? { pred: this.lambda(e.activate, [T.agent], scope).code } : { set: this.tr(e.activate, scope) };
+        const parts = [...world.map(([, t]) => t), ...raises.flatMap(([, r]) => 'set' in r ? [r.set!] : []),
+          ...(activate && 'set' in activate ? [activate.set!] : [])];
         return this.seq(parts, T.effect, cs => {
           let j = world.length;
           return env.effect!(
             world.map(([n], i) => [n, cs[i]]),
             raises.map(([flag, r]) => [flag, 'pred' in r ? { pred: r.pred } : { set: cs[j++] }]),
             agents,
+            activate && ('pred' in activate ? { pred: activate.pred } : { set: cs[j++] }),
           );
         });
       }
@@ -314,6 +319,7 @@ export class Translator {
         const at = (a: string) => `${C}.agents[${a}]`;
         const lay = env.layout;
         if (e.field === 'pos') return this.seq([on], T.pos, ([a]) => `${at(a)}.pos`);
+        if (e.field === 'phase') return this.seq([on], T.nat, ([a]) => `${at(a)}.phase`);
         if (e.field === 'pub') return this.seq([on], lay.pub, ([a]) => `${at(a)}.pub`);
         if (e.field === 'mem') return this.seq([on], lay.mem, ([a]) => `${at(a)}.mem`);
         if (lay.flags.some(f => f.name === e.field)) return this.seq([on], T.bool, ([a]) => env.agentFlag(at(a), e.field));
@@ -438,11 +444,12 @@ export class Translator {
         case 'mem': return `(${w[1]}.contains ${w[0]})`;
         case 'range': return `(List.range ${w[0]})`;
         case 'toMultiset': case 'toList': return a[0];
-        case 'subsets': case 'subsetsUpTo':
+        case 'subsets': case 'subsetsUpTo': case 'nonemptySubsets':
           if (t0.k === 'multiset' && (t0 as { of: Type }).of.k !== 'agent') {
             fail(`${e.fn} of a multiset of ${showType((t0 as { of: Type }).of)}: equal elements are not merged in Lean yet`);
           }
-          return e.fn === 'subsets' ? `(B.subsets ${w[0]})` : `(B.subsetsUpTo ${w[1]} ${w[0]})`;
+          return e.fn === 'subsets' ? `(B.subsets ${w[0]})` : e.fn === 'nonemptySubsets' ? `(nonemptySubsets ${w[0]})`
+            : `(B.subsetsUpTo ${w[1]} ${w[0]})`;
         case 'dedup': return `${w[0]}.eraseDups`;
         case 'diff': return `(B.diff ${w[0]} ${w[1]})`;
         case 'append': return `(${w[0]} ++ ${w[1]})`;
@@ -451,6 +458,7 @@ export class Translator {
         case 'ofFn': return `(B.ofFn ${w[0]} ${w[1]})`;
         case 'show': case 'concat': return '""';
         case 'agents': return `(List.finRange ${env.k})`;
+        case 'eligible': return `(Config.eligible ${w[0]})`;
         case 'correct': return `(FlagSet.correct ${C ?? fail('correct needs a configuration')}.agents[${a[0]}].flags)`;
         case 'present': return `(FlagSet.present ${C ?? fail('present needs a configuration')}.agents[${a[0]}].flags)`;
         case 'decisionOf': return `(${env.ds ?? fail('decisionOf outside beforeMove')} ${w[0]})`;

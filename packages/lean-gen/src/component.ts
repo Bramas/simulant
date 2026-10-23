@@ -6,7 +6,7 @@
  * about the component then applies to every model that contains it, whatever
  * its space: positions are the composition's `σ.S.Pos`.
  */
-import type { Component, Expr, Field, Sensor, Type } from '@bramas/simulant-lang/ir';
+import type { Component, Expr, Field, Instant, Scheduler, Sensor, Type } from '@bramas/simulant-lang/ir';
 import { T, showType, typeEq } from '@bramas/simulant-lang/types';
 import { fail, ident, Translator, wrap, type Env } from './translate';
 
@@ -75,11 +75,21 @@ function inputsOf(c: Component): Field[] {
   return [...inputs].map(([name, type]) => ({ name, type })).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function componentInfo(c: Component, namespace: string): ComponentInfo {
+/** A scheduler as the component-shaped piece the generator composes (its fields, initial values and definitions). */
+export function schedulerPiece(sc: Scheduler): Component {
+  return { name: sc.name, params: sc.params, args: sc.args, world: sc.world, agent: sc.agent, init: sc.init, defs: sc.defs };
+}
+
+/** The events of a cycle, as a Lean term. */
+export function eventsCode(events: Instant[][]): string {
+  return `[${events.map(e => `[${e.map(i => `Instant.${i}`).join(', ')}]`).join(', ')}]`;
+}
+
+export function componentInfo(c: Component, namespace: string, scheduler?: Scheduler): ComponentInfo {
   const enums = new Map<string, string[]>();
   for (const f of [...(c.params ?? []), ...(c.world ?? []), ...(c.agent ?? []), ...(c.actions ?? [])]) enumsOf(f.type, enums);
-  for (const e of [c.beforeLook, c.beforeMove, c.afterMove, ...Object.values(c.init?.world ?? {}), ...Object.values(c.init?.agent ?? {}),
-    ...(c.sensors ?? []).map(s => s.body)]) enumsInExpr(e, enums);
+  for (const e of [c.beforeLook, c.onCompute, c.beforeMove, c.afterMove, scheduler?.schedule, ...Object.values(c.init?.world ?? {}),
+    ...Object.values(c.init?.agent ?? {}), ...(c.sensors ?? []).map(s => s.body)]) enumsInExpr(e, enums);
   return {
     name: c.name, namespace, inputs: inputsOf(c),
     hasWorld: !!c.world?.length, hasFields: !!c.agent?.length,
@@ -87,9 +97,12 @@ export function componentInfo(c: Component, namespace: string): ComponentInfo {
   };
 }
 
-/** The Lean module of a component. */
-export function generateComponent(c: Component, namespace: string): string {
-  const info = componentInfo(c, namespace);
+/**
+ * The Lean module of a component, or of a scheduler (`scheduler`, with `c` its piece): a
+ * scheduler owns fields like a component, and has a `schedule` hook instead of the component hooks.
+ */
+export function generateComponent(c: Component, namespace: string, scheduler?: Scheduler): string {
+  const info = componentInfo(c, namespace, scheduler);
   const world = c.world ?? [];
   const fields = c.agent ?? [];
   const flags = c.flags ?? [];
@@ -118,17 +131,22 @@ export function generateComponent(c: Component, namespace: string): string {
     decisionAction: (d, a) => `(Actions.${ident(a)} ${d}.act)`,
     param: name => ident(name),
     paramType: name => info.inputs.find(i => i.name === name)?.type ?? fail(`unknown parameter ${name}`),
-    effect: (w, raise, agents) => {
-      const worldCode = w.length ? `fun x => { x with ${w.map(([f, v]) => `${ident(f)} := ${v}`).join(', ')} }` : 'id';
+    effect: (w, raise, agents, activate) => {
+      if (activate && !scheduler) fail(`${c.name}: only a scheduler activates agents`);
+      // Wrappers bind primed names, which `.sim` identifiers cannot capture (`let a := choose …`).
+      const worldCode = w.length ? `fun world' => { world' with ${w.map(([f, v]) => `${ident(f)} := ${v}`).join(', ')} }` : 'id';
       const one = ([flag, r]: [string, { pred?: string; set?: string }]) => {
-        const cond = r.pred ? `${r.pred} a` : `(${r.set}).contains a`;
+        const cond = r.pred ? `${r.pred} agent'` : `(${r.set}).contains agent'`;
         return `(if ${cond} then (Flags.raise_${ident(flag)} : σ.F) else FlagSet.none)`;
       };
       const raiseCode = raise.length
         ? raise.map(one).reduce((acc, x) => `FlagSet.merge ${acc} ${x}`)
         : 'FlagSet.none';
-      const fieldsCode = agents ? `, fields := fun a _ => ${agents} a` : '';
-      return `({ world := ${worldCode}, raise := fun a => ${raiseCode}${fieldsCode} } : OwnEffect σ ${ownW} ${ownX})`;
+      const fieldsCode = agents ? `, fields := fun agent' _ => ${agents} agent'` : '';
+      const own = `({ world := ${worldCode}, raise := fun agent' => ${raiseCode}${fieldsCode} } : OwnEffect σ ${ownW} ${ownX})`;
+      if (!scheduler) return own;
+      const marks = !activate ? 'fun _ => false' : activate.pred ? `fun agent' => ${activate.pred} agent'` : `fun agent' => (${activate.set}).contains agent'`;
+      return `((${marks}, ${own}) : (Fin σ.k → Bool) × OwnEffect σ ${ownW} ${ownX})`;
     },
     ds: 'ds',
     layout: { pub: T.pub, mem: T.unit, worldType: worldT, flags, agentFields: fields, actions },
@@ -145,7 +163,7 @@ export function generateComponent(c: Component, namespace: string): string {
   const inputBinders = info.inputs.map(p => `(${ident(p.name)} : ${trInit.type(p.type)})`).join(' ');
   const out: string[] = [];
 
-  out.push(`import Simulant\n\n/-! Generated from the IR of component \`${c.name}\` by packages/lean-gen. Do not edit. -/\n\nset_option linter.unusedVariables false\n`);
+  out.push(`import Simulant\n\n/-! Generated from the IR of ${scheduler ? 'scheduler' : 'component'} \`${c.name}\` by packages/lean-gen. Do not edit. -/\n\nset_option linter.unusedVariables false\n`);
   out.push(`namespace ${namespace}\nopen Simulant\n`);
   for (const e of info.enums) out.push(enumDecl(e.name, e.ctors));
   if (world.length) out.push(structDecl('World', ' (P : Type)', world, t => trInit.type(t).replace(/\bS\.Pos\b/g, 'P')));
@@ -185,15 +203,29 @@ export function generateComponent(c: Component, namespace: string): string {
     if (!body) return `fun ${args} => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩`;
     return `fun ${args} => ${tr.nd(tr.root(body, [['C', 'C', T.config], ...paramVars], 'C'))}`;
   };
-  out.push(`/-- The hooks, on the parts of the state the component owns. -/
+  const lenses = `${world.length ? 'L.world' : '(Lens.unit σ.W)'} ${fields.length ? 'L.fields' : '(Lens.unit σ.X)'}`;
+  const paramNames = params.map(p => ident(p.name)).join(' ');
+  if (scheduler) {
+    out.push(`/-- The agents that take their next event, and the scheduler's effect on the parts of the state it owns. -/
+def hooks ${paramBinders} (L : Ctx σ) : SchedulerHooks σ ${ownW} ${ownX} where
+  schedule := ${hook(scheduler.schedule, 'ts C')}
+
+/-- The scheduler, with the cut of the cycle into events. -/
+def scheduler ${paramBinders} (events : List (List Instant)) (L : Ctx σ) : Scheduler σ :=
+  (hooks ${paramNames} L).toScheduler events .${scheduler.fairness} ${lenses}
+`);
+  } else {
+    out.push(`/-- The hooks, on the parts of the state the component owns. -/
 def hooks ${paramBinders} (L : Ctx σ) : Hooks σ ${ownW} ${ownX} where
   beforeLook := ${hook(c.beforeLook, 'ts C')}
+  onCompute := ${hook(c.onCompute, 'ts C ds')}
   beforeMove := ${hook(c.beforeMove, 'ts C ds')}
   afterMove := ${hook(c.afterMove, 'ts C')}
 
 def component ${paramBinders} (L : Ctx σ) : Component σ :=
-  (hooks ${params.map(p => ident(p.name)).join(' ')} L).toComponent ${world.length ? 'L.world' : '(Lens.unit σ.W)'} ${fields.length ? 'L.fields' : '(Lens.unit σ.X)'}
+  (hooks ${paramNames} L).toComponent ${lenses}
 `);
+  }
   out.push(`end\n\nend ${namespace}\n`);
   return out.join('\n');
 }

@@ -3,9 +3,9 @@
  *
  * A reachable `failure` verdict is a counterexample. Liveness goals are
  * decided on the expanded part of the graph with strongly connected
- * components: under a synchronous round every cycle counts; under a fair scheduler a
- * cycle counts only if it is scheduler-fair, i.e. every agent that acts in
- * it is activated somewhere on it. Flags are never cleared, so which agents
+ * components: without a fairness assumption every cycle counts; under activation fairness a
+ * cycle counts only if every agent that acts in it takes an event somewhere on it
+ * (docs/scheduler-design.md, section 4). Flags are never cleared, so which agents
  * act is the same in every state of a component.
  */
 import type { Goal } from '@bramas/simulant-lang/ir';
@@ -38,7 +38,7 @@ export type State = {
   parent?: number;
   /** Successor ids; undefined while the state is not expanded. */
   succ?: number[];
-  /** Per successor edge, the agents some witness activates (fair schedulers only). */
+  /** Per successor edge, the agents that take an event in some witness (fair schedulers only). */
   act?: Set<number>[];
 };
 
@@ -133,7 +133,7 @@ export class Explorer {
         this.concreteInitial.set(id, { config: s.config, index });
       }
     });
-    const fairScheduler = system.exp.model.round !== 'fsync';
+    const fairScheduler = system.scheduler.fairness === 'activation';
     for (let cursor = 0; cursor < this.states.length; cursor++) {
       if ((cursor & 255) === 255) yield;
       const s = this.states[cursor];

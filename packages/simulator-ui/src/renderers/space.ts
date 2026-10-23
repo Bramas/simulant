@@ -1,7 +1,7 @@
 /**
  * The default renderer: by the experiment's space, a cycle (`drawRing`), the infinite line
  * (`drawLine`) or another finite graph (`drawGraph`). A dynamic space is drawn as its base graph;
- * the edges missing in a round are named by the step's label.
+ * the edges missing in a step are named by the step's label.
  */
 import type { Snapshot } from '../sim/snapshot';
 import type { Layout, ModelInfo, RenderOptions } from '../sim/types';

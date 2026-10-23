@@ -16,7 +16,7 @@ exports.run = async () => {
   const source = `import "std/examples.sim"
 def helper (x : Nat) : Nat := x + 1
 experiment e where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in [5]
@@ -26,13 +26,13 @@ experiment e where
 `;
   const doc = await vscode.workspace.openTextDocument({ language: 'simulant', content: source });
   assert.equal(doc.languageId, 'simulant');
-  const cursor = doc.positionAt(source.indexOf('blackHoleRobots') + 2);
+  const cursor = doc.positionAt(source.indexOf('blackHoleSearch') + 2);
   const hover = await vscode.commands.executeCommand('vscode.executeHoverProvider', doc.uri, cursor);
   assert.ok(hover.length > 0, 'Hover provider is active.');
   const definitions = await vscode.commands.executeCommand('vscode.executeDefinitionProvider', doc.uri, cursor);
   assert.ok(definitions.length > 0, 'Definition provider is active.');
   const completion = await vscode.commands.executeCommand('vscode.executeCompletionItemProvider', doc.uri, cursor);
-  assert.ok(completion.items.some(item => item.label === 'blackHoleRobots'), 'Completion provider is active.');
+  assert.ok(completion.items.some(item => item.label === 'blackHoleSearch'), 'Completion provider is active.');
   const symbols = await vscode.commands.executeCommand('vscode.executeDocumentSymbolProvider', doc.uri);
   assert.ok(symbols.some(symbol => symbol.name === 'e'), 'Document outline is active.');
   const edits = await vscode.commands.executeCommand('vscode.executeDocumentRenameProvider', doc.uri, doc.positionAt(source.indexOf('helper') + 1), 'renamedHelper');

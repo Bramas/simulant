@@ -1,6 +1,6 @@
 /**
  * The simulator page, as a desktop application that fills the window. The top bar picks the
- * project and the view. The simulation: the transport (rounds, playback, the verdict, the
+ * project and the view. The simulation: the transport (steps, playback, the verdict, the
  * adversary's choices, then the path) above a workbench whose center always shows the current
  * configuration; an activity bar shows or hides the panels around it (settings and saved
  * settings on the left, the algorithm and the state on the right), resized by splitters. The
@@ -1080,8 +1080,8 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
                 <div class="sim-group">
                   <button class="sim-ghost sim-icon" onClick={() => step(0)} disabled={indexInPath() === 0 || !canExplore()} aria-label="First step" title="First step (Home)"><Icon name="first" /></button>
                   <button class="sim-btn sim-icon" onClick={onPrevious} disabled={indexInPath() === 0 || !canExplore()} aria-label="Previous step" title="Previous step (←)"><Icon name="previous" /></button>
-                  <div class="sim-round" title={`Round ${indexInPath()} of the path's ${executionPath().length - 1}`}>
-                    <span class="sim-round-label">Round</span>
+                  <div class="sim-round" title={`Step ${indexInPath()} of the path's ${executionPath().length - 1}`}>
+                    <span class="sim-round-label">Step</span>
                     <span class="sim-round-value">{indexInPath()}</span>
                     <span class="sim-round-total">/ {executionPath().length - 1}</span>
                   </div>
@@ -1144,7 +1144,7 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
                           class={`sim-step${i() === indexInPath() ? ' sim-current' : ''}${i() > indexInPath() ? ' sim-future' : ''}`}
                           data-verdict={pathVerdicts()[i()]}
                           onClick={() => step(i())}
-                          title={`Round ${i()}: ${stepLabel(i())}${pathVerdicts()[i()] ? ` (task: ${VERDICT_TEXT[pathVerdicts()[i()]]})` : ''}`}
+                          title={`Step ${i()}: ${stepLabel(i())}${pathVerdicts()[i()] ? ` (task: ${VERDICT_TEXT[pathVerdicts()[i()]]})` : ''}`}
                         >
                           {choice}
                         </button>
@@ -1169,7 +1169,7 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
 
             <main class="sim-center" ref={center}>
               <section class="sim-panel sim-stage-panel" hidden={shownView() !== 'simulation'}>
-                <PanelHead icon="ring" title="Configuration" sub={`round ${indexInPath()} · ${settingsSummary(effectiveSettings())}`} />
+                <PanelHead icon="ring" title="Configuration" sub={`step ${indexInPath()} · ${settingsSummary(effectiveSettings())}`} />
                 <div class="sim-stage" ref={stage}>
                   <canvas
                     ref={canvas}

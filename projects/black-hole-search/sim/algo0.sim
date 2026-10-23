@@ -147,7 +147,7 @@ algorithm SmallRings uses otherStates where
 
 /-- The settings of the paper's checks: cycles of 2 to 4 nodes, the hole anywhere. -/
 experiment algo0 where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := SmallRings
   task := IdentifyEmergingBlackHoleAt
   param N : Nat in (range 5).filter (· ≥ 2)

@@ -2,6 +2,7 @@ import Simulant
 import Simulant.Library.BlackHole
 import Simulant.Library.CrashStop
 import Simulant.Library.Pebbles
+import Simulant.Library.FSync
 
 /-! Generated from the IR of experiment `cautiousPairCrash` by packages/lean-gen. Do not edit:
 regenerate it. Proofs go in a separate file. -/
@@ -72,6 +73,8 @@ instance : Simulant.Library.CrashStop.Flags Flags where
 
 instance : Simulant.Library.Pebbles.Flags Flags where
 
+instance : Simulant.Library.FSync.Flags Flags where
+
 structure Actions where
   pebble : Simulant.Library.Pebbles.PebbleAction
 deriving DecidableEq, Repr
@@ -84,6 +87,8 @@ instance : Simulant.Library.CrashStop.Actions Actions where
 
 instance : Simulant.Library.Pebbles.Actions Actions where
   pebble a := a.pebble
+
+instance : Simulant.Library.FSync.Actions Actions where
 
 structure World (P : Type) where
   BlackHole : Simulant.Library.BlackHole.World P
@@ -110,6 +115,9 @@ def ctx_CrashStop (N : Nat) [NeZero N] (nAgents : Nat) : Simulant.Library.CrashS
 
 def ctx_Pebbles (N : Nat) [NeZero N] (nAgents : Nat) : Simulant.Library.Pebbles.Ctx (sig N nAgents) where
   world := ⟨fun w => w.Pebbles, fun w x => { w with Pebbles := x }⟩
+
+def ctx_FSync (N : Nat) [NeZero N] (nAgents : Nat) : Simulant.Library.FSync.Ctx (sig N nAgents) where
+
 
 def port (N : Nat) [NeZero N] (nAgents : Nat) (L : Look (sig N nAgents)) (E : Env) (i : Nat) : Nat :=
   ((L.neighbors L.here)[i]!)
@@ -148,7 +156,7 @@ def model (N : Nat) [NeZero N] (nAgents : Nat) : Model (sig N nAgents) where
     Simulant.Library.Pebbles.component  (ctx_Pebbles N nAgents)]
   radius := 1
   frames := .perLook [List.range (space N).maxDegree]
-  round := .fsync
+  scheduler := Simulant.Library.FSync.scheduler [[Instant.look, Instant.compute, Instant.move]] (ctx_FSync N nAgents)
   env := env N nAgents
   step := step N nAgents
 
@@ -179,6 +187,11 @@ theorem others_preserve_BlackHole (N : Nat) [NeZero N] (nAgents : Nat) :
   · exact Or.inr (Hooks.toComponent_preserves _ _ _ _ fun _ _ => rfl)
   · exact Or.inr (Hooks.toComponent_preserves _ _ _ _ fun _ _ => rfl)
 
+/-- The scheduler preserves the part of the world that `BlackHole` owns. -/
+theorem scheduler_preserves_BlackHole (N : Nat) [NeZero N] (nAgents : Nat) :
+    (model N nAgents).scheduler.Preserves (ctx_BlackHole N nAgents).world.get :=
+  SchedulerHooks.toScheduler_preserves _ _ _ _ _ _ fun _ _ => rfl
+
 instance (N : Nat) [NeZero N] (nAgents : Nat) : LawfulLens (ctx_Pebbles N nAgents).world := ⟨fun _ _ => rfl⟩
 
 /-- The other components of the model preserve the part of the world that `Pebbles` owns. -/
@@ -190,6 +203,11 @@ theorem others_preserve_Pebbles (N : Nat) [NeZero N] (nAgents : Nat) :
   · exact Or.inr (Hooks.toComponent_preserves _ _ _ _ fun _ _ => rfl)
   · exact Or.inr (Hooks.toComponent_preserves _ _ _ _ fun _ _ => rfl)
   · exact Or.inl rfl
+
+/-- The scheduler preserves the part of the world that `Pebbles` owns. -/
+theorem scheduler_preserves_Pebbles (N : Nat) [NeZero N] (nAgents : Nat) :
+    (model N nAgents).scheduler.Preserves (ctx_Pebbles N nAgents).world.get :=
+  SchedulerHooks.toScheduler_preserves _ _ _ _ _ _ fun _ _ => rfl
 
 def domain_N  : List (Nat) :=
   ((List.range 7).filter (fun (x0 : Nat) => (decide (x0 ≥ 3))))

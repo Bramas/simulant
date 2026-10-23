@@ -115,7 +115,7 @@ async function experiment(file: string, name: string, baseline: string, line = f
       const explorer = new Explorer(system, withExperimentLimits(exp, { maxStates: base.limits?.states ?? undefined, maxDepth: base.limits?.depth ?? undefined }));
       const got = explorer.run();
       const cx = got.counterexample;
-      const stem = cx?.kind === 'lasso' && exp.model.round === 'fsync' ? lassoStem(explorer) : undefined;
+      const stem = cx?.kind === 'lasso' && exp.model.scheduler.fairness === 'none' ? lassoStem(explorer) : undefined;
       const counterexample = shape(cx && { kind: cx.kind, length: cx.steps.length - 1, ...(stem === undefined ? {} : { minStem: stem }) });
       const count = line ? reachable(system) : got.stats.states;
       const expected = line ? s.reachableLineOrbits : s.explored;

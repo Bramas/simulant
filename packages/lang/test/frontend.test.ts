@@ -15,7 +15,7 @@ experiment e where
 `;
 
 test('an experiment in a user module reuses the library unchanged', () => {
-  const e = experiment(BLACK_HOLE('blackHoleRobots (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1, Storage.Pebbles])'));
+  const e = experiment(BLACK_HOLE('blackHoleSearch (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1, Storage.Pebbles])'));
   assert.deepEqual(e.model.components.map(c => c.name), ['BlackHole', 'CrashStop', 'Pebbles']);
   assert.deepEqual(e.model.components[0].args, { policy: 'mayEmerge' });
   assert.deepEqual(e.model.sensors.map(s => s.name), ['otherStates', 'spaceSize']);
@@ -29,7 +29,7 @@ test('parse errors point at the token', () => {
 });
 
 test('elaboration errors point at the expression', () => {
-  const src = BLACK_HOLE('blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown');
+  const src = BLACK_HOLE('blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown');
   const bad = src.replace('task := IdentifyBlackHole', 'task := Gathering\n  speed := 3');
   assert.deepEqual(errors(bad), ['7:3 unknown experiment field speed (expected one of model, algorithm, task, agents, position, limits, or param)']);
 });
@@ -39,7 +39,7 @@ test('type errors from the checker point at the source expression', () => {
 def Nosy : Component where
   flags := [flag scared visible, acts never]
   afterMove C := { raise scared := fun a => a.pos = true }
-${BLACK_HOLE('blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Nosy])').slice(PRELUDE.length)}`;
+${BLACK_HOLE('blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown (extra := [Nosy])').slice(PRELUDE.length)}`;
   const errs = errors(src);
   assert.equal(errs.length, 1, errs.join('\n'));
   assert.match(errs[0], /^5:45 Nosy.afterMove: eq: Pos and Bool differ$/);
@@ -50,7 +50,7 @@ test('ownership errors point at the read of another component\'s field', () => {
 def Nosy : Component where
   flags := [flag scared visible, acts never]
   afterMove C := { raise scared := fun a => a.pos = C.world.site }
-${BLACK_HOLE('blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Nosy])').slice(PRELUDE.length)}`;
+${BLACK_HOLE('blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown (extra := [Nosy])').slice(PRELUDE.length)}`;
   const errs = errors(src);
   assert.equal(errs.length, 1, errs.join('\n'));
   assert.match(errs[0], /^5:53 Nosy.afterMove: world field site belongs to BlackHole$/);
@@ -58,7 +58,7 @@ ${BLACK_HOLE('blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [No
 
 test('an ambiguous constructor asks for a qualified name', () => {
   // HolePolicy and PebbleAction (from the pebbles) both have `none`.
-  const src = BLACK_HOLE('blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles])').replace('algorithm := CautiousPair', 'algorithm := Bad') + `
+  const src = BLACK_HOLE('blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles])').replace('algorithm := CautiousPair', 'algorithm := Bad') + `
 algorithm Bad uses otherStates where
   Pub := { id : Nat, bh : Option Nat }
   init i := { pub := { id := i, bh := none } }
@@ -77,7 +77,7 @@ algorithm Stay uses occupied where
 
 /-- Doc comments are not part of the declaration's span. -/
 experiment idle where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
   algorithm := Stay
   task := Gathering
   param N : Nat in [3]
@@ -88,8 +88,8 @@ experiment idle where
   assert.deepEqual(errors(source), []);
   const e = experiment(source, 'idle');
   assert.deepEqual(e.source?.uses.map(u => `${u.kind} ${u.name}`), [
-    'experiment idle', 'model robots', 'space Graphs.Cycle', 'sensor occupied', 'component Faults.CrashAt',
-    'algorithm Stay', 'task Gathering', 'goal Gathering',
+    'experiment idle', 'model obliviousRobots', 'space Graphs.Cycle', 'sensor occupied', 'component Faults.CrashAt',
+    'scheduler Schedulers.FSync', 'algorithm Stay', 'task Gathering', 'goal Gathering',
   ]);
   assert.deepEqual([e.source?.line, e.source?.endLine], [8, 15]);
 });
@@ -102,7 +102,7 @@ algorithm Idle where
   main :=
     stay
 experiment optionalDefaults where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (components := [OptionalActions])
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (components := [OptionalActions])
   algorithm := Idle
   task := Gathering
   param N : Nat in [3]
@@ -115,7 +115,7 @@ experiment optionalDefaults where
 
 test('model arguments may name experiment parameters, which stay symbolic', () => {
   const e = experiment(`import "std/models.sim"
-def lineModel : Model := robots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms [occupied]
+def lineModel : Model := obliviousRobots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms [occupied]
 algorithm A uses occupied where
   main :=
     stay
