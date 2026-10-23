@@ -3,10 +3,9 @@ import Simulant.Round
 /-!
 # Executions, tasks and non-vacuity (plan, Sections 3.9, 3.10 and 5.2)
 
-Every execution permitted by the round is considered (no fairness on the
-adversary's choices), except that semi-synchronous and sequential rounds only admit
-scheduler-fair executions: every agent that acts forever is activated
-infinitely often.
+Every execution permitted by the step is considered (no fairness on the
+adversary's choices), except that a scheduler with `Fairness.activation` only admits
+executions in which every agent that acts forever takes events infinitely often.
 -/
 
 namespace Simulant
@@ -42,13 +41,13 @@ def Valid (e : Execution σ) : Prop :=
   ND.Can init (e.config 0) ∧
     ∀ n, (e.witness n, (e.active n, e.config (n + 1))) ∈ m.roundA act0 (e.config n)
 
-/-- Every agent that acts forever is activated infinitely often. -/
+/-- Every agent that acts forever takes events infinitely often. -/
 def Fair (e : Execution σ) : Prop :=
   ∀ a : Fin σ.k, (∀ n, FlagSet.acts (e.config n).agents[a].flags ≠ .never) →
     ∀ n, ∃ j, n ≤ j ∧ a ∈ e.active j
 
 def Admissible (e : Execution σ) : Prop :=
-  m.Valid act0 init e ∧ (m.round ≠ .fsync → Fair e)
+  m.Valid act0 init e ∧ (m.scheduler.fairness = .activation → Fair e)
 
 /-- The correctness statement: every admissible execution satisfies the goal. -/
 def Correct (verdict : Config σ → Verdict) (goal : Goal) : Prop :=
@@ -73,7 +72,7 @@ end Model
 /-! ## Lassos
 
 A finite lasso found by the explorer, checked by evaluation, gives an
-admissible execution (for a synchronous round). -/
+admissible execution (for a scheduler without fairness assumption). -/
 
 structure Lasso (σ : Sig) where
   start : Config σ
@@ -140,11 +139,11 @@ theorem toExecution_valid (m : Model σ) (act0 : σ.A) (init : ND (Config σ)) (
   have := hsteps (l.pos n) hp
   simpa [toExecution] using this
 
-/-- For a synchronous round, a valid lasso is an admissible execution. -/
+/-- For a scheduler without fairness assumption, a valid lasso is an admissible execution. -/
 theorem hasExecution (m : Model σ) (act0 : σ.A) (init : ND (Config σ)) (l : Lasso σ)
-    (hround : m.round = .fsync) (hv : l.Valid m act0) (hinit : ND.Can init l.start) :
+    (hfair : m.scheduler.fairness = .none) (hv : l.Valid m act0) (hinit : ND.Can init l.start) :
     m.HasExecution act0 init :=
-  ⟨l.toExecution hv.1, toExecution_valid m act0 init l hv hinit, fun h => False.elim (h hround)⟩
+  ⟨l.toExecution hv.1, toExecution_valid m act0 init l hv hinit, fun h => absurd (hfair.symm.trans h) (by decide)⟩
 
 end Lasso
 end Simulant

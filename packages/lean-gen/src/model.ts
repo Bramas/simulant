@@ -15,8 +15,8 @@ import { nodeHost } from '@bramas/simulant-lang/elab/node';
 import { Program } from '@bramas/simulant-lang/elab/program';
 import type { Component, Expr, Experiment, Field, Scheduler, Space, Type } from '@bramas/simulant-lang/ir';
 import { showType, T, typeEq } from '@bramas/simulant-lang/types';
-import { componentInfo, enumDecl, enumsInExpr, enumsOf, generateComponent, sensorDef, structDecl } from './component';
-import { libraryComponents, libraryNamespace } from './library';
+import { componentInfo, enumDecl, enumsInExpr, enumsOf, eventsCode, generateComponent, schedulerPiece, sensorDef, structDecl } from './component';
+import { libraryComponents, libraryNamespace, librarySchedulers } from './library';
 import { algorithmLocalDefs, fail, ident, Translator, wrap, type Env } from './translate';
 
 /**
@@ -25,7 +25,7 @@ import { algorithmLocalDefs, fail, ident, Translator, wrap, type Env } from './t
  * algorithm's step that resumes there), or `composition`, the glue that combines the components.
  */
 export type LeanOrigin = {
-  kind: 'experiment' | 'model' | 'composition' | 'component' | 'sensor' | 'definition' | 'algorithm' | 'task' | 'goal' | 'param';
+  kind: 'experiment' | 'model' | 'composition' | 'component' | 'scheduler' | 'sensor' | 'definition' | 'algorithm' | 'task' | 'goal' | 'param';
   name?: string;
   pc?: string;
 };
@@ -38,6 +38,13 @@ export function isLibrary(c: Component): boolean {
   const lib = libraryComponents.find(l => l.name === c.name);
   const strip = (x: Component) => JSON.stringify({ ...x, args: undefined });
   return !!lib && strip(lib) === strip(c);
+}
+
+/** Whether the experiment's scheduler is the library's (same IR, whatever its arguments and cut of the cycle). */
+export function isLibraryScheduler(sc: Scheduler): boolean {
+  const lib = librarySchedulers.find(l => l.name === sc.name);
+  const strip = (x: Scheduler) => JSON.stringify({ ...x, args: undefined, events: undefined });
+  return !!lib && strip(lib) === strip(sc);
 }
 
 type GraphSpace = Extract<Space, { kind: 'graph' }>;
@@ -188,16 +195,26 @@ export function generateMappedModel(exp: Experiment, namespace: string): Generat
   const sigCode = `(sig ${[mArgs, 'nAgents'].filter(Boolean).join(' ')})`;
   const iso = model.frames.kind === 'isomorphisms';
 
-  // Components: library ones are referenced, others are generated in this file.
-  const comps = model.components.map(c => {
+  // Components and the scheduler: library ones are referenced, others are generated in this file.
+  type Piece = { c: Component; ns: string; library: boolean; info: ReturnType<typeof componentInfo>; scheduler?: Scheduler };
+  const comps: Piece[] = model.components.map(c => {
     const library = isLibrary(c);
     const ns = library ? libraryNamespace(c.name) : `${namespace}.Components.${c.name}`;
     return { c, ns, library, info: componentInfo(c, ns) };
   });
+  const sc = model.scheduler;
+  const scPiece: Piece = (() => {
+    const library = isLibraryScheduler(sc);
+    const ns = library ? libraryNamespace(sc.name) : `${namespace}.Schedulers.${sc.name}`;
+    const c = schedulerPiece(sc);
+    return { c, ns, library, info: componentInfo(c, ns, sc), scheduler: sc };
+  })();
+  /** The pieces that own parts of the state: the components, then the scheduler. */
+  const pieces = [...comps, scPiece];
 
-  // Enums: those of components are qualified by their namespace.
+  // Enums: those of components and of the scheduler are qualified by their namespace.
   const enumNames = new Map<string, string>();
-  for (const { info, ns } of comps) for (const e of info.enums) enumNames.set(e.name, `${ns}.${ident(e.name)}`);
+  for (const { info, ns } of pieces) for (const e of info.enums) enumNames.set(e.name, `${ns}.${ident(e.name)}`);
   const local = new Map<string, string[]>();
   // A definition used by several pieces (the algorithm and the task) is generated once.
   const allDefs = [...(model.defs ?? []), ...(algorithm.defs ?? []), ...(task.defs ?? [])]
@@ -298,7 +315,7 @@ export function generateMappedModel(exp: Experiment, namespace: string): Generat
     obtain ⟨${fv('b').join(', ')}⟩ := g
     ${[...fv('a'), ...fv('b')].map(v => `cases ${v} <;> `).join('')}decide
 `);
-  for (const { c, ns } of comps) {
+  for (const { c, ns } of pieces) {
     const own = (c.flags ?? []);
     if (!own.length) { emit(`instance : ${ns}.Flags Flags where\n`); continue; }
     emit(`instance : ${ns}.Flags Flags where
@@ -317,16 +334,16 @@ ${own.map(f => {
   const actionFields = lay.actions.map(a => ({ name: a.name, type: a.type }));
   emit(structDecl('Actions', '', actionFields, t => modelTr.type(t)));
   emit(`def act0 : Actions := { ${lay.actions.map(a => `${ident(a.name)} := ${modelTr.lit(a.default, a.type)}`).join(', ')} }\n`);
-  for (const { c, ns } of comps) {
+  for (const { c, ns } of pieces) {
     const own = c.actions ?? [];
     emit(own.length
       ? `instance : ${ns}.Actions Actions where\n${own.map(a => `  ${ident(a.name)} a := a.${ident(a.name)}`).join('\n')}\n`
       : `instance : ${ns}.Actions Actions where\n`);
   }
 
-  // World and agent fields: one part per component that has some.
-  const withWorld = comps.filter(x => x.info.hasWorld);
-  const withFields = comps.filter(x => x.info.hasFields);
+  // World and agent fields: one part per component (or the scheduler) that has some.
+  const withWorld = pieces.filter(x => x.info.hasWorld);
+  const withFields = pieces.filter(x => x.info.hasFields);
   emit(`structure World (P : Type) where\n${withWorld.map(x => `  ${ident(x.c.name)} : ${x.ns}.World P`).join('\n')}\nderiving DecidableEq, Repr\n`);
   emit(`structure Fields (P : Type) where\n${withFields.map(x => `  ${ident(x.c.name)} : ${x.ns}.Fields P`).join('\n')}\nderiving DecidableEq, Repr\n`);
 
@@ -338,7 +355,7 @@ ${own.map(f => {
   { S := ${spaceCode}, k := nAgents, F := Flags, X := Fields ${spaceCode}.Pos, P := ${pubT}, M := ${memT}, A := Actions,
     W := World ${spaceCode}.Pos, E := Env }
 `);
-  for (const { c, ns, info } of comps) {
+  for (const { c, ns, info } of pieces) {
     const parts = [
       info.hasWorld ? `  world := ⟨fun w => w.${ident(c.name)}, fun w x => { w with ${ident(c.name)} := x }⟩` : '',
       info.hasFields ? `  fields := ⟨fun x => x.${ident(c.name)}, fun x y => { x with ${ident(c.name)} := y }⟩` : '',
@@ -412,12 +429,14 @@ ${envBinds.map(b => `  ${b}\n`).join('')}  pure { ${lay.used.map(s => `${ident(s
     return `${ns}.component ${args.join(' ')} (ctx_${c.name} ${[mArgs, 'nAgents'].filter(Boolean).join(' ')})`;
   });
   const sec = [mArgs, 'nAgents'].filter(Boolean).join(' ');
+  const scArgs = (sc.params ?? []).map(p => wrap(modelTr.lit(sc.args![p.name], p.type)));
+  const scCode = `${scPiece.ns}.scheduler ${[...scArgs, eventsCode(sc.events)].join(' ')} (ctx_${sc.name} ${sec})`;
   emit(`def model ${secBinders}${ordBinder} : Model ${sigCode} where
   tstates := ${tstates}
   components := [${compCode.join(',\n    ')}]
   radius := ${radiusCode}
   frames := ${framesCode}
-  round := .${leanRound(model.scheduler)}
+  scheduler := ${scCode}
   env := env ${sec}
   step := step ${sec}
 `, { kind: 'model' });
@@ -427,8 +446,9 @@ ${envBinds.map(b => `  ${b}\n`).join('')}  pure { ${lay.used.map(s => `${ident(s
   emit(`def goal : Goal := .${task.goal}\n`, { kind: 'goal' });
 
   // Each component's part of the world is written by that component only.
-  for (const { c } of withWorld) {
+  for (const { c, scheduler } of withWorld) {
     emit(`instance ${secBinders} : LawfulLens (ctx_${c.name} ${sec}).world := ⟨fun _ _ => rfl⟩\n`);
+    if (scheduler) continue;
     const cases = comps.map(x => x.c.name === c.name
       ? '  · exact Or.inl rfl'
       : '  · exact Or.inr (Hooks.toComponent_preserves _ _ _ _ fun _ _ => rfl)');
@@ -440,6 +460,11 @@ theorem others_preserve_${c.name} ${secBinders}${ordBinder} :
   simp only [model, List.mem_cons, List.not_mem_nil, or_false] at hc
   rcases hc with ${comps.map(() => 'rfl').join(' | ')}
 ${cases.join('\n')}
+
+/-- The scheduler preserves the part of the world that \`${c.name}\` owns. -/
+theorem scheduler_preserves_${c.name} ${secBinders}${ordBinder} :
+    (model ${sec}${ordArg}).scheduler.Preserves (ctx_${c.name} ${sec}).world.get :=
+  SchedulerHooks.toScheduler_preserves _ _ _ _ _ _ fun _ _ => rfl
 `);
   }
 
@@ -520,11 +545,13 @@ def NonVacuity : Prop :=
   // Assemble: header, local enums and components, records, body.
   const out: Chunk[] = [];
   const push = (text: string, origin?: LeanOrigin) => out.push({ text, origin });
-  push(`import Simulant\n${[...new Set(comps.filter(x => x.library).map(x => `import ${x.ns}`))].join('\n')}\n`);
+  push(`import Simulant\n${[...new Set(pieces.filter(x => x.library).map(x => `import ${x.ns}`))].join('\n')}\n`);
   push(`/-! Generated from the IR of experiment \`${exp.name}\` by packages/lean-gen. Do not edit:
 regenerate it. Proofs go in a separate file. -/\n\nset_option linter.unusedVariables false\n`);
-  for (const { c, ns, library } of comps) {
-    if (!library) push(generateComponent(c, ns).replace(/^import Simulant\n/, ''), { kind: 'component', name: c.name });
+  for (const { c, ns, library, scheduler } of pieces) {
+    if (!library) {
+      push(generateComponent(c, ns, scheduler).replace(/^import Simulant\n/, ''), { kind: scheduler ? 'scheduler' : 'component', name: c.name });
+    }
   }
   push(`namespace ${namespace}\nopen Simulant\n`);
   // The program counter's type comes from the algorithm; other enums from `inductive` declarations.
@@ -561,14 +588,3 @@ regenerate it. Proofs go in a separate file. -/\n\nset_option linter.unusedVaria
 }
 
 export type { Expr };
-
-/**
- * The Lean round of a library scheduler with atomic cycles and no state. Until the Lean round
- * runs over events (docs/scheduler-design.md, step 4), other schedulers are not translated.
- */
-function leanRound(sc: Scheduler): 'fsync' | 'ssync' | 'sequential' {
-  const atomic = sc.events.length === 1 && !sc.world?.length && !sc.agent?.length;
-  const round = ({ FSync: 'fsync', SSync: 'ssync', Sequential: 'sequential' } as const)[sc.name as 'FSync'];
-  if (!atomic || !round) throw new Error(`scheduler ${sc.name} is not translated to Lean yet: only Schedulers.FSync, SSync and Sequential are`);
-  return round;
-}

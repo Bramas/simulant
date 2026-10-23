@@ -2,8 +2,8 @@
  * Elaboration of `.sim` declarations to IR (docs/sim-language.md, docs/core-redesign.md).
  *
  * Two levels:
- * - definitions whose type is a model piece (`Component`, `Model`, `Sensor`, `Space`,
- *   `Observation`, `Frames`, `Round`, `Memory`, or lists of them) are evaluated at compile
+ * - definitions whose type is a model piece (`Component`, `Scheduler`, `Model`, `Sensor`, `Space`,
+ *   `Observation`, `Frames`, `Memory`, or lists of them) are evaluated at compile
  *   time, with their arguments: model families are functions. Experiment parameters in their
  *   arguments (`Graphs.Cycle N`, `Observe.radius (param phi)`) stay symbolic: they are IR
  *   expressions, evaluated per setting;
@@ -170,10 +170,10 @@ export class Elaborator {
   }
 
   /** Evaluates a model-level expression, such as `Hazards.BlackHole .mayEmerge`. */
-  evaluate(text: string): Component | Model | Sensor {
+  evaluate(text: string): Component | Scheduler | Model | Sensor {
     const v = this.meval(new Parser(text, '<expression>').expr(), new Map());
-    if (v.m === 'component' || v.m === 'model' || v.m === 'sensor') return v.ir;
-    return fail(`${text} is not a component, a model or a sensor`);
+    if (v.m === 'component' || v.m === 'scheduler' || v.m === 'model' || v.m === 'sensor') return v.ir;
+    return fail(`${text} is not a component, a scheduler, a model or a sensor`);
   }
 
   /** The experiments declared in the entry module. */

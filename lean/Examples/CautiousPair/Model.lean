@@ -1,5 +1,6 @@
 import Simulant
 import Simulant.Library.BlackHole
+import Simulant.Library.FSync
 
 /-! Generated from the IR of experiment `cautiousPair` by packages/lean-gen. Do not edit:
 regenerate it. Proofs go in a separate file. -/
@@ -60,12 +61,16 @@ instance : Simulant.Library.BlackHole.Flags Flags where
   dead_merge _ _ := rfl
   dead_none := rfl
 
+instance : Simulant.Library.FSync.Flags Flags where
+
 structure Actions where
 deriving DecidableEq, Repr
 
 def act0 : Actions := {  }
 
 instance : Simulant.Library.BlackHole.Actions Actions where
+
+instance : Simulant.Library.FSync.Actions Actions where
 
 structure World (P : Type) where
   BlackHole : Simulant.Library.BlackHole.World P
@@ -85,6 +90,9 @@ abbrev sig (N : Nat) [NeZero N] (nAgents : Nat) : Sig :=
 
 def ctx_BlackHole (N : Nat) [NeZero N] (nAgents : Nat) : Simulant.Library.BlackHole.Ctx (sig N nAgents) where
   world := ⟨fun w => w.BlackHole, fun w x => { w with BlackHole := x }⟩
+
+def ctx_FSync (N : Nat) [NeZero N] (nAgents : Nat) : Simulant.Library.FSync.Ctx (sig N nAgents) where
+
 
 def port (N : Nat) [NeZero N] (nAgents : Nat) (L : Look (sig N nAgents)) (E : Env) (i : Nat) : Nat :=
   ((L.neighbors L.here)[i]!)
@@ -121,7 +129,7 @@ def model (N : Nat) [NeZero N] (nAgents : Nat) : Model (sig N nAgents) where
   components := [Simulant.Library.BlackHole.component Simulant.Library.BlackHole.HolePolicy.initiallyPresent (ctx_BlackHole N nAgents)]
   radius := 1
   frames := .perLook [List.range (space N).maxDegree]
-  round := .fsync
+  scheduler := Simulant.Library.FSync.scheduler [[Instant.look, Instant.compute, Instant.move]] (ctx_FSync N nAgents)
   env := env N nAgents
   step := step N nAgents
 
@@ -149,6 +157,11 @@ theorem others_preserve_BlackHole (N : Nat) [NeZero N] (nAgents : Nat) :
   simp only [model, List.mem_cons, List.not_mem_nil, or_false] at hc
   rcases hc with rfl
   · exact Or.inl rfl
+
+/-- The scheduler preserves the part of the world that `BlackHole` owns. -/
+theorem scheduler_preserves_BlackHole (N : Nat) [NeZero N] (nAgents : Nat) :
+    (model N nAgents).scheduler.Preserves (ctx_BlackHole N nAgents).world.get :=
+  SchedulerHooks.toScheduler_preserves _ _ _ _ _ _ fun _ _ => rfl
 
 def domain_N  : List (Nat) :=
   ((List.range 7).filter (fun (x0 : Nat) => (decide (x0 ≥ 3))))

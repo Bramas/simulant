@@ -1,12 +1,12 @@
 /**
- * Generates the component library (`lean/Simulant/Library/*.lean`) from the
- * standard library's IR:  npx tsx packages/lean-gen/src/library.ts
+ * Generates the component and scheduler library (`lean/Simulant/Library/*.lean`)
+ * from the standard library's IR:  npx tsx packages/lean-gen/src/library.ts
  */
 import { writeFileSync } from 'node:fs';
 import { stdlibElaborator } from '@bramas/simulant-lang/elab/node';
-import type { Component } from '@bramas/simulant-lang/ir';
-import { resolveComponent } from '@bramas/simulant-lang/standalone';
-import { generateComponent } from './component';
+import type { Component, Scheduler } from '@bramas/simulant-lang/ir';
+import { resolveComponent, resolveScheduler } from '@bramas/simulant-lang/standalone';
+import { generateComponent, schedulerPiece } from './component';
 
 /**
  * The library's components, from the `.sim` standard library. Their
@@ -18,6 +18,13 @@ export const libraryComponents: Component[] = (() => {
     'Storage.Lights 3', 'Storage.Pebbles', 'Monitors.Visited'].map(e => resolveComponent(elab.evaluate(e) as Component));
 })();
 
+/** The library's schedulers; their cut of the cycle is an argument of the Lean `scheduler`. */
+export const librarySchedulers: Scheduler[] = (() => {
+  const elab = stdlibElaborator();
+  return ['Schedulers.FSync', 'Schedulers.SSync', 'Schedulers.Sequential', 'Schedulers.Async', 'Schedulers.Bounded 2',
+    'Schedulers.Permutation'].map(e => resolveScheduler(elab.evaluate(e) as Scheduler));
+})();
+
 export const libraryNamespace = (name: string) => `Simulant.Library.${name}`;
 
 export function generateLibrary(dir: URL) {
@@ -25,6 +32,10 @@ export function generateLibrary(dir: URL) {
   for (const c of libraryComponents) {
     writeFileSync(new URL(`Library/${c.name}.lean`, dir), generateComponent(c, libraryNamespace(c.name)));
     names.push(c.name);
+  }
+  for (const sc of librarySchedulers) {
+    writeFileSync(new URL(`Library/${sc.name}.lean`, dir), generateComponent(schedulerPiece(sc), libraryNamespace(sc.name), sc));
+    names.push(sc.name);
   }
   writeFileSync(new URL('Library.lean', dir), names.map(n => `import Simulant.Library.${n}\n`).join(''));
   return names;

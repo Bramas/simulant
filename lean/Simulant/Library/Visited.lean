@@ -29,9 +29,10 @@ variable {σ : Sig} [FlagSet σ.F] [Flags σ.F] [Actions σ.A]
 
 /-- The hooks, on the parts of the state the component owns. -/
 def hooks  (L : Ctx σ) : Hooks σ (World σ.S.Pos) Unit where
-  beforeLook := fun ts C => (pure ({ world := fun x => { x with visited := (((L.world.get C.world).visited) ++ (((List.finRange σ.k).filter (fun (x0 : Fin σ.k) => (FlagSet.present C.agents[x0].flags))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos))).eraseDups }, raise := fun a => FlagSet.none } : OwnEffect σ (World σ.S.Pos) Unit))
+  beforeLook := fun ts C => (pure ({ world := fun world' => { world' with visited := (((L.world.get C.world).visited) ++ (((List.finRange σ.k).filter (fun (x0 : Fin σ.k) => (FlagSet.present C.agents[x0].flags))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos))).eraseDups }, raise := fun agent' => FlagSet.none } : OwnEffect σ (World σ.S.Pos) Unit))
+  onCompute := fun ts C ds => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
   beforeMove := fun ts C ds => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
-  afterMove := fun ts C => (pure ({ world := fun x => { x with visited := (((L.world.get C.world).visited) ++ (((List.finRange σ.k).filter (fun (x0 : Fin σ.k) => (FlagSet.present C.agents[x0].flags))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos))).eraseDups }, raise := fun a => FlagSet.none } : OwnEffect σ (World σ.S.Pos) Unit))
+  afterMove := fun ts C => (pure ({ world := fun world' => { world' with visited := (((L.world.get C.world).visited) ++ (((List.finRange σ.k).filter (fun (x0 : Fin σ.k) => (FlagSet.present C.agents[x0].flags))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos))).eraseDups }, raise := fun agent' => FlagSet.none } : OwnEffect σ (World σ.S.Pos) Unit))
 
 def component  (L : Ctx σ) : Component σ :=
   (hooks  L).toComponent L.world (Lens.unit σ.X)

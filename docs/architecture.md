@@ -120,7 +120,7 @@ Compiled modules and check results carry source revisions. Superseded checks are
 
 ## Lean guarantees and limits
 
-The hand-written Lean core defines nondeterminism, graph spaces and their views, rounds, executions, fairness and goals. Nondeterminism is a list of witness/value pairs; `Step` is membership in the computable round. There is no separate set semantics to reconcile with evaluation.
+The hand-written Lean core defines nondeterminism, graph spaces and their views, the step over events (with schedulers and pending decisions), executions, fairness and goals. Nondeterminism is a list of witness/value pairs; `Step` is membership in the computable round. There is no separate set semantics to reconcile with evaluation.
 
 Library components and model files are generated from the same IR used by the interpreter. Components are generic over the composition: lenses expose their owned state, and classes expose their flags and actions. A composed model supplies the instances and preservation lemmas. Hand-written library lemmas live separately from generated files.
 

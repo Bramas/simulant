@@ -15,7 +15,7 @@ import type { Experiment, Type } from '@bramas/simulant-lang/ir';
 import type { Layout } from '@bramas/simulant-lang/layout';
 import { resolvePub } from '@bramas/simulant-lang/types';
 import { Explorer } from '@bramas/simulant-engine/explorer';
-import { System, type Config } from '@bramas/simulant-engine/system';
+import { System, type Config, type DecisionV } from '@bramas/simulant-engine/system';
 import { canonicalSort, type V } from '@bramas/simulant-engine/values';
 import { generateModel, instantiation } from './model';
 import { fail } from './translate';
@@ -110,13 +110,20 @@ export function differential(exp: Experiment, params: Record<string, V>, leanDir
   const model = `(model ${[mvals, k].filter(x => x !== '').join(' ')}${iso ? ` (RefOrder.physical ${space} ${radius})` : ''})`;
   const perRobot = exp.model.frames.kind === 'portPermutations' && exp.model.frames.when === 'perRobot';
 
+  // A decision: whether it decided, its target, its state, and its actions (the composed `Actions`).
+  const decisionTerm = (d: DecisionV) => `⟨${d.decided}, ${term(d.target, { k: 'pos' })}, ${term(d.pub, pub)}, ${term(d.mem, mem)}, ⟨${
+    lay.actions.map(x => term(d[x.name], x.type)).join(', ')}⟩⟩`;
   const agentTerm = (a: Config['agents'][number]) => `{ pos := ${term(a.pos, { k: 'pos' })}, frame := [${(a.frame ?? []).join(', ')}], flags := ⟨${
     lay.flags.map(f => String(!!a.f[f.name])).join(', ')}⟩, fields := ⟨${
-    fieldParts.map(p => `⟨${p.fields.map(f => term(a.f[f.name], resolvePub(f.type, pub))).join(', ')}⟩`).join(', ')}⟩, pub := ${term(a.pub, pub)}, mem := ${term(a.mem, mem)} }`;
+    fieldParts.map(p => `⟨${p.fields.map(f => term(a.f[f.name], resolvePub(f.type, pub))).join(', ')}⟩`).join(', ')}⟩, pub := ${term(a.pub, pub)}, mem := ${term(a.mem, mem)}${
+    a.phase ? `, phase := ${a.phase}, pending := some ${decisionTerm(a.pending!)}` : ''} }`;
   const configTerm = (C: Config) => `({ agents := #v[${C.agents.map(agentTerm).join(', ')}], world := ⟨${
     worldParts.map(p => `⟨${p.fields.map(f => term(C.world[f.name], f.type)).join(', ')}⟩`).join(', ')}⟩ } : Config ${sig})`;
 
-  const agentJson = `"{\\"pos\\":" ++ ${json('a.pos', { k: 'pos' })} ++ ",\\"frame\\":" ++ ${json('a.frame', { k: 'list', of: { k: 'nat' } })} ++ ",\\"pub\\":" ++ ${json('a.pub', pub)} ++ ",\\"mem\\":" ++ ${json('a.mem', mem)} ++ ",\\"f\\":{" ++ ${
+  const decisionJson = (d: string) => `"{\\"decided\\":" ++ toString ${d}.decided ++ ",\\"target\\":" ++ ${json(`${d}.target`, { k: 'pos' })} ++ ",\\"pub\\":" ++ ${
+    json(`${d}.pub`, pub)} ++ ",\\"mem\\":" ++ ${json(`${d}.mem`, mem)} ++ ${
+    lay.actions.map(x => `",\\"${x.name}\\":" ++ ${json(`${d}.act.${x.name}`, x.type)}`).join(' ++ ') || '""'} ++ "}"`;
+  const agentJson = `"{\\"pos\\":" ++ ${json('a.pos', { k: 'pos' })} ++ ",\\"frame\\":" ++ ${json('a.frame', { k: 'list', of: { k: 'nat' } })} ++ ",\\"pub\\":" ++ ${json('a.pub', pub)} ++ ",\\"mem\\":" ++ ${json('a.mem', mem)} ++ ",\\"phase\\":" ++ toString a.phase ++ ",\\"pending\\":" ++ (match a.pending with | none => "null" | some d => ${decisionJson('d')}) ++ ",\\"f\\":{" ++ ${
     [...lay.flags.map(f => `"\\"${f.name}\\":" ++ toString a.flags.${f.name}`),
       ...fieldParts.flatMap(p => p.fields.map(f => `"\\"${f.name}\\":" ++ ${json(`a.fields.${p.owner}.${f.name}`, f.type)}`))].join(' ++ "," ++ ') || '""'} ++ "}}"`;
   const worldJson = `"{" ++ ${worldParts.flatMap(p => p.fields.map(f => `"\\"${f.name}\\":" ++ ${json(`C.world.${p.owner}.${f.name}`, f.type)}`)).join(' ++ "," ++ ') || '""'} ++ "}"`;
@@ -146,10 +153,15 @@ def configs : List (Config ${sig}) := [
   const lines = out.split('\n').filter(l => l.startsWith('['));
   if (lines.length !== configs.length) fail(`Lean printed ${lines.length} lines for ${configs.length} configurations:\n${out.slice(0, 2000)}`);
 
+  const normDecision = (d: V): DecisionV => ({
+    decided: d.decided, target: d.target, pub: normalize(d.pub, pub), mem: normalize(d.mem, mem),
+    ...Object.fromEntries(lay.actions.map(x => [x.name, normalize(d[x.name], x.type)])),
+  });
   const normConfig = (c: { agents: V[]; world: V }): Config => ({
     agents: c.agents.map((a: V) => ({
       pos: a.pos, pub: normalize(a.pub, pub), mem: normalize(a.mem, mem),
       ...(perRobot ? { frame: a.frame } : {}),
+      ...(a.phase ? { phase: a.phase, pending: normDecision(a.pending) } : {}),
       f: Object.fromEntries([...lay.flags.map(f => [f.name, a.f[f.name]]),
         ...lay.agentFields.map(f => [f.name, normalize(a.f[f.name], f.type)])]),
     })),
@@ -160,9 +172,7 @@ def configs : List (Config ${sig}) := [
   configs.forEach((C, i) => {
     const lean = (JSON.parse(lines[i]) as [[string, number][], { agents: V[]; world: V }][])
       .map(([w, c]) => ({ w: JSON.stringify(w), key: system.key(normConfig(c)) }));
-    // The Lean round names the scheduler's choice `activation` (until it is generated: docs/scheduler-design.md, step 4).
-    const site = (s: string) => s.startsWith(`${exp.model.scheduler.name}.`) ? 'activation' : s;
-    const engine = system.successors(C).map(s => ({ w: JSON.stringify(s.witness.map(c => [site(c.site), c.index])), key: s.key }));
+    const engine = system.successors(C).map(s => ({ w: JSON.stringify(s.witness.map(c => [c.site, c.index])), key: s.key }));
     successors += engine.length;
     const leanKeys = new Set(lean.map(x => x.key));
     const engineKeys = new Set(engine.map(x => x.key));

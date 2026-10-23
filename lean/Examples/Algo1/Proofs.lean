@@ -25,6 +25,9 @@ theorem reachable_claims (N : Nat) [NeZero N] (site : (space N).Pos) (C : Config
     (fun C hC i => by
       obtain ⟨_, -, rfl⟩ := ND.can_map.1 hC
       left
+      simp)
+    (fun C hC i => by
+      obtain ⟨_, -, rfl⟩ := ND.can_map.1 hC
       simp) h
 
 end Examples.Algo1

@@ -442,9 +442,10 @@ export function describeExperiment(exp: Experiment, sources: Record<string, stri
   const pcLines = lineTable(exp);
   const origin = (o: LeanOrigin): { label: string; refs: SourceRef[] } => {
     switch (o.kind) {
-      case 'composition': return { label: 'composition of the components', refs: modelRef('components') };
+      case 'composition': return { label: 'composition of the components and the scheduler', refs: modelRef('components') };
       case 'model': return { label: `model ${model.name}`, refs: modelRef('space') };
       case 'component': return { label: `component ${o.name}`, refs: refTo('component', o.name!) };
+      case 'scheduler': return { label: `scheduler ${o.name}`, refs: refTo('scheduler', o.name!) };
       case 'sensor': return { label: `sensor ${o.name}`, refs: refTo('sensor', o.name!) };
       case 'definition': return { label: `definition ${o.name}`, refs: refTo('definition', o.name!) };
       case 'task': return { label: `task ${task.name}`, refs: refTo('task', task.name) };

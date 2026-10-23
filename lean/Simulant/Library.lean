@@ -4,3 +4,9 @@ import Simulant.Library.CrashAt
 import Simulant.Library.Lights
 import Simulant.Library.Pebbles
 import Simulant.Library.Visited
+import Simulant.Library.FSync
+import Simulant.Library.SSync
+import Simulant.Library.Sequential
+import Simulant.Library.Async
+import Simulant.Library.Bounded
+import Simulant.Library.Permutation

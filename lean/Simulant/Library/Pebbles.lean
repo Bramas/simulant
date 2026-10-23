@@ -40,7 +40,8 @@ def sensor_pebblesHere (L : Ctx σ)  (Lk : Look σ) : ND (Nat) := do
 /-- The hooks, on the parts of the state the component owns. -/
 def hooks  (L : Ctx σ) : Hooks σ (World σ.S.Pos) Unit where
   beforeLook := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
-  beforeMove := fun ts C ds => (pure (let picks := (((List.finRange σ.k).filter (fun (a : Fin σ.k) => (((ds a).decided) && ((Actions.pebble (ds a).act) == PebbleAction.pick)))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos)); (let drops := (((List.finRange σ.k).filter (fun (a : Fin σ.k) => (((ds a).decided) && ((Actions.pebble (ds a).act) == PebbleAction.drop)))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos)); ({ world := fun x => { x with pebbles := ((B.diff ((L.world.get C.world).pebbles) picks) ++ drops) }, raise := fun a => FlagSet.none } : OwnEffect σ (World σ.S.Pos) Unit))))
+  onCompute := fun ts C ds => (pure (let picks := (((List.finRange σ.k).filter (fun (a : Fin σ.k) => (((ds a).decided) && ((Actions.pebble (ds a).act) == PebbleAction.pick)))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos)); (let drops := (((List.finRange σ.k).filter (fun (a : Fin σ.k) => (((ds a).decided) && ((Actions.pebble (ds a).act) == PebbleAction.drop)))).map (fun (x0 : Fin σ.k) => C.agents[x0].pos)); ({ world := fun world' => { world' with pebbles := ((B.diff ((L.world.get C.world).pebbles) picks) ++ drops) }, raise := fun agent' => FlagSet.none } : OwnEffect σ (World σ.S.Pos) Unit))))
+  beforeMove := fun ts C ds => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
   afterMove := fun ts C => pure ⟨id, fun _ => FlagSet.none, fun _ => id⟩
 
 def component  (L : Ctx σ) : Component σ :=
