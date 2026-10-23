@@ -64,7 +64,7 @@ algorithm ThreeAgentKnownN uses otherStates, spaceSize where
 
 /-- The settings of the paper's checks: cycles of 5 to 12 nodes, the hole anywhere. -/
 experiment algo3 where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .known
   algorithm := ThreeAgentKnownN
   task := IdentifyEmergingBlackHole
   param N : Nat in (range 13).filter (· ≥ 5)

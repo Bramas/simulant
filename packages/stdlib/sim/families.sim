@@ -1,0 +1,41 @@
+/-! Model families: the classic settings of mobile-entity algorithms, whose arguments are the
+assumptions a paper states. Every capability is an explicit argument: the space, the observation,
+the frames, the sensors, the components and the scheduler. -/
+
+import "./spaces.sim"
+import "./helpers.sim"
+import "./sensors.sim"
+import "./components.sim"
+import "./schedulers.sim"
+
+/-- Oblivious robots: they keep nothing between activations (no program counter, no local), and
+decide each move from what they see now. -/
+def obliviousRobots (space : Space) (observe : Observation) (frames : Frames)
+    (sensors : List Sensor) (components : List Component := [])
+    (movement : Movement := .alongEdges) (scheduler : Scheduler := Schedulers.FSync)
+    (symmetries : Symmetries := .derived) : Model where
+  space := space
+  observation := observe
+  frames := frames
+  sensors := sensors
+  components := components
+  memory := .oblivious
+  movement := movement
+  scheduler := scheduler
+  symmetries := symmetries
+
+/-- Agents with memory: they keep a program counter and their local values between
+activations, as mobile agents usually do. -/
+def agentsWithMemory (space : Space) (observe : Observation) (frames : Frames)
+    (sensors : List Sensor) (components : List Component := [])
+    (movement : Movement := .alongEdges) (scheduler : Scheduler := Schedulers.FSync)
+    (symmetries : Symmetries := .derived) : Model where
+  space := space
+  observation := observe
+  frames := frames
+  sensors := sensors
+  components := components
+  memory := .persistent
+  movement := movement
+  scheduler := scheduler
+  symmetries := symmetries

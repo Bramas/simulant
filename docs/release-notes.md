@@ -1,11 +1,12 @@
 # Release notes
 
-## Next release (breaking): schedulers
+## Next release (breaking): schedulers and model families
 
 This release moves schedulers into the language ([scheduler-design.md](scheduler-design.md)). It is breaking for `.sim` sources (`round` is gone), the IR (version 3), the engine's configurations (agents may carry a pending decision) and the Lean library (the step runs over events). It is the next minor version (`pnpm release:version minor`).
 
 ### Models
 
+- **Two model families, and predefined models.** `obliviousRobots` and `agentsWithMemory` (`std/families.sim`) replace `robots`: they take the same arguments, without `memory`. `blackHoleRobots` becomes the predefined model `blackHoleSearch` (`std/predefined.sim`), with the same arguments. `import "std/models.sim"` still imports everything.
 - **Schedulers replace rounds.** A model takes a `scheduler` (default `Schedulers.FSync`): `Schedulers.SSync`, `Schedulers.Sequential`, `Schedulers.Async`, `Schedulers.Bounded k`, `Schedulers.Permutation`, or one of your own. `round := .ssync` becomes `scheduler := Schedulers.SSync`; the `Round` type and its constructors are gone.
 - **Asynchronous cycles.** A scheduler's `events` cut the Look-Compute-Move cycle into atomic events: one per cycle (the classic rounds), `[[.look, .compute], [.move]]` (LC-atomic), `[[.look], [.compute, .move]]` (CM-atomic) or `[[.look], [.compute], [.move]]` (ASYNC). An agent decides at its Look; its decision stays pending until its Compute (public state, memory, light, pebbles) and its Move, and a Look at the same instant sees the previous state.
 - **Writing a scheduler.** A `def … : Scheduler` owns agent and world fields like a component; its `schedule C` returns an effect whose `activate` part lists the agents that take their next event (`C.eligible`: those able to act; `a.phase`: an agent's progress in its cycle; `nonemptySubsets xs`). `fairness := .activation` (default) admits only executions in which every agent that keeps acting takes events infinitely often; `.none` admits all of them.
@@ -16,13 +17,14 @@ This release moves schedulers into the language ([scheduler-design.md](scheduler
 - **Engine.** `System.successors` runs a step over events; agents carry `phase` and `pending`. `SystemOptions.scheduler` replaces the model's scheduler (tests). Explanations name the event an agent took and say when its decision stays pending or when it applies an earlier one.
 - **Simulator.** Rounds are now steps. Pending moves are drawn as dashed arrows; the state panel shows an agent's phase and pending decision; the model view describes the scheduler, its events and its fairness, and the step phase by phase (`onCompute` included).
 - **Lean.** Agents carry their phase and pending decision; schedulers are generated like components (the library's in `Simulant.Library`); `Model.roundA` mirrors the interpreter's step, and the differential test covers asynchronous fixtures. Proofs that destructure the round, `Component.Total`/`Preserves` (four hooks) and `Model.total` (the scheduler's totality) need porting, as the library's examples were. `Model.atomic_step` shows that atomic cycles never leave a decision pending.
-- **Site and editor.** The builder offers the library schedulers, asynchronous cuts included; the library page lists them; the guide has a section on schedulers. Completions and hovers know `Scheduler`, `onCompute`, `C.eligible`, `a.phase` and `nonemptySubsets`.
+- **Site and editor.** The home page, guide, library and builder present the two families first and the predefined models after them; the builder offers the library schedulers, asynchronous cuts included; the library page lists them; the guide has a section on schedulers. Completions and hovers know `Scheduler`, `onCompute`, `C.eligible`, `a.phase` and `nonemptySubsets`.
 
 ### Upgrading a project
 
-1. Replace `round := .fsync` (or remove it), `.ssync` and `.sequential` with `scheduler := Schedulers.FSync`, `Schedulers.SSync` and `Schedulers.Sequential`.
-2. Move component effects that belong to Compute (lights, tokens) from `beforeMove` to `onCompute`.
-3. Regenerate the Lean model with `simulant lean` and port proofs to the step over events.
+1. Replace `robots …` with `obliviousRobots …`, or with `agentsWithMemory …` where it had `(memory := .persistent)` (drop that argument), and `blackHoleRobots` with `blackHoleSearch`.
+2. Replace `round := .fsync` (or remove it), `.ssync` and `.sequential` with `scheduler := Schedulers.FSync`, `Schedulers.SSync` and `Schedulers.Sequential`.
+3. Move component effects that belong to Compute (lights, tokens) from `beforeMove` to `onCompute`.
+4. Regenerate the Lean model with `simulant lean` and port proofs to the step over events.
 
 ## 0.4.1 (2026-10-22): initializer compatibility
 

@@ -30,7 +30,7 @@ import "std/models.sim"
 algorithm Idle uses occupied where
   main := stay
 experiment idle where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
   algorithm := Idle
   task := Gathering
   param N : Nat in [3, 4]

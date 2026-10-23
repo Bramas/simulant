@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, Index, Match, Show, Switch
 import { render } from 'solid-js/web';
 
 import {
-  analyze, build, byName, components, isCustom, locate, models, newDraft, sensorArgs, syntaxError, tasks, undeclared, useOf, viewSensors, widget, withCustom,
+  analyze, build, byName, components, isCustom, isPredefined, locate, models, newDraft, sensorArgs, syntaxError, tasks, undeclared, useOf, viewSensors, widget, withCustom,
   type Draft, type Region, type Use,
 } from './builder';
 import type { SiteDiagnostic } from './compile';
@@ -318,19 +318,29 @@ function Builder() {
       <div class="builder">
         <form class="builder-form" onSubmit={(e) => e.preventDefault()}>
           <fieldset>
-            <legend>1. Model family</legend>
-            <div class="choices">
-              <For each={models(lib())}>
-                {(m) => (
-                  <label class="choice" classList={{ on: draft().model === m.name }}>
-                    <input type="radio" name="model" aria-label={m.name} checked={draft().model === m.name} onChange={() => chooseModel(m.name)} />
-                    <code>{m.name}</code>
-                    <Yours entry={m} />
-                    <span class="hint">{firstSentence(m.doc)}</span>
-                  </label>
-                )}
-              </For>
-            </div>
+            <legend>1. Model</legend>
+            <For each={[
+              { title: 'Families', hint: 'Oblivious robots or agents with memory: every assumption is an argument.', entries: models(lib()).filter((m) => !isPredefined(m)) },
+              { title: 'Predefined models', hint: 'A family with the assumptions of a line of work fixed.', entries: models(lib()).filter(isPredefined) },
+            ].filter((g) => g.entries.length)}>
+              {(group) => (
+                <>
+                  <p class="choice-group"><strong>{group.title}</strong> <span class="hint">{group.hint}</span></p>
+                  <div class="choices">
+                    <For each={group.entries}>
+                      {(m) => (
+                        <label class="choice" classList={{ on: draft().model === m.name }}>
+                          <input type="radio" name="model" aria-label={m.name} checked={draft().model === m.name} onChange={() => chooseModel(m.name)} />
+                          <code>{m.name}</code>
+                          <Yours entry={m} />
+                          <span class="hint">{firstSentence(m.doc)}</span>
+                        </label>
+                      )}
+                    </For>
+                  </div>
+                </>
+              )}
+            </For>
           </fieldset>
 
           <fieldset>

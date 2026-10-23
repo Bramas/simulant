@@ -12,16 +12,18 @@ import "std/models.sim"
 
 The library includes spaces (`Graphs.Cycle`, `Graphs.Line`, `Graphs.Star`),
 location sensors, black-hole and crash components, lights, pebble storage, visit
-monitors, tasks, the model families `robots` and `blackHoleRobots`, and example
-algorithms. Graphs, observations, frames and rounds are implemented in the
-semantic core; library definitions compose those capabilities.
+monitors, schedulers (`schedulers.sim`), tasks, the model families
+`obliviousRobots` and `agentsWithMemory` (`families.sim`), the predefined model
+`blackHoleSearch` (`predefined.sim`), and example algorithms. Graphs, observations,
+frames and the step over events are implemented in the semantic core; library
+definitions compose those capabilities.
 
 For limited-visibility luminous robots on a line, with a palette of three colors,
 disoriented (a fresh isomorphism of the view at each Look):
 
 ```lean
 def luminous : Model :=
-  robots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms [colors]
+  obliviousRobots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms [colors]
     (components := [Storage.Lights 3, Faults.CrashAt])
 ```
 
@@ -40,9 +42,9 @@ from locations; a project chooses its own notation, such as the stand-up project
 X/Y/Z encoding of `colors`.
 
 Compose model capabilities explicitly. Black-hole search with chirality uses
-`blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown`; on a dynamic ring,
-`blackHoleRobots (Graphs.Dynamic (Graphs.Cycle N) 1) .mayEmerge .unknown`. Full-view
-gathering on a ring uses `robots (Graphs.Cycle N) Observe.full Frames.isomorphisms
+`blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown`; on a dynamic ring,
+`blackHoleSearch (Graphs.Dynamic (Graphs.Cycle N) 1) .mayEmerge .unknown`. Full-view
+gathering on a ring uses `obliviousRobots (Graphs.Cycle N) Observe.full Frames.isomorphisms
 [occupied]`. The experiment selects the task and goal, such as `Gathering`,
 separately from the model.
 

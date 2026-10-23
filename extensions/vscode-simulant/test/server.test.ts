@@ -16,7 +16,7 @@ test('a bundled stdio LSP server handles incremental edits, imported buffers, na
   const source = `import "std/examples.sim"
 import "./helper.sim"
 experiment e where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in [5]

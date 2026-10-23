@@ -30,7 +30,7 @@ algorithm CautiousPair uses otherStates where
 
 /-- The cautious pair, with a hole present from the start, on cycles of 3 to 6 nodes. -/
 experiment cautiousPair where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in (range 7).filter (· ≥ 3)
@@ -40,7 +40,7 @@ experiment cautiousPair where
 
 /-- The same algorithm with an emerging hole, crashes, and unrelated state (pebbles). -/
 experiment cautiousPairCrash where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1, Storage.Pebbles])
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1, Storage.Pebbles])
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in (range 7).filter (· ≥ 3)

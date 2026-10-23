@@ -19,7 +19,7 @@ experiment e where
   position i := pos 0
 `;
 const MODEL = (policy: string) => `import "std/models.sim"
-def myModel : Model := blackHoleRobots (Graphs.Cycle (param N)) .${policy} .unknown
+def myModel : Model := blackHoleSearch (Graphs.Cycle (param N)) .${policy} .unknown
 `;
 
 /** Writes a file and tells the server's watcher, as an editor's save would. */
@@ -55,7 +55,7 @@ test('a .sim module recompiles when an import changes, reports errors, and recov
     assert.notEqual(m.revision, r1);
 
     // An invalid edit gives diagnostics at the source position, and no experiment.
-    await save(server, model, 'import "std/models.sim"\ndef myModel : Model := blackHoleRobots (Graphs.Cycle (param N)) .mayEmerge .unknown (extra :=\n');
+    await save(server, model, 'import "std/models.sim"\ndef myModel : Model := blackHoleSearch (Graphs.Cycle (param N)) .mayEmerge .unknown (extra :=\n');
     m = await load(server);
     assert.deepEqual(m.experiments, {});
     assert.equal(m.diagnostics[0].file, model);

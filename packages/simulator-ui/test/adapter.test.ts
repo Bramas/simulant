@@ -149,7 +149,7 @@ test('the model view describes the experiment and shows the declarations it uses
   assert.ok(d.summary.includes('sensor: otherStates'));
   assert.match(d.about!, /^Algorithm 1 of the black-hole-search paper/);
   assert.deepEqual(d.sources.map(s => `${s.kind} ${s.name}`), [
-    'experiment algo1', 'model blackHoleRobots', 'model robots', 'space Graphs.Cycle', 'sensor otherStates',
+    'experiment algo1', 'model blackHoleSearch', 'model agentsWithMemory', 'space Graphs.Cycle', 'sensor otherStates',
     'component Hazards.BlackHole', 'scheduler Schedulers.FSync', 'algorithm FourAgentEBS', 'task IdentifyEmergingBlackHole', 'goal IdentifyEmergingBlackHole',
     'definition Port.cw', 'definition port', 'definition Ring.cw', 'definition Ring.ccw', 'definition Port.opposite',
   ]);

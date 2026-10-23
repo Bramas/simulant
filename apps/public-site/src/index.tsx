@@ -18,7 +18,7 @@ const features = [
   },
   {
     title: 'Composable models',
-    text: 'Cycles, lines, stars, dynamic graphs; black holes, crashes, pebbles: change the model and keep the algorithm.',
+    text: 'Oblivious robots or agents with memory; cycles, lines, stars, dynamic graphs; synchronous to asynchronous schedulers; black holes, crashes, pebbles, lights: change the model and keep the algorithm.',
     icon: icon(<><rect x="3" y="3" width="7" height="7" rx="1.5" /><rect x="14" y="3" width="7" height="7" rx="1.5" /><rect x="3" y="14" width="7" height="7" rx="1.5" /><path d="M17.5 14v7M14 17.5h7" /></>),
   },
   {
@@ -48,7 +48,7 @@ const learn = [
   {
     title: 'Standard library',
     href: './library/',
-    text: 'Model families, components, sensors and tasks, with what each one needs.',
+    text: 'Model families, predefined models, schedulers, components, sensors and tasks, with what each one needs.',
     icon: icon(<><path d="M4 4h4v16H4zM10 4h4v16h-4z" /><path d="m16 5 3.5-1 3 15.5-3.5 1z" /></>),
   },
   {
@@ -83,11 +83,18 @@ const policies = {
 } as const;
 type Policy = keyof typeof policies;
 
-const composeExample = `experiment cautiousPairCrash where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .known
-    (extra := [Faults.CrashStop 1, Storage.Pebbles])
-  algorithm := CautiousPair
-  task := IdentifyBlackHole`;
+const composeExample = `-- Oblivious robots on the line, asynchronous,
+-- that may crash on one node
+obliviousRobots Graphs.Line (Observe.radius phi)
+  Frames.isomorphisms [occupied]
+  (components := [Faults.CrashAt])
+  (scheduler := Schedulers.Async)
+
+-- Agents with memory on a cycle that loses
+-- one edge per step, with pebbles
+agentsWithMemory (Graphs.Dynamic (Graphs.Cycle N) 1)
+  (Observe.radius 1) Frames.identity [otherStates]
+  (components := [Storage.Pebbles])`;
 
 const leanExample = `theorem reachable_site
     (N : Nat) [NeZero N] (site : (space N).Pos)
@@ -95,7 +102,8 @@ const leanExample = `theorem reachable_site
     (h : (model N 2).Reachable act0 (init N site) C) :
     C.world.BlackHole.site = site`;
 
-const components = ['Graphs.Cycle', 'Graphs.Line', 'Graphs.Dynamic', 'Hazards.BlackHole', 'Faults.CrashStop', 'Storage.Lights', 'Storage.Pebbles', 'fsync · ssync'];
+const components = ['obliviousRobots', 'agentsWithMemory', 'Graphs.Cycle', 'Graphs.Line', 'Graphs.Star', 'Graphs.Dynamic', 'Hazards.BlackHole',
+  'Faults.CrashStop', 'Faults.CrashAt', 'Storage.Lights', 'Storage.Pebbles', 'Schedulers.SSync', 'Schedulers.Async'];
 
 const start = `git clone https://github.com/bramas/simulant.git && cd simulant
 pnpm install
@@ -112,7 +120,7 @@ function PolicyDemo() {
       <div class="demo-code">
         <pre class="code"><code>
           <span class="tok-keyword">experiment</span> cautiousPair <span class="tok-keyword">where</span>{'\n'}
-          {'  '}<span class="tok-keyword">model</span> <span class="tok-punctuation">:=</span> blackHoleRobots (Graphs.Cycle N){'\n    '}
+          {'  '}<span class="tok-keyword">model</span> <span class="tok-punctuation">:=</span> blackHoleSearch (Graphs.Cycle N){'\n    '}
           <span class="policy-switch" role="radiogroup" aria-label="Hole policy">
             <For each={Object.keys(policies) as Policy[]}>
               {(name) => (
@@ -198,7 +206,7 @@ function App() {
         <section class="section pair">
           <article>
             <h2>Compose</h2>
-            <p class="section-lead">Models are assembled from library components.</p>
+            <p class="section-lead">A model is a family, oblivious robots or agents with memory, with its assumptions as arguments.</p>
             <Code code={composeExample} />
             <ul class="chips">
               <For each={components}>{(name) => <li>{name}</li>}</For>

@@ -94,6 +94,8 @@ export const byName = (lib: Library, name: string) => lib.entries.find((e) => e.
 const head = (value: string) => value.trim().split(/\s+/)[0];
 
 export const models = (lib: Library) => lib.entries.filter((e) => e.kind === 'model');
+/** Predefined models: a family with the assumptions of a line of work fixed (`std/predefined.sim`). */
+export const isPredefined = (e: Entry) => e.module === 'std/predefined.sim';
 export const tasks = (lib: Library) => lib.entries.filter((e) => e.kind === 'task');
 export const components = (lib: Library) => lib.entries.filter((e) => e.kind === 'component');
 export const spaces = (lib: Library) => lib.entries.filter((e) => e.kind === 'space');

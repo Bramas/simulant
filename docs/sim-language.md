@@ -27,7 +27,8 @@ sensor otherStates (L : Look) : Multiset Pub := ...            -- a Look-level s
 task Gathering (C : Config) : Verdict := ...
 goal Gathering := eventually .success          -- or `eventually always .success`, `always ¬ .failure`
 def Hazards.BlackHole (policy : HolePolicy) : Component where ...
-def robots (space : Space) (observe : Observation) (frames : Frames) (sensors : List Sensor) : Model where ...
+def obliviousRobots (space : Space) (observe : Observation) (frames : Frames) (sensors : List Sensor) : Model where ...   -- a model family
+def blackHoleSearch (space : Space) (policy : HolePolicy) (size : SizeKnowledge) : Model := ...                 -- a predefined model
 algorithm CautiousPair uses otherStates where ...
 experiment emergingAll where ...
 ```
@@ -54,7 +55,7 @@ Attributes go before a declaration: `@[equivariant]` on a component or a task (a
 
 ## Two levels
 
-- **Model level.** A `def` whose type is `Component`, `Scheduler`, `Model`, `Sensor`, `Space`, `Observation`, `Frames`, `Memory`, `Movement`, `Symmetries`, `Instant`, `Fairness` or a list of them is evaluated when an experiment is compiled. Arguments are positional or named (`blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Faults.CrashStop 1])`), with defaults. Lists, `++`, `if ... then ... else`, `=` on constructors are available. A model's scheduler is a library or user `Scheduler` (`Schedulers.FSync` by default; see [Schedulers](#schedulers)). Experiment parameters may appear in model arguments: an experiment names them directly (`Graphs.Cycle N`), a model-level definition reads them as `param phi` (`Observe.radius (param phi)`). They stay symbolic and are evaluated per setting. Built in:
+- **Model level.** A `def` whose type is `Component`, `Scheduler`, `Model`, `Sensor`, `Space`, `Observation`, `Frames`, `Memory`, `Movement`, `Symmetries`, `Instant`, `Fairness` or a list of them is evaluated when an experiment is compiled. Arguments are positional or named (`blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown (extra := [Faults.CrashStop 1])`), with defaults. Lists, `++`, `if ... then ... else`, `=` on constructors are available. A model's scheduler is a library or user `Scheduler` (`Schedulers.FSync` by default; see [Schedulers](#schedulers)). Experiment parameters may appear in model arguments: an experiment names them directly (`Graphs.Cycle N`), a model-level definition reads them as `param phi` (`Observe.radius (param phi)`). They stay symbolic and are evaluated per setting. Built in:
 
 | Built in | Meaning |
 | --- | --- |
@@ -215,7 +216,7 @@ The *Lean* switch replaces the facts with the generated Lean model, as `simulant
 
 ```lean
 experiment cautiousPair where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in (range 7).filter (· ≥ 3)              -- exact finite domain

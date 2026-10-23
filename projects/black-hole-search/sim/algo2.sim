@@ -67,7 +67,7 @@ algorithm ThreeAgentOnePebble uses otherStates, pebblesHere where
 
 /-- The settings of the paper's checks: cycles of 5 to 12 nodes, the hole anywhere. -/
 experiment algo2 where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles])
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown (extra := [Storage.Pebbles])
   algorithm := ThreeAgentOnePebble
   task := IdentifyEmergingBlackHole
   param N : Nat in (range 13).filter (· ≥ 5)

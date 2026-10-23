@@ -103,7 +103,7 @@ algorithm ThreeAgentQuadratic uses otherStates where
 
 /-- The settings of the paper's checks: cycles of 5 to 12 nodes, the hole anywhere. -/
 experiment algo4 where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := ThreeAgentQuadratic
   task := IdentifyEmergingBlackHoleAt
   param N : Nat in (range 13).filter (· ≥ 5)

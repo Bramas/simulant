@@ -26,7 +26,7 @@ algorithm Cycle where
   step mem pub :=
     { move := here, setLight := ${request}, mem := { next := (mem.next + 1) % ${colors} } }
 experiment cycling where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (components := [Storage.Lights ${colors}]) (memory := .persistent)
+  model := agentsWithMemory (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (components := [Storage.Lights ${colors}])
   algorithm := Cycle
   task := Gathering
   param N : Nat in [4]
@@ -61,7 +61,7 @@ algorithm Report uses colors where
   init i := { pub := { seen := [] } }
   step mem pub := { move := here, pub := { seen := colors here } }
 experiment viewTest where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [colors] (components := [Storage.Lights 5])
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [colors] (components := [Storage.Lights 5])
   algorithm := Report
   task := Gathering
   param N : Nat in [8]

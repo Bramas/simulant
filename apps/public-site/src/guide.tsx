@@ -92,8 +92,11 @@ function Guide() {
 
           <Section id="models" title="Choosing a model">
             <p>
-              A model is built by a <em>model family</em> of the <a href="../library/#models">standard library</a>, from arguments.
-              Arguments are positional or named, and named ones have defaults:
+              A model is built by one of the two <em>model families</em> of the <a href="../library/#models">standard library</a>:
+              <code>obliviousRobots</code>, which keep nothing between activations, and <code>agentsWithMemory</code>, which keep a
+              program counter and their local values. Every other assumption is an argument, positional or named (named ones have
+              defaults). <a href="../library/#predefined">Predefined models</a>, such as <code>blackHoleSearch</code>, fix the
+              assumptions of a line of work:
             </p>
             <Code code={ex.models} />
             <p>
@@ -110,11 +113,11 @@ function Guide() {
             <p>A paper's model is worth naming once, as a definition with its own arguments:</p>
             <Code code={ex.ownModel} />
             <Table head={['Assumption', 'Where it is chosen']} rows={[
-              ['space', 'Graphs.Cycle N, Graphs.Line, Graphs.Star k, Graphs.Dynamic space k (at most k edges missing per round)'],
+              ['memory', 'the family: obliviousRobots or agentsWithMemory'],
+              ['space', 'Graphs.Cycle N, Graphs.Line, Graphs.Star k, Graphs.Dynamic space k (at most k edges missing per step)'],
               ['observation', 'Observe.radius r (the r-hop view), Observe.full'],
               ['frames', 'Frames.identity, Frames.isomorphisms, Frames.portPermutations .perLook / .perRobot'],
               ['scheduler', 'Schedulers.FSync (default), Schedulers.SSync, Schedulers.Sequential, Schedulers.Async (ASYNC, LC- or CM-atomic), Schedulers.Bounded k, Schedulers.Permutation, or your own'],
-              ['memory', '.oblivious (robots), .persistent (blackHoleRobots)'],
               ['sensors', 'occupied, count, colors, otherStates, spaceSize, …'],
               ['components', 'Hazards.BlackHole, Faults.CrashStop f, Storage.Pebbles, Storage.Lights k, …'],
             ]} />
@@ -167,7 +170,7 @@ function Guide() {
 
           <Section id="oblivious" title="Oblivious algorithms">
             <p>
-              In an oblivious model (<code>robots</code> by default), robots keep nothing between activations: no program counter, no locals.
+              Oblivious robots (<code>obliviousRobots</code>) keep nothing between activations: no program counter, no locals.
               The algorithm decides each step from what it sees now, so it reads as a list of guarded rules.
               Helper definitions (<code>def</code>) are functions, usable in algorithms, tasks and parameter domains; one that reads the
               Look, such as <code>occupiedNeighbors</code> below, can only be called by algorithms.

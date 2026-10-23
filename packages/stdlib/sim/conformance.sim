@@ -53,10 +53,10 @@ goal Observe := always ¬ .failure
 
 /-- Agents on a cycle that see nothing, under a given scheduler. -/
 def cycleRobots (scheduler : Scheduler) : Model :=
-  robots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [] (scheduler := scheduler)
+  obliviousRobots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [] (scheduler := scheduler)
 
 experiment blackHoleEmerging where
-  model := blackHoleRobots (Graphs.Cycle N) .mayEmerge .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .mayEmerge .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat
@@ -65,7 +65,7 @@ experiment blackHoleEmerging where
   position i := pos 0
 
 experiment blackHoleCrashStop where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .known (extra := [Faults.CrashStop 1])
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .known (extra := [Faults.CrashStop 1])
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat
@@ -74,7 +74,7 @@ experiment blackHoleCrashStop where
   position i := pos 0
 
 experiment blackHoleLossy where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown (view := otherStatesLossy 1)
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown (view := otherStatesLossy 1)
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat
@@ -83,7 +83,7 @@ experiment blackHoleLossy where
   position i := pos 0
 
 experiment pebbles where
-  model := blackHoleRobots (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])
+  model := blackHoleSearch (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])
   algorithm := PebbleTest
   task := Observe
   param N : Nat
@@ -92,7 +92,7 @@ experiment pebbles where
   position i := pos 0
 
 experiment gatheringRobots where
-  model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
+  model := obliviousRobots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
   algorithm := NearestNeighbour
   task := Gathering
   param N : Nat
@@ -102,7 +102,7 @@ experiment gatheringRobots where
   position i := positions.at i
 
 experiment dynamicRing where
-  model := robots (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 1) Frames.identity [count]
+  model := obliviousRobots (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 1) Frames.identity [count]
     (components := [Monitors.Visited])
   algorithm := AlwaysClockwise
   task := Exploration
@@ -113,7 +113,7 @@ experiment dynamicRing where
 
 /-- Each robot keeps its own orientation: its port 0 is either side, chosen once. -/
 experiment ownOrientation where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) (Frames.portPermutations .perRobot) [count]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) (Frames.portPermutations .perRobot) [count]
     (components := [Monitors.Visited])
   algorithm := AlwaysClockwise
   task := Exploration
@@ -124,7 +124,7 @@ experiment ownOrientation where
 
 /-- A fresh orientation at each Look, among the symmetries of the cycle. -/
 experiment portPermutations where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) (Frames.portPermutations .perLook (among := .symmetries)) [count]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) (Frames.portPermutations .perLook (among := .symmetries)) [count]
     (components := [Monitors.Visited])
   algorithm := AlwaysClockwise
   task := Exploration
@@ -164,7 +164,7 @@ algorithm CycleLight uses colors where
   step mem pub := { move := Ring.cw, setLight := some (((colors here).sum + 1) % 3) }
 
 experiment lights where
-  model := robots Graphs.Line (Observe.radius phi) Frames.isomorphisms [colors]
+  model := obliviousRobots Graphs.Line (Observe.radius phi) Frames.isomorphisms [colors]
     (components := [Storage.Lights 3, Faults.CrashAt])
   algorithm := CycleLight
   task := Observe
@@ -177,7 +177,7 @@ experiment lights where
 /-- Agents with lights on a cycle, under a given scheduler: a decision's light shows at its
 Compute, and a Look at that instant still sees the previous light. -/
 def lightsOnCycle (scheduler : Scheduler) : Model :=
-  robots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [colors]
+  obliviousRobots (Graphs.Cycle (param N)) (Observe.radius 1) Frames.identity [colors]
     (components := [Storage.Lights 3]) (scheduler := scheduler)
 
 experiment asyncLights where
@@ -226,7 +226,7 @@ algorithm ToHub uses occupied where
     if (neighbors here).length = 1 then move ((neighbors here).at 0) else stay
 
 experiment starGathering where
-  model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [occupied]
+  model := obliviousRobots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [occupied]
   algorithm := ToHub
   task := Gathering
   param k : Nat
@@ -241,7 +241,7 @@ algorithm Disperse uses count where
     if count here > 1 ∧ !free.isEmpty then move (free.at 0) else stay
 
 experiment starDispersion where
-  model := robots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [count]
+  model := obliviousRobots (Graphs.Star k) (Observe.radius 1) Frames.isomorphisms [count]
   algorithm := Disperse
   task := Dispersion
   param k : Nat
@@ -266,7 +266,7 @@ task SafeFields (C : Config) : Verdict :=
 goal SafeFields := always ¬ .failure
 
 experiment agentFields where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity []
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity []
     (components := [FieldChoices]) (symmetries := .none)
   algorithm := Stay
   task := SafeFields
@@ -281,7 +281,7 @@ algorithm ReadEdges uses edgeTo where
   step mem pub := { move := here, pub := { edges := visible.map edgeTo } }
 
 experiment edgePresence where
-  model := robots (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 2) Frames.identity [edgeTo]
+  model := obliviousRobots (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 2) Frames.identity [edgeTo]
   algorithm := ReadEdges
   task := Observe
   param N : Nat

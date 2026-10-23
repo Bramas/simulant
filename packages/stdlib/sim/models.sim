@@ -1,5 +1,5 @@
-/-! Model families compose spaces, observations, frames, sensors and components.
-These capabilities are explicit arguments of each family. -/
+/-! The standard library in one import: spaces, sensors, components, schedulers and tasks, the
+model families (`obliviousRobots`, `agentsWithMemory`) and the predefined models built on them. -/
 
 import "./spaces.sim"
 import "./helpers.sim"
@@ -7,30 +7,5 @@ import "./sensors.sim"
 import "./components.sim"
 import "./schedulers.sim"
 import "./tasks.sim"
-
-inductive SizeKnowledge | unknown | known
-
-/-- The base of every model family. -/
-def robots (space : Space) (observe : Observation) (frames : Frames)
-    (sensors : List Sensor) (components : List Component := [])
-    (memory : Memory := .oblivious) (movement : Movement := .alongEdges)
-    (scheduler : Scheduler := Schedulers.FSync) (symmetries : Symmetries := .derived) : Model where
-  space := space
-  observation := observe
-  frames := frames
-  sensors := sensors
-  components := components
-  memory := memory
-  movement := movement
-  scheduler := scheduler
-  symmetries := symmetries
-
-/-- Black-hole search: agents with chirality (`Frames.identity`) and persistent memory that see
-the public states of co-located agents (`view`, by default `otherStates`; a lossy variant that
-implements it may replace it), and the size of the space when it is known. Radius-1 views:
-an agent sees its neighbors, so it can move to them, but its sensors report only on its node. -/
-def blackHoleRobots (space : Space) (policy : HolePolicy) (size : SizeKnowledge)
-    (extra : List Component := []) (view : Sensor := otherStates) (scheduler : Scheduler := Schedulers.FSync) : Model :=
-  robots space (Observe.radius 1) Frames.identity
-    ([view] ++ (if size = .known then [spaceSize] else []))
-    (components := [Hazards.BlackHole policy] ++ extra) (memory := .persistent) (scheduler := scheduler)
+import "./families.sim"
+import "./predefined.sim"

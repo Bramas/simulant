@@ -32,7 +32,7 @@ algorithm CautiousPair uses otherStates where
 
 /-- The hole is present from the start, anywhere but on the agents' node. -/
 experiment cautiousPair where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in (range 9).filter (· ≥ 3)
@@ -41,19 +41,25 @@ experiment cautiousPair where
   position i := pos 0
 `;
 
-export const models = `-- A hole that may appear at any time, a known size, one crash
-blackHoleRobots (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1])
+export const models = `-- Oblivious robots on the infinite line that see a radius-phi window, cannot tell
+-- left from right, see which locations are occupied, and may crash on one node
+obliviousRobots Graphs.Line (Observe.radius phi) Frames.isomorphisms [occupied] (components := [Faults.CrashAt])
 
--- The same family on a dynamic cycle, in semi-synchronous rounds
-blackHoleRobots (Graphs.Dynamic (Graphs.Cycle N) 1) .mayEmerge .unknown (scheduler := Schedulers.SSync)
+-- The same robots, asynchronous: a decision waits, pending, between its Look and its Move
+obliviousRobots Graphs.Line (Observe.radius phi) Frames.isomorphisms [occupied]
+  (components := [Faults.CrashAt]) (scheduler := Schedulers.Async)
 
--- Robots on the infinite line that see a radius-phi window, cannot tell left from
--- right, see which locations are occupied, and may crash on one node
-robots Graphs.Line (Observe.radius phi) Frames.isomorphisms [occupied] (components := [Faults.CrashAt])`;
+-- Agents with memory and a common sense of direction on a cycle that loses one edge per
+-- step; they see the agents on their node, and carry pebbles
+agentsWithMemory (Graphs.Dynamic (Graphs.Cycle N) 1) (Observe.radius 1) Frames.identity [otherStates]
+  (components := [Storage.Pebbles])
+
+-- A predefined model: black-hole search, with a hole that may appear at any time and one crash
+blackHoleSearch (Graphs.Cycle N) .mayEmerge .known (extra := [Faults.CrashStop 1])`;
 
 export const ownModel = `/-- The paper's model: name it once, use it in every experiment. -/
 def lineModel (luminous : Bool := false) : Model :=
-  robots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms
+  obliviousRobots Graphs.Line (Observe.radius (param phi)) Frames.isomorphisms
     (if luminous then [colors] else [occupied])
     (components := (if luminous then [Storage.Lights 2] else []) ++ [Faults.CrashAt])`;
 
@@ -81,7 +87,7 @@ algorithm MeasureCycle uses pebblesHere where
     halt with { pebble := .pick }
 
 experiment measureCycle where
-  model := blackHoleRobots (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])   -- no hole
+  model := blackHoleSearch (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])   -- no hole
   algorithm := MeasureCycle
   task := Gathering                                                                      -- trivial with one agent
   param N : Nat in (range 7).filter (· ≥ 3)
@@ -90,7 +96,7 @@ experiment measureCycle where
   position i := pos 0
 `;
 
-export const oblivious = `/-! An oblivious rule: robots keep no memory between rounds, and decide from what
+export const oblivious = `/-! An oblivious rule: robots keep no memory between activations, and decide from what
 they see now. An illustration of the style, not a correct gathering algorithm. -/
 
 import "std/models.sim"
@@ -108,7 +114,7 @@ algorithm StepTowardsNeighbor uses occupied where
       move (next.at 0)
 
 experiment stepTowardsNeighbor where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
   algorithm := StepTowardsNeighbor
   task := Gathering
   param N : Nat in [4, 5]
@@ -135,7 +141,7 @@ algorithm StepTowardsNeighbor uses occupied where
 /-- ASYNC with atomic Look-Compute (LC-atomic): a robot looks and computes in one event, and
 moves in a later one. -/
 experiment lcAtomic where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied]
     (scheduler := Schedulers.Async [[.look, .compute], [.move]])
   algorithm := StepTowardsNeighbor
   task := Gathering
@@ -154,7 +160,7 @@ def Alternate : Scheduler where
       agents := fun a => { turn := !a.turn } }
 
 experiment alternate where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied] (scheduler := Alternate)
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms [occupied] (scheduler := Alternate)
   algorithm := StepTowardsNeighbor
   task := Gathering
   param N : Nat in [4, 5]
@@ -213,7 +219,7 @@ algorithm Wander uses notAlone where
     if notAlone then stay else move Ring.cw
 
 experiment trappedRobots where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [notAlone] (components := [Hazards.Trap])
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [notAlone] (components := [Hazards.Trap])
   algorithm := Wander
   task := FreeGathering
   param N : Nat in [3, 4]

@@ -9,7 +9,7 @@ import "std/models.sim"
 algorithm Idle where
   main := stay
 experiment domains where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]
   algorithm := Idle
   task := Gathering
   param N : Nat where N ≥ 3
@@ -33,7 +33,7 @@ def Pair : Space where
 algorithm Idle where
   main := stay
 experiment domains where
-  model := robots Pair (Observe.radius 1) Frames.identity []
+  model := obliviousRobots Pair (Observe.radius 1) Frames.identity []
   algorithm := Idle
   task := Gathering
   param site : Pos in positions

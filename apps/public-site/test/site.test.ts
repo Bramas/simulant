@@ -75,7 +75,7 @@ test('the builder compiles every component and view sensor, with what they need'
       draft.lists[list] = [useOf(library, component)];
       assertCompiles(complete(draft), `${model.name} with ${component.name}`);
     }
-    // A family takes one sensor (blackHoleRobots' view) or a list of them (robots).
+    // A family takes one sensor (blackHoleSearch's view) or a list of them (obliviousRobots).
     const view = model.params.find((p) => p.type === 'Sensor' || p.type === 'List Sensor')!;
     for (const sensor of viewSensors(library)) {
       const draft = newDraft(library, model.name);
@@ -89,7 +89,7 @@ test('the builder compiles every component and view sensor, with what they need'
 
 test('the builder writes positions the space accepts', () => {
   for (const space of spaceOptions(library)) {
-    const draft = complete({ ...newDraft(library, 'robots'), task: 'Gathering', placement: 'spread' });
+    const draft = complete({ ...newDraft(library, 'obliviousRobots'), task: 'Gathering', placement: 'spread' });
     draft.args.space = space.value;
     draft.lists.components = [useOf(library, byName(library, 'Faults.CrashAt')!)];
     const built = assertCompiles(draft, space.value);
@@ -98,7 +98,7 @@ test('the builder writes positions the space accepts', () => {
 });
 
 test('the builder passes sensors only their own arguments, and sizes only finite spaces', () => {
-  const draft = newDraft(library, 'robots');
+  const draft = newDraft(library, 'obliviousRobots');
   assert.match(modelText(library, draft), /\[occupied\]/);
   assert.deepEqual(useOf(library, byName(library, 'lossyOccupied')!).args.length, sensorArgs(byName(library, 'lossyOccupied')!).length);
   assert.deepEqual(undeclared(library, draft.lists.sensors), []);
@@ -118,14 +118,14 @@ test('the builder offers the library schedulers, asynchronous cuts included, and
     'Schedulers.Async (CM-atomic)', 'Schedulers.Bounded 2', 'Schedulers.Permutation',
   ]);
   for (const option of options) {
-    const draft = newDraft(library, 'robots');
+    const draft = newDraft(library, 'obliviousRobots');
     draft.args.scheduler = option.value;
-    assert.match(assertCompiles(draft, option.label).text, option.value === 'Schedulers.FSync' ? /robots / : /scheduler := /);
+    assert.match(assertCompiles(draft, option.label).text, option.value === 'Schedulers.FSync' ? /obliviousRobots / : /scheduler := /);
   }
 });
 
 test('the builder reports the compiler diagnostics of a rejected combination', () => {
-  const draft = newDraft(library, 'robots');
+  const draft = newDraft(library, 'obliviousRobots');
   draft.lists.sensors = [{ name: 'colors', args: [] }];
   assert.equal(analyze(library, draft).warnings[0]?.fix?.component, 'Storage.Lights');
   const built = build(library, sources, draft);
@@ -153,7 +153,7 @@ test('the builder offers custom components and sensors, and compiles a draft tha
   assert.ok(viewSensors(lib).some((s) => s.name === 'notAlone' && isCustom(s)), 'the view selector lists notAlone');
 
   const draft: Draft = {
-    ...newDraft(lib, 'robots'),
+    ...newDraft(lib, 'obliviousRobots'),
     custom,
     body: 'main :=\n  if notAlone then\n    stay\n  else\n    move Ring.cw',
   };
@@ -185,7 +185,7 @@ test('the builder offers custom components and sensors, and compiles a draft tha
 });
 
 test('the algorithm body may replace the generated public state', () => {
-  const draft = { ...newDraft(library, 'blackHoleRobots'), task: 'IdentifyBlackHole' };
+  const draft = { ...newDraft(library, 'blackHoleSearch'), task: 'IdentifyBlackHole' };
   draft.args.policy = '.initiallyPresent';
   draft.body = [
     'Pub := { id : Nat, bh : Option Nat }',

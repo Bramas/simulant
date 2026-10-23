@@ -7,8 +7,9 @@ import { goalText, signature, type Entry, type Kind } from './stdlib';
 import { library } from './stdlib-sources';
 import './site.css';
 
-const sections: { kind: Kind[]; id: string; title: string; lead: string }[] = [
-  { kind: ['model'], id: 'models', title: 'Model families', lead: 'A model fixes the space, the observation, the frames, the sensors, memory, the scheduler and components. A family builds one from its arguments.' },
+const sections: { kind: Kind[]; id: string; title: string; lead: string; module?: string }[] = [
+  { kind: ['model'], module: 'std/families.sim', id: 'models', title: 'Model families', lead: 'A model fixes the space, the observation, the frames, the sensors, the memory, the components and the scheduler. The two families differ in memory: oblivious robots keep nothing between activations, agents keep a program counter and their locals. Every other assumption is an argument.' },
+  { kind: ['model'], module: 'std/predefined.sim', id: 'predefined', title: 'Predefined models', lead: 'A family with the assumptions of a line of work fixed, for the papers that share them.' },
   { kind: ['space'], id: 'spaces', title: 'Spaces', lead: 'Graphs: positions and, for each, its ordered neighbors (its ports). An agent sees part of the space through its observation.' },
   { kind: ['component'], id: 'components', title: 'Components', lead: 'A component owns world and agent fields, raises flags, adds actions, and acts at the hook points of each step.' },
   { kind: ['scheduler'], id: 'schedulers', title: 'Schedulers', lead: 'A scheduler chooses, at each step, the agents that take the next event of their Look-Compute-Move cycle; it says how the cycle is cut into atomic events, and which executions count.' },
@@ -110,7 +111,7 @@ function Library() {
     return !q || `${e.name} ${e.doc ?? ''}`.toLowerCase().includes(q);
   };
   const grouped = createMemo(() =>
-    sections.map((s) => ({ ...s, entries: library.entries.filter((e) => s.kind.includes(e.kind) && matches(e)) })));
+    sections.map((s) => ({ ...s, entries: library.entries.filter((e) => s.kind.includes(e.kind) && (!s.module || e.module === s.module) && matches(e)) })));
 
   return (
     <>

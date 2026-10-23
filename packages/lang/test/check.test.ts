@@ -56,7 +56,7 @@ sensor lucky (L : Look) where
   at (l : Loc) : Bool := coin ∧ (L.occupants l).any present
 `;
   const src = (view: string) => CYCLE(`${sensors}\nalgorithm A uses ${view} where\n  main :=\n    stay`,
-    `robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [${view}]`);
+    `obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [${view}]`);
   has(errors(src('whereAmI')), "a sensor's result cannot contain Pos");
   has(errors(src('coin')), 'a per-location sensor is deterministic');
   assert.deepEqual(errors(src('lucky')), []);
@@ -68,10 +68,10 @@ test('sensors are read by the algorithm that uses them, at a location when they 
     if otherStates.isEmpty then stay else stay`)), 'reads sensor otherStates without using it');
   has(errors(CYCLE(`algorithm A uses occupied where
   main :=
-    if occupied then stay else stay`, 'robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]')), 'is read at a location');
+    if occupied then stay else stay`, 'obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]')), 'is read at a location');
   assert.deepEqual(errors(CYCLE(`algorithm A uses occupied where
   main :=
-    if occupied Ring.cw then stay else move Ring.cw`, 'robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]')), []);
+    if occupied Ring.cw then stay else move Ring.cw`, 'obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [occupied]')), []);
 });
 
 test('definitions that read the Look are algorithm-local', () => {
@@ -83,7 +83,7 @@ task Bad (C : Config) : Verdict :=
   if Ring.cw = Ring.cw then .success else .inProgress
 goal Bad := eventually .success
 experiment e where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates]
   algorithm := A
   task := Bad
   param N : Nat in [3]
@@ -104,7 +104,7 @@ algorithm A uses otherStates where
   main :=
     stay
 experiment e where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates]
   algorithm := A
   task := Bad
   param N : Nat in [3]
@@ -119,7 +119,7 @@ def Ray : Space where
   Vertex := Int
   neighbors v := [v + 1, v - 1]
 `;
-  const src = (observe: string, s = 'Ray') => CYCLE(`${space}\n${STAY}`, `robots ${s} ${observe} Frames.isomorphisms [otherStates]`)
+  const src = (observe: string, s = 'Ray') => CYCLE(`${space}\n${STAY}`, `obliviousRobots ${s} ${observe} Frames.isomorphisms [otherStates]`)
     .replace('  param N : Nat in [3, 4]\n', '');
   has(errors(src('(Observe.radius 1)')), 'Ray is infinite: give its automorphisms');
   has(errors(src('Observe.full', 'Graphs.Line')), 'Observe.full needs a finite space');
@@ -134,7 +134,7 @@ def Paint : Component where
   afterMove C := { agents := fun a => { ${field} := 1 } }
 `;
   const src = (field: string) => CYCLE(`${comp(field)}\n${STAY}`,
-    'robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates] (components := [Paint, Storage.Lights 2])');
+    'obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [otherStates] (components := [Paint, Storage.Lights 2])');
   assert.deepEqual(errors(src('color')), []);
   has(errors(src('light')), 'agent field light belongs to Lights');
 });
@@ -151,7 +151,7 @@ algorithm A uses otherStates where
 
 test('the old ring constructs explain their replacement', () => {
   has(errors(CYCLE(STAY, 'obliviousRing')), /unknown name obliviousRing/);
-  has(errors(CYCLE(STAY, 'robots Ring (Observe.radius 1) Frames.identity [otherStates]')), 'Ring is gone: use Graphs.Cycle N');
+  has(errors(CYCLE(STAY, 'obliviousRobots Ring (Observe.radius 1) Frames.identity [otherStates]')), 'Ring is gone: use Graphs.Cycle N');
   has(errors(CYCLE(`algorithm A uses otherStates where
   Pub := { d : Move }
   init i := { pub := { d := .cw } }

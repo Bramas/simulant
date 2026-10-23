@@ -11,7 +11,7 @@ const errorsOf = (source: string) => Object.values(compileSource(source).experim
 const ROBOTS = (algorithm: string, components = '[Faults.CrashAt]') => `import "std/models.sim"
 ${algorithm}
 experiment e where
-  model := robots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied] (components := ${components})
+  model := obliviousRobots (Graphs.Cycle N) Observe.full Frames.isomorphisms [occupied] (components := ${components})
   algorithm := A
   task := Gathering
   param N : Nat
@@ -28,7 +28,7 @@ algorithm A uses otherStates where
   init i := { pub := { id := i, bh := none } }
 ${body}
 experiment e where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := A
   task := IdentifyBlackHole
   param N : Nat
@@ -150,7 +150,7 @@ test('a local kept across a move needs a type, and becomes memory', () => {
 const PEBBLE_RING = (algorithm: string) => `import "std/models.sim"
 ${algorithm}
 experiment e where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .known (extra := [Storage.Pebbles])
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .known (extra := [Storage.Pebbles])
   algorithm := A
   task := IdentifyBlackHole
   param N : Nat
@@ -261,7 +261,7 @@ algorithm A uses pebblesHere where
     move Ring.cw with { pebble := .grab }
     halt
 experiment e where
-  model := blackHoleRobots (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])
+  model := blackHoleSearch (Graphs.Cycle N) .none .unknown (extra := [Storage.Pebbles])
   algorithm := A
   task := Gathering
   param N : Nat in [3]

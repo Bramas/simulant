@@ -11,7 +11,7 @@ function moduleWith(sizes: number[], name = 'e'): SimModule {
   const host = nodeHost();
   const source = `import "std/examples.sim"
 experiment ${name} where
-  model := blackHoleRobots (Graphs.Cycle N) .initiallyPresent .unknown
+  model := blackHoleSearch (Graphs.Cycle N) .initiallyPresent .unknown
   algorithm := CautiousPair
   task := IdentifyBlackHole
   param N : Nat in [${sizes.join(', ')}]

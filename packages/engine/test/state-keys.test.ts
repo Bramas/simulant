@@ -23,7 +23,7 @@ algorithm PortOne where
   init i := {}
   step mem pub := { move := port 1 }
 experiment e where
-  model := robots (Graphs.Star 12) (Observe.radius 1) (Frames.portPermutations .perRobot) []
+  model := obliviousRobots (Graphs.Star 12) (Observe.radius 1) (Frames.portPermutations .perRobot) []
     (symmetries := .none)
   algorithm := PortOne
   task := Gathering

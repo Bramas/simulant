@@ -11,7 +11,7 @@ import {
 import type { Algorithm, Experiment, Model, Task, Type } from '@bramas/simulant-lang/ir';
 import { T } from '@bramas/simulant-lang/types';
 import {
-  blackHoleRobots, colors, count, Cycle, Dispersion, edgeTo, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
+  blackHoleSearch, colors, count, Cycle, Dispersion, edgeTo, Exploration, Faults, Gathering, Line, Monitors, occupied, otherStatesLossy,
   robots, Schedulers, Star, Storage,
 } from '../../stdlib/test/helpers/index';
 import {
@@ -68,12 +68,12 @@ export const builderExperiments: Record<string, Experiment> = {
     task: Observe,
     params: [{ name: 'N', type: T.nat }], agents: { count: 1, pos: () => pos(0) },
   }),
-  'black-hole-emerging': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
-  'black-hole-crash-stop': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
-  'black-hole-lossy': cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),
-  'two-node-cycle': cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' })),
+  'black-hole-emerging': cautiousPairExperiment(blackHoleSearch({ policy: 'mayEmerge', size: 'unknown' })),
+  'black-hole-crash-stop': cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'known', extra: [Faults.CrashStop(1)] })),
+  'black-hole-lossy': cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown', view: otherStatesLossy(1) })),
+  'two-node-cycle': cautiousPairExperiment(blackHoleSearch({ policy: 'mayEmerge', size: 'unknown' })),
   pebbles: experiment({
-    name: 'pebbles', model: blackHoleRobots({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
+    name: 'pebbles', model: blackHoleSearch({ policy: 'none', size: 'unknown', extra: [Storage.Pebbles()] }), algorithm: PebbleTest, task: Observe,
     params: [{ name: 'N', type: T.nat }, { name: 'site', type: T.pos }], agents: { count: 2, pos: () => pos(0) },
   }),
   'gathering-with-crash': placed(

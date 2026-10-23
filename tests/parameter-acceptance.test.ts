@@ -8,7 +8,7 @@ import "std/models.sim"
 algorithm Idle where
   main := stay
 experiment generalDomain where
-  model := robots (Graphs.Cycle N) (Observe.radius phi) Frames.identity [occupied]
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius phi) Frames.identity [occupied]
   algorithm := Idle
   task := Gathering
   param N : Nat where N ≥ 3

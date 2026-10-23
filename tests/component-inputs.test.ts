@@ -12,7 +12,7 @@ def FixedLights : Component where
 algorithm Idle where
   main := stay
 experiment fixedLights where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (components := [FixedLights])
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (components := [FixedLights])
   algorithm := Idle
   task := Gathering
   param N : Nat in [8]

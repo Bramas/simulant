@@ -21,7 +21,7 @@ algorithm NextColor uses colors where
   init i := {}
   step mem pub := { move := here, setLight := some (((colors here).sum + 1) % 3) }
 experiment e where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [colors] (components := [Storage.Lights 3]) (scheduler := ${scheduler})
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [colors] (components := [Storage.Lights 3]) (scheduler := ${scheduler})
   algorithm := NextColor
   task := Gathering
   param N : Nat
@@ -40,7 +40,7 @@ algorithm Mark where
 task Everyone (C : Config) : Verdict := if C.agents.all (·.pub.activated) then .success else .inProgress
 goal Everyone := eventually .success
 experiment e where
-  model := robots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (scheduler := ${scheduler})
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.identity [] (scheduler := ${scheduler})
   algorithm := Mark
   task := Everyone
   param N : Nat

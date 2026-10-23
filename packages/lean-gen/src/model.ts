@@ -57,7 +57,7 @@ const librarySpaces: Map<string, GraphSpace> = (() => {
 algorithm Idle where
   main := stay
 ${['Graphs.Cycle N', 'Graphs.Line'].map((s, i) => `experiment e${i} where
-  model := robots (${s}) (Observe.radius 1) Frames.identity []
+  model := obliviousRobots (${s}) (Observe.radius 1) Frames.identity []
   algorithm := Idle
   task := Gathering
   param N : Nat in [3]

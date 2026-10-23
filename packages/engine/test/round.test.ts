@@ -4,11 +4,11 @@ import { explore } from '@bramas/simulant-engine/explorer';
 import { parameterDomainViolations, parameterValues, System } from '@bramas/simulant-engine/system';
 import { lit } from '@bramas/simulant-lang/builder';
 import { T } from '@bramas/simulant-lang/types';
-import { blackHoleRobots } from '../../stdlib/test/helpers/index';
+import { blackHoleSearch } from '../../stdlib/test/helpers/index';
 import { cautiousPairExperiment } from '../../stdlib/test/helpers/examples';
 
-const present = cautiousPairExperiment(blackHoleRobots({ policy: 'initiallyPresent', size: 'unknown' }));
-const emerging = cautiousPairExperiment(blackHoleRobots({ policy: 'mayEmerge', size: 'unknown' }));
+const present = cautiousPairExperiment(blackHoleSearch({ policy: 'initiallyPresent', size: 'unknown' }));
+const emerging = cautiousPairExperiment(blackHoleSearch({ policy: 'mayEmerge', size: 'unknown' }));
 
 test('parameters are enumerated from their domains', () => {
   const all = [...parameterValues(present)];

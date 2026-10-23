@@ -32,7 +32,7 @@ The IR is versioned JSON. A semantic change updates its types and documentation,
 | `packages/language-server/` | Node source access and LSP transport |
 | `extensions/vscode-simulant/` | VS Code client, highlighting, snippets and extension packaging |
 | `packages/engine/` | Values, topologies, rounds, successor enumeration, exploration and symmetry reduction |
-| `packages/stdlib/sim/` | Sensors, components, model families, tasks and examples |
+| `packages/stdlib/sim/` | Spaces, sensors, components, schedulers, tasks, the model families (`obliviousRobots`, `agentsWithMemory`), predefined models and examples |
 | `packages/stdlib/test/helpers/` | Hand-written builder counterparts for conformance, engine and typechecker tests |
 | `packages/lean-gen/` | Model generation, proof checks and differential tests |
 | `packages/vite-plugin/` | `.sim` imports, source watching, diagnostics and snapshot types under Vite and Node |

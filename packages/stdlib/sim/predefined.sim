@@ -1,0 +1,16 @@
+/-! Predefined models: a model family with the assumptions of a line of work fixed, for papers
+that share them. -/
+
+import "./families.sim"
+
+inductive SizeKnowledge | unknown | known
+
+/-- Black-hole search: agents with memory and chirality (`Frames.identity`) that see the public
+states of co-located agents (`view`, by default `otherStates`; a lossy variant that implements it
+may replace it), and the size of the space when it is known. Radius-1 views: an agent sees its
+neighbors, so it can move to them, but its sensors report only on its node. -/
+def blackHoleSearch (space : Space) (policy : HolePolicy) (size : SizeKnowledge)
+    (extra : List Component := []) (view : Sensor := otherStates) (scheduler : Scheduler := Schedulers.FSync) : Model :=
+  agentsWithMemory space (Observe.radius 1) Frames.identity
+    ([view] ++ (if size = .known then [spaceSize] else []))
+    (components := [Hazards.BlackHole policy] ++ extra) (scheduler := scheduler)
