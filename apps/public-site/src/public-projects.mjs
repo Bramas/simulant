@@ -53,4 +53,13 @@ export const publicProjects = [
     description:
       'The three-robot FSYNC protocol, with separate strategy-description and literal-final-paragraph experiments for a source discrepancy.',
   },
+  {
+    name: 'Rotor-Router Graph Exploration',
+    slug: 'rotor-router-exploration',
+    href: './rotor-router-exploration/',
+    packageName: '@bramas/simulant-project-rotor-router-exploration',
+    paper: 'Time and space optimality of rotor-router graph exploration, IPL 2017',
+    description:
+      'A memoryless agent with local node pointers on trees, rings and arbitrary finite connected port graphs.',
+  },
 ];

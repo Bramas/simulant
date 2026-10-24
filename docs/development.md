@@ -44,6 +44,11 @@ pnpm --filter @bramas/simulant-project-synthesized-ring-gathering build
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/synthesized-ring-gathering.test.ts
 pnpm cli check-all -p synthesized-ring-gathering-three-fsync
 
+# Mobile-agent graph exploration: local node storage and unknown inport
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/rotor-router-exploration.test.ts
+pnpm cli check-all -p rotor-router-exploration-graph
+pnpm --filter @bramas/simulant-project-rotor-router-exploration build
+
 # Stand-up gathering: paper examples, sensors and exhaustive crash branches
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
 # Domain syntax, defaults, finite project checks and source updates
@@ -185,6 +190,11 @@ membership uses maps. `--max-configs` stops the settings iterator before request
 setting, so a small prefix does not enumerate later ring sizes. A dependent domain may still
 construct its list before yielding its first value. These changes preserve state encodings,
 successor order, witnesses and the exploration semantics.
+
+P21 verification: four project tests, all 340 registered coverage settings, strict
+TypeScript checking, the public page build, frozen offline lockfile validation and the
+11 site tests passed. Lake compiled its generated model. Coverage and complexity theorems
+remain unproved; these checks do not establish the paper's lower bounds.
 
 ## Known issues
 

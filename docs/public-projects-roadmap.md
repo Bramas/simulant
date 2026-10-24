@@ -110,7 +110,13 @@ Sources were initially screened on 19 October 2026; dependencies were revised on
 | P19 | [Brief Announcement: Optimal Uniform Circle Formation by Asynchronous Luminous Robots — DISC 2024](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.DISC.2024.46); [full manuscript](https://arxiv.org/abs/2405.06617) | Formation with lights and opaque visibility. | ASYNC geometry, occlusion, collision constraints and exact construction predicates. Pin the full algorithm version. | Later geometry |
 | P20 | [Forming Large Patterns with Local Robots in the OBLOT Model — SAND 2024](https://drops.dagstuhl.de/entities/document/10.4230/LIPIcs.SAND.2024.14) | Limited-view pattern formation under the paper's initial conditions. | Continuous geometry, local frames, visibility, symmetry, connectivity and the paper's scheduler. | Later geometry |
 
-The seed list contains 20 distinct published paper families: two original public artifacts, four newly implemented partial artifacts and 14 prospective ones. Exact versions for the remaining targets still need full-text audits. It does not yet cover the full literature on dispersion, self-stabilization, trees, general graphs, opaque robots, movement errors or fault-tolerant geometric gathering. These are explicit discovery targets for the next bibliography pass.
+### Mobile agents on trees and general graphs
+
+| ID | Paper and pinned source | Artifact scope | Remaining claims | Status |
+| --- | --- | --- | --- | --- |
+| P21 | [Time and space optimality of rotor-router graph exploration — IPL 2017](https://doi.org/10.1016/j.ipl.2017.06.010); [v3](https://arxiv.org/abs/1502.05545v3) | [Rotor-router artifact](../projects/public/rotor-router-exploration/README.md): one memoryless agent, local writable node pointers, arbitrary finite connected port graphs. | General coverage/equivariance and the paper's time/space lower bounds remain unproved. Node storage stays project-local. | Implemented partial artifact |
+
+The catalog contains 21 distinct published paper families: two original public artifacts, five newly implemented partial artifacts and 14 prospective ones. Exact versions for the remaining targets still need full-text audits. Tree and general-graph agent exploration now has a first executable artifact; dispersion, self-stabilization, further search protocols and geometric faults remain discovery targets.
 
 ## From a paper to a public artifact
 
@@ -276,3 +282,10 @@ Next implementation work: reproduce P07's asynchronous figure and audit higher r
 P06 now has a third partial artifact: the positive two-robot FSYNC strategy of section 3, with single-crash choices and a stable task including the crashed body. Multi-robot P06 remains an audit target. New projects are committed individually on this branch after their checks.
 
 P04 now has a fourth partial artifact: the extracted FSYNC protocol, with all non-periodic rotation-normalized triples checked through N = 12, and a separately named literal-source experiment retaining the disoriented-tower counterexample. The source issue is recorded in development.md; game synthesis, optimality and general correspondence remain open.
+
+
+P21 broadens the implementation to local mobile agents on trees and general graphs. Its
+rotor-router model admits arbitrary finite connected ordered adjacency lists and arbitrary
+valid pointer vectors. All 340 registered starts/pointers on five example graphs pass;
+reduced and unreduced results agree, and the generated Lean model compiles. Theorem proofs
+and asymptotic lower bounds remain separate work.

@@ -303,7 +303,7 @@ A unique home, several indistinguishable homes, personal home recognition and gu
 
 ### C4. Finite whiteboards with write arbitration
 
-**Use:** a general mobile-agent communication primitive; admit after a concrete paper needs it. Store position-keyed records so symmetry transforms keys. Avoid node-number-indexed values. A proposed representation is:
+**Use:** P21 now supplies a concrete single-writer consumer in [NodeRotors](../projects/public/rotor-router-exploration/sim/rotor.sim). It reads only the pointer at the current node and advances it at Compute. This validates a local node-storage use case; concurrent whiteboard writes still need an arbitration contract before promotion. The project uses parallel position-key and scalar-value arrays so Lean can export the component without nested board-entry records. Store position-keyed records so symmetry transforms keys. Avoid node-number-indexed values. A proposed representation is:
 
 ~~~sim-design
 structure BoardEntry where

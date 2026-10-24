@@ -1,0 +1,57 @@
+/-! P21: Menc, Pajak and Uznanski, Time and space optimality of rotor-router
+graph exploration (IPL 2017), pinned arXiv:1502.05545v3, sections 1 and 1.1.
+One memoryless agent, local ports and writable node pointers, with unknown inport.
+This translates the rotor-router mechanism studied by the paper, not its lower-bound proofs. -/
+
+import "std/models.sim"
+
+/-- Physical vertex numbers encode the input only. The algorithm receives opaque locations. -/
+def PortGraph (graph : List (List Nat)) : Space where
+  Vertex := Nat
+  vertices := range graph.length
+  neighbors v := graph.at v
+
+/-- A finite simple undirected connected graph, with arbitrary fixed local port order. -/
+def connectedPortGraph (graph : List (List Nat)) : Bool :=
+  graph.length ≥ 2 ∧
+  (range graph.length).all (fun v =>
+    !(graph.at v).isEmpty ∧ (graph.at v).dedup = graph.at v ∧
+    (graph.at v).all (fun w => w < graph.length ∧ w ≠ v ∧ (graph.at w).contains v)) ∧
+  (nonemptySubsets (range graph.length)).all (fun S =>
+    S.length = graph.length ∨ S.any (fun v => (graph.at v).any (fun w => !S.contains w)))
+
+/-- The position-index table belongs to the environment, never to the agent. A turn changes
+only the pointer at the agent's current node. This single-agent component has no write race. -/
+@[equivariant]
+def NodeRotors : Component where
+  World := { nodes : List Pos, graph : List (List Nat), rotors : List Nat }
+  actions := [action advanceRotor : Bool := false]
+  init := { nodes := positions, graph := param graph, rotors := param initialRotors }
+  onCompute C :=
+    { world := { C.world with rotors := ofFn C.world.rotors.length fun v =>
+        if C.agents.any (fun a => a.pos = C.world.nodes.at v ∧
+           (decisionOf a).decided ∧ (decisionOf a).advanceRotor)
+        then (C.world.rotors.at v + 1) % (C.world.graph.at v).length
+        else C.world.rotors.at v } }
+
+/-- Exactly the current node's pointer. No other node's memory, identifier or inport. -/
+sensor rotorHere (L : Look) : Nat :=
+  let v := ((range L.world.nodes.length).filter (fun i => L.world.nodes.at i = L.position L.here)).at 0
+  L.world.rotors.at v
+
+algorithm RotorRouter uses rotorHere where
+  init i := {}
+  main :=
+    move (neighbors here).at rotorHere with { advanceRotor := true }
+
+experiment graphCoverage where
+  model := obliviousRobots (PortGraph graph) (Observe.radius 1) Frames.identity
+    [rotorHere] (components := [NodeRotors, Monitors.Visited])
+  algorithm := RotorRouter
+  task := Exploration
+  param graph : List (List Nat) where connectedPortGraph graph
+  param initialRotors : List Nat where initialRotors.length = graph.length ∧
+    (range graph.length).all (fun v => initialRotors.at v < (graph.at v).length)
+  param start : Pos in positions
+  agents := 1
+  position i := start
