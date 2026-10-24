@@ -21,7 +21,7 @@ function* simFiles(dir: string): Generator<string> {
   }
 }
 
-const projects = ['projects', 'projects/private'].flatMap(root => {
+const projects = ['projects', 'projects/public', 'projects/private'].flatMap(root => {
   const dir = join(repo, root);
   return existsSync(dir) ? readdirSync(dir).map(n => join(dir, n)).filter(p => statSync(p).isDirectory() && existsSync(join(p, 'package.json'))) : [];
 });

@@ -57,10 +57,10 @@ async function packagesIn(directory: string): Promise<ProjectPackage[]> {
 export async function discoverProjectPackages(source: ProjectSourceOptions = {}): Promise<ProjectPackage[]> {
   const root = resolve(source.root ?? process.cwd());
   if (source.registry) return [{ slug: basename(root), registry: resolve(root, source.registry) }];
-  const [currentPackage, publicPackages, privatePackages] = await Promise.all([
-    packageAt(root), packagesIn(join(root, 'projects')), packagesIn(join(root, 'projects/private')),
+  const [currentPackage, legacyPackages, publicPackages, privatePackages] = await Promise.all([
+    packageAt(root), packagesIn(join(root, 'projects')), packagesIn(join(root, 'projects/public')), packagesIn(join(root, 'projects/private')),
   ]);
-  return [...(currentPackage ? [currentPackage] : []), ...publicPackages, ...privatePackages];
+  return [...(currentPackage ? [currentPackage] : []), ...legacyPackages, ...publicPackages, ...privatePackages];
 }
 
 async function loadRegistry(pkg: ProjectPackage): Promise<Record<string, ProjectType<any, any>>> {

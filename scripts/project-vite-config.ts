@@ -1,6 +1,6 @@
 /**
- * The Vite configuration of a project page (projects/<slug>/web, or
- * projects/private/<slug>/web):
+ * The Vite configuration of a project page (projects/public/<slug>/web,
+ * projects/<slug>/web, or projects/private/<slug>/web):
  *
  *   export default projectViteConfig('black-hole-search');
  *
@@ -28,8 +28,8 @@ const packages: Record<string, string> = {
 };
 
 export function projectViteConfig(slug: string): UserConfig {
-  const project = [resolve(repo, 'projects', slug), resolve(repo, 'projects/private', slug)].find(dir => existsSync(resolve(dir, 'web')));
-  if (!project) throw new Error(`no project page projects/${slug}/web or projects/private/${slug}/web`);
+  const project = ['projects/public', 'projects', 'projects/private'].map(root => resolve(repo, root, slug)).find(dir => existsSync(resolve(dir, 'web')));
+  if (!project) throw new Error(`no project page for ${slug} in projects/public, projects or projects/private`);
   const plugins = () => [solid(), simulant({ types: resolve(project, '.simulant/types') })];
   return defineConfig({
     root: resolve(project, 'web'),

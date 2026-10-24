@@ -30,6 +30,13 @@ node --import tsx --import ./packages/vite-plugin/src/register.ts --test apps/pu
 (cd projects/starter && ../../node_modules/.bin/vite build web --config web/vite.config.ts)
 (cd projects/black-hole-search && ../../node_modules/.bin/vite build web --config web/vite.config.ts)
 pnpm --filter @bramas/simulant-project-standup-gathering build
+pnpm --filter @bramas/simulant-project-myopic-async-gathering build
+pnpm --filter @bramas/simulant-project-myopic-luminous-exploration build
+
+# Literature pilots in projects/public: rule mapping, ASYNC phases, tasks and finite checks
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/public-literature.test.ts
+pnpm cli check-all -p myopic-async-gathering-phi-one
+pnpm cli check-all -p myopic-luminous-exploration-three-fsync
 
 # Stand-up gathering: paper examples, sensors and exhaustive crash branches
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
@@ -90,6 +97,8 @@ The 2026-10-19 public-website pages (guide, library reference, model builder) pa
 The 2026-10-22 pre-release review on Node 24.11.0 passed 248 ordinary tests (253 total, five optional skips), strict typechecking, the complete public-site build (all three project pages included), VSIX packaging, the Lean library/examples build and all 10 opt-in Lean tests. All Phase 0 baselines and 66,792 stand-up decisions matched. The packed archives passed installation outside the workspace, including CLI checks, typechecking, production/dev website checks and a clean Lean build. Chrome checks of the landing page, guide, reference and builder at 1280 px and 375 px found no console errors, broken local anchors or horizontal overflow; the default builder compiled. The follow-up below records corrections to the semantic defects; browser-test issues remain under Known issues below.
 
 The follow-up corrections passed 256 ordinary tests (261 total, five optional skips), strict typechecking, the public build, Lean library/examples builds and all 10 opt-in Lean tests. New `agent-fields` and `edge-presence` conformance fixtures agree with their independent builder counterparts and the Lean round; the first also covers generation of a component with multiple agent fields. The installed release archives passed their standalone CLI, type, website and clean Lean checks. All Phase 0 baselines and 66,792 decisions still matched. A focused Chrome check verified JSON editing of a record position and preservation through a semantic hot update in the same browser document. The three review defects are resolved; the browser-suite migrations and line-only highlight issue remain separate.
+
+The 2026-10-24 literature increment adds two scoped artifacts under `projects/public/`: P07 Algorithm 1 at radius one and P03 Algorithm 2 under FSYNC. The ordinary suite passed 287 tests (292 total, five optional skips), using `TMPDIR=/private/tmp` and local socket access for the two Vite integration tests. Strict typechecking, the complete public-site build and both generated Lean models passed. CLI `check-all` passed five P07 settings in three graphs (30,979 states, 416,637 edges) and 40 P03 settings in ten graphs (290 states/edges); P03's individual unreduced checks also passed. A browser smoke check opened and stepped both pages; after the light-label renderer addition, the two page builds, typecheck and focused registry/example tests passed, and the exploration page visibly showed G/W/G after its first step. No general paper theorem or instrumentation correspondence was proved. The semantic core and stdlib were unchanged. Each artifact's README records its narrower scope and remaining algorithms.
 
 ## Package distribution
 

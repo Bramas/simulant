@@ -1,0 +1,82 @@
+/-! P07: Kamei et al., Gathering on Rings for Myopic Asynchronous Robots with Lights.
+arXiv:1911.04757v1, Algorithm 1, radius-one specialization from section 3.1.1.
+White = 0, Red = 1, Blue = 2. This artifact covers phi = 1 only.
+No private state, multiplicity detection, identifiers or population knowledge. -/
+
+import "std/models.sim"
+
+/-- Consecutive occupied nodes, odd span, normalized by rotation; towers are allowed.
+At least two empty nodes separate the borders around the other side of the cycle. -/
+def admittedBlock (n : Nat) (ps : List Nat) : Bool :=
+  if ps.length < 3 then false else
+    let last := ps.at (ps.length - 1)
+    ps.at 0 = 0 ∧ last + 3 ≤ n ∧
+    (range ps.length).all (fun i => i = 0 ∨ ps.at (i - 1) ≤ ps.at i) ∧
+    (range (last + 1)).all ps.contains ∧
+    ps.dedup.length ≥ 3 ∧ ps.dedup.length % 2 = 1
+
+/-- Specification history only: no sensor exposes it to the algorithm.
+A success state has all robots at the same position in two successive configurations. -/
+@[equivariant]
+def MeetingSite : Component where
+  World := { previous : Multiset Pos, settled : Bool }
+  init := { previous := [], settled := false }
+  afterMove C :=
+    let current := ((C.agents.filter present).map (·.pos)).dedup
+    let settled := current.length = 1 ∧ C.world.previous.length = 1 ∧
+      current.all (fun p => C.world.previous.contains p)
+    { world := { C.world with previous := current, settled } }
+
+@[equivariant]
+task FixedNodeGathering (C : Config) : Verdict :=
+  if C.world.settled then .success else .inProgress
+
+goal FixedNodeGathering := eventually always .success
+
+/-- The three-color border algorithm, with the paper's explicit phi=1 guards.
+Each asymmetric guard is checked in both orientations. A symmetric root grants no chirality. -/
+algorithm OddBlockGathering uses colors, ownLight where
+  init i := {}
+  main :=
+    let left := Ring.ccw
+    let right := Ring.cw
+    -- R0: no robot is observed on either side.
+    if (colors left).isEmpty ∧ (colors right).isEmpty then
+      stay
+    -- R1: white border on a singly-colored node.
+    else if colors here = [0] ∧ ((colors left).isEmpty ∨ (colors right).isEmpty) then
+      stay with { setLight := some 1 }
+    -- R2b: red border moves towards a white neighbor (phi=1 specialization).
+    else if colors here = [1] ∧ (colors left).isEmpty ∧ (colors right).contains 0 then
+      move right with { setLight := some 2 }
+    else if colors here = [1] ∧ (colors right).isEmpty ∧ (colors left).contains 0 then
+      move left with { setLight := some 2 }
+    -- R3b: blue border moves towards a white neighbor.
+    else if colors here = [2] ∧ (colors left).isEmpty ∧ (colors right).contains 0 then
+      move right with { setLight := some 1 }
+    else if colors here = [2] ∧ (colors right).isEmpty ∧ (colors left).contains 0 then
+      move left with { setLight := some 1 }
+    -- R4a/R4b: newly exposed white robots inherit their co-located border color.
+    else if ownLight = 0 ∧ (colors here).contains 1 ∧ ((colors left).isEmpty ∨ (colors right).isEmpty) then
+      stay with { setLight := some 1 }
+    else if ownLight = 0 ∧ (colors here).contains 2 ∧ ((colors left).isEmpty ∨ (colors right).isEmpty) then
+      stay with { setLight := some 2 }
+    -- R5: red border joins a singly-blue neighbor.
+    else if colors here = [1] ∧ (colors left).isEmpty ∧ colors right = [2] then
+      move right with { setLight := some 2 }
+    else if colors here = [1] ∧ (colors right).isEmpty ∧ colors left = [2] then
+      move left with { setLight := some 2 }
+    else
+      stay
+
+experiment oddBlockPhiOne where
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms
+    [colors, ownLight] (components := [Storage.Lights 3, MeetingSite])
+    (scheduler := Schedulers.Async)
+  algorithm := OddBlockGathering
+  task := FixedNodeGathering
+  param N : Nat where N ≥ 5
+  param positions : List Nat where admittedBlock N positions
+  agents := positions.length
+  position i := pos (positions.at i)
+  limits := { states := 100000 }

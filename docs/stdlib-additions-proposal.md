@@ -1,60 +1,51 @@
-# Core and standard-library redesign proposal
+# Standard-library additions for the literature program
 
-Design proposal · revised 20 October 2026 · documentation only
+Design proposal · revised 24 October 2026 · documentation only
 
-This document proposes reusable definitions for the [public-paper program](public-projects-roadmap.md). Paper IDs P01–P20 refer to that catalog. Admit a definition when at least two papers need its contract, or when it is a small, broadly useful primitive. Reuse assessments below are design judgments; they do not replace the full model audit for each paper.
+This is the reusable-capability backlog for the [public-paper program](public-projects-roadmap.md). P01–P20 refer to that catalog. Admit an addition when two audited papers need the same contract, or when it is a small, broadly useful primitive. Potential reuse below is a design judgment until those audits are complete.
 
-**The first phase, specified in [core-redesign.md](core-redesign.md), rewrites the semantic core and the shared `.sim` standard library.** Physical positions and observed locations are separate, sensors are queried by location, and the model declares the morphisms through which agents see their surroundings. The ring becomes a library graph with helpers. This supersedes the earlier plan to start by adding more ring-specific sensors.
+The graph [core redesign](core-redesign.md) and [scheduler DSL](scheduler-design.md) are implemented. This revision replaces the obsolete ring-core prototypes. It proposes no second foundation rewrite and keeps no legacy API aliases. The standard library is unchanged by this document.
 
-The catalog retains **30 current-language proposal groups** and **7 later extension groups** as a feature backlog. Its ring-based implementations are not the target architecture: each capability is rewritten on the Phase 0 base when it is promoted (section 0).
+Blocks tagged `sim` use the current language; they are proposed definitions, not installed exports. Blocks tagged `sim-design` need a semantic/API decision or implementation before they are executable. Proposed snippets share `import "std/models.sim"`; a later snippet may depend on an earlier one. Compilation checks and their limits are recorded at the end.
 
-Blocks tagged `sim-design` describe proposed interfaces requiring implementation; they are not accepted `.sim` syntax. Blocks tagged `sim` are the earlier executable prototypes against today's core. Their successful compilation does not validate the new architecture. Names and surface syntax remain proposals. All current-language blocks share these imports, and later blocks may use earlier definitions:
+## 0. Implemented foundation and closed proposals
 
-```sim
-import "std/models.sim"
-import "std/tasks.sim"
-```
+| Area / earlier IDs | Existing definitions | Planning consequence |
+| --- | --- | --- |
+| Graphs and observations | `Graphs.Cycle`, `Graphs.Line`, `Graphs.Star`; `Observe.full` / `Observe.radius` | Ring/line encodings no longer belong in multiplicity or color sensors. Lines need no padding. Euclidean execution is still absent. |
+| Frames and symmetry | `Frames.isomorphisms`, `Frames.identity`, `Frames.portPermutations` | Admissible view morphisms determine information and symmetry. Do not add ring reflection components; word reversal remains a value operation. |
+| S1, S2/S3 base | `occupied`, `count`, `localMultiplicity`, `ownLight` | Own light and local weak multiplicity are done. A capped-count convenience sensor remains optional. |
+| S4 base | `colors`, `Storage.Lights k` | Color sets include self and erase equal-color multiplicity. They are not count vectors or external-only colors. |
+| S6 | `edgeTo` | Incident-edge sensing is done. It reports whether any parallel edge remains, not a particular port edge or crossing. |
+| C/F base | `Storage.Pebbles`, `Faults.CrashStop f`, `Faults.CrashAt`, `Hazards.BlackHole policy` | Owned agent fields replace slot-indexed storage. Existing pebbles do not limit carried stock. Crash policies have distinct hook timings. |
+| M/T base | `Monitors.Visited`, `Exploration`, `Gathering`, `Dispersion`, identification tasks | Coverage and eventual gathering exist; stable gathering, termination and recurrence remain distinct contracts. |
+| R1 | `obliviousRobots`, `agentsWithMemory`, `blackHoleSearch` | Model families already compose space, observation, frames, sensors, components, movement and scheduler. Do not add a constructor for each paper combination. |
+| E3 graph ASYNC | `Schedulers.Async events`, pending decisions, `onCompute` | ASYNC, LC-atomic and CM-atomic graph cycles exist. Continuous transit does not. |
+| Scheduler policies | `FSync`, `SSync`, `Sequential`, `Bounded k`, `Permutation` in `Schedulers` | New policies often need only a library declaration. Fixed round-robin differs from a new permutation each pass. |
+| E4 graph base | User-defined finite/infinite graph spaces | Finite tori/grids need library definitions; infinite 2D symmetry support and some Lean forms remain separate work. |
 
-## 0. Foundation: Phase 0
+Algorithms read locations valid for one Look; sensors map those locations to hidden positions internally. Components/tasks store `Pos`, never leaked indices. Observation radius controls the domain independently of sensor strength. At radius r, boundary-to-boundary edges are omitted; a radius-one view does not expose the closing edge of a triangle.
 
-The foundation is specified in [core-redesign.md](core-redesign.md): graph and Euclidean core spaces, observations through opaque locations whose order hides physical identities, sensors queried by location, declared frames (morphism sets), movement models, library spaces (`Graphs.Cycle`, `Graphs.Line`, `Graphs.Star`, ...) and the steps that bring the existing projects back. Phase 0 keeps no legacy definitions.
+The intentional simulator reference-ordering shortcut remains. Under isomorphism frames, Lean correctness statements quantify over lawful orderings. Record that distinction in paper evidence; canonical ordering is not a gate for these library additions.
 
-The catalog below predates that design. Its `sim` blocks are prototypes against the current ring core, kept for their semantics: when an entry is promoted, rewrite it on the Phase 0 base. In particular:
+The first implementations now live in [P03](../projects/public/myopic-luminous-exploration/README.md) and [P07](../projects/public/myopic-async-gathering/README.md). P03 prototypes initial colors, color counts and hidden FSYNC rule-activity instrumentation; P07 prototypes a position-history monitor for fixed-node gathering. They remain project-local pending promotion review. Both export to Lean, but neither has a general correctness/correspondence proof. P03's initializer keeps a directly initialized color list to satisfy the current exporter, unlike the minimal C1 sketch below.
 
-| Earlier proposals | Destination on the Phase 0 base |
-| --- | --- |
-| S1–S4, S6 | Per-location sensors (`occupied`, `count`, `localMultiplicity`, `colors`, `ownLight`, `edgeTo`); radius and full visibility are observation choices. |
-| S5 | An explicit knowledge sensor, never implied by the configuration. |
-| C1–C4, F1–F4, M1–M3 | Components with `Pos`-typed fields and owned agent fields instead of global node or slot indices. |
-| T1–T7 | Tasks over positions; local outputs interpreted with `C.resolve`. Pattern matching needs an explicit transformation group. |
-| V1–V5 | Value helpers over lists built from locations (`(Line.window phi).map occupied`). |
-| R1 | Superseded by `robots` in core-redesign.md. |
-| E3–E5 | ASYNC, further spaces and Euclidean execution build on the Phase 0 interfaces. |
+## 1. Promotion rules
 
-## 1. Reuse the existing library
-
-These definitions exist in today's core. Phase 0 rewrites their capabilities on the new base without keeping the old entry points; this inventory records what the rewrite must cover:
-
-| Existing definitions | Reuse |
-| --- | --- |
-| `Vision.Radius`, `lineView`, `colorView` | Finite-radius occupancy and color-set observations: P02, P03, P05, P07. Audit the required multiplicity information before selecting a view. |
-| `ringPresence`, `ringCount` | Full-ring occupancy or exact multiplicities: ring gathering and synthesis, including P04/P08. |
-| `Storage.Lights k` | Fixed positive palette, initially color 0; P02/P03/P05/P07. The component stores colors; sensors decide who can read them. |
-| `Faults.CrashStop f`, `Faults.CrashAtNode` | Global crash budget before Look, or unbounded crashes at a fixed node before movement. |
-| `Storage.Pebbles`, `otherStates`, `ringSize` | Existing node-token actions, co-located public states and ring-size knowledge. Finite carried-token inventories are a distinct missing capability. |
-| `Monitors.Visited`, `Exploration`, `Gathering` | Collective visits, eventual coverage and eventual co-location of present robots. Stable gathering and recurrence have different specifications. |
-| `Frames.PersistentReflection`, `Frames.common`, `Frames.dynamicReflection` | Existing orientation choices; a new paper does not need another orientation component. |
-| `Ring`, `DynamicRing k`, `.fsync`, `.ssync`, `.sequential` | Existing core constructors, not `.sim` library implementations. Sequential scheduling is not general ASYNC. |
-
-In particular, do not add `TwoColorLights`, `RadiusOneVision`, a separate crash component per paper, or a model constructor for every combination of capabilities. Keep paper rules, special parity/visibility bounds, X/Y/Z notation, ring padding and manuscript examples in their projects.
+- Preserve paper-specific rules, theorem bounds, named colors, initial classes and examples in projects. The stdlib holds the common contract.
+- Prefer a generic per-location sensor to cycle/line duplicates. An ordered adapter must state which structure and orientation justify its order.
+- Effects of lights, memory and token actions apply at Compute; movement-sensitive faults act at their declared hook. Test delayed Compute/Move as well as atomic cycles.
+- Components own their fields. Alternative components below that own the same flag/action/light fields are alternatives, not intended to compose together.
+- Test sensors on a cycle and a branching graph. Test stateful effects with simultaneous requests, delayed events and position transformations.
+- Keep public definitions generic. Check private consumers locally and keep their implementations and fixtures in their separate repository.
 
 ## 2. Value helpers for views and configurations
 
-Proposed module: `std/views.sim`. These functions operate on values already observed by a robot or supplied in an initial-domain predicate. They do not grant access to the global configuration. `List Nat` represents a word of occupancy counts or other numeric symbols; separate functions distinguish a centered interval from a rooted circular word.
+Proposed module: `std/views.sim`; V1–V5 remain value-level candidates on the new core. These functions operate on values already observed by a robot or supplied in an initial-domain predicate. They do not grant access to the global configuration. `List Nat` represents a word of occupancy counts or other numeric symbols; separate functions distinguish a centered interval from a rooted circular word.
 
 ### V1. Safe occupancy and interval predicates
 
-**Use:** P02/P06/P07 and local rules in P03/P05. Empty intervals are true only when the requested interval is inside the view. An out-of-view node must not become an observed empty node through the default returned by indexing.
+**Use:** P02/P06/P07 and local rules in P03/P05. Empty intervals are true only when the requested interval is inside the view. Guard bounds before indexing; out-of-view locations must not be classified as observed empty nodes.
 
 ```sim
 def Views.occupiedAt (v : List Nat) (i : Nat) : Bool :=
@@ -124,7 +115,7 @@ An empty configuration needs its own domain condition; these predicates do not d
 
 ### V4. Sorted coordinate domains and neighboring gaps
 
-**Use:** P02/P07 initial hull/gap assumptions and other line models. These are initial-data helpers, not sensors. Distances count edges; they do not count empty nodes. `maximumGap` accepts nondecreasing coordinates and ignores multiplicity gaps of zero naturally.
+**Use:** P02/P07 initial hull/gap assumptions and other line models. These Nat-coordinate helpers apply to nonnegative initial data, not to opaque positions or arbitrary signed line coordinates. Add an Int counterpart if an admitted consumer needs it; they are not sensors. Distances count edges; they do not count empty nodes. `maximumGap` accepts nondecreasing coordinates and ignores multiplicity gaps of zero naturally.
 
 ```sim
 def Domains.nondecreasing (positions : List Nat) : Bool :=
@@ -173,611 +164,406 @@ def Views.nearestRight (v : List Nat) : Option Nat :=
 
 `nearestRight` returns an edge distance and `none` when no robot is observed on that side. Use an odd-length centered input; mirroring gives the corresponding left query.
 
-## 3. Observation capabilities
+## 3. Observation and knowledge proposals
 
-Proposed module: `std/sensors.sim` or a later split into `std/vision.sim` and `std/knowledge.sim`. All sensors below use `present`, so crashed visible robots remain observable and hidden destroyed robots disappear. None reveals correctness flags. Choosing stronger sensors must be an explicit model decision.
+### S2. Capped multiplicity (optional convenience)
 
-### S1. Own light
+**Use:** gathering/exploration model comparisons, including P08/P13. This is independent of observation radius and topology. Cap 1 gives occupancy, cap 2 weak multiplicity; cap 0 means exact counts. Prefer existing `occupied`/`count`/`localMultiplicity` when they already express the contract.
 
-**Use:** P03/P05 explicitly distinguish the observing robot's own color; P02/P07 can reuse it when their models permit self-light observation. The [exploration paper's model, §2.1](https://arxiv.org/html/1805.03965) and the [crash-tolerant paper's model, §2.1](https://drops.dagstuhl.de/storage/00lipics/lipics-vol324-opodis2024/html/LIPIcs.OPODIS.2024.12/LIPIcs.OPODIS.2024.12.html) motivate keeping own-light access separate from neighboring color observations.
+~~~sim
+sensor cappedMultiplicity (cap : Nat) (L : Look) (l : Loc) : Nat :=
+  let n := (L.occupants l).count present
+  if cap = 0 then n else min cap n
+~~~
 
-```sim
-sensor ownLight (C : Config) (me : Agent) : Nat :=
-  if me.slot < C.world.lights.length then C.world.lights.at me.slot else 0
-```
+S3's local weak variant is already `localMultiplicity`: cap 2 at `L.here` and cap 1 elsewhere. No extra ring or radius version is proposed.
 
-Needs `Storage.Lights` or C1 below. Do not add it to external-light models such as P17. “External” describes what an observer can read, not merely where the color is stored.
+### S4. Color counts and external-only color sets
 
-### S2. Finite-radius multiplicity, with an explicit information cap
+**Use:** P03's multiset-valued observation audit; P17's external-light restriction, also useful in comparisons of luminous models. `colors` and `ownLight` already cover P07's set-valued full-light interface. Supplying counts and discarding them in the algorithm would grant excessive information.
 
-**Use:** General observation lattice for gathering/exploration papers. P08/P13 motivate distinct multiplicity capabilities; P13's torus version needs a topology-specific view later. `cap = 1` gives occupancy, `cap = 2` distinguishes empty/singleton/multiple, and `cap = 0` means exact counts. The output contains `2φ+1` offsets, not N entries.
+~~~sim
+sensor colorCounts (includeSelf : Bool) (L : Look) (l : Loc) : List Nat :=
+  ofFn L.world.colorCount fun c =>
+    (L.occupants l).count fun a =>
+      present a ∧ (includeSelf ∨ a ≠ L.me) ∧ a.light = c
 
-```sim
-sensor radiusCounts (cap : Nat) (C : Config) (me : Agent) (frame : Frame) : List Nat :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    let count := C.agents.count (fun a => present a ∧ a.pos = p)
-    if cap = 0 then count else min cap count
-```
+sensor externalColors (L : Look) (l : Loc) : List Nat :=
+  (range L.world.colorCount).filter fun c =>
+    (L.occupants l).any fun a => present a ∧ a ≠ L.me ∧ a.light = c
+~~~
 
-Needs `Vision.Radius`. Require `φ < N` for this ring implementation's offset arithmetic, and preferably `2φ < N` when the model must see each node at most once. An infinite-line project needs a confinement/padding argument. This is not a generic graph-distance sensor.
+These require light storage. External-only models omit `ownLight` and any other route to self color. This sensor does not supply P17's geometric semantics.
 
-### S3. Local weak multiplicity with full-ring occupancy
+### S5. Explicit initial-population knowledge
 
-**Use:** P08/P13 and other models where a robot can detect a multiplicity only at its own node. The center is 0/1/2; other entries are 0/1. This does not grant exact population knowledge.
+**Use:** knowledge distinctions in P09 and a general mobile-agent primitive. Do not infer global population from `L.visibleAgents`. Store supplied initial knowledge, not a mutable survivor count.
 
-```sim
-sensor ringLocalWeakMultiplicity (C : Config) (me : Agent) (frame : Frame) : List Nat :=
-  ofFn C.size fun i =>
-    let p := offset me.pos frame i
-    let count := C.agents.count (fun a => present a ∧ a.pos = p)
-    min (if i = 0 then 2 else 1) count
-```
+~~~sim
+@[equivariant]
+def Knowledge.Population : Component where
+  World := { initialPopulation : Nat }
+  sensors := [populationSize]
+  init := { initialPopulation := param population }
 
-The representation exposes ring size through its length, as existing full-ring views do. A bounded-view model should instead cap only the center of a finite-radius observation.
+sensor Knowledge.Population.populationSize (L : Look) : Nat :=
+  L.world.initialPopulation
+~~~
 
-### S4. Color multiplicities and external-light views
+An experiment using this knowledge sets `agents := population`. Space-size knowledge already has `spaceSize`; supplying a parameter to a model does not automatically make it algorithm knowledge.
 
-**Use:** P03/P05 colored configurations; P02/P07 when an audited observation needs more than the existing color sets. Each entry is a vector of counts indexed by the palette, preserving multiplicities. `includeSelf = false` removes the observing robot but preserves co-located other robots. Own-light access remains S1, selected separately.
+## 4. Storage and environmental information
 
-```sim
-sensor radiusColorCounts (includeSelf : Bool) (C : Config) (me : Agent) (frame : Frame) : List (List Nat) :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    ofFn C.world.colorCount fun color => C.agents.count (fun a =>
-      present a ∧ a.pos = p ∧ (includeSelf ∨ a ≠ me) ∧
-      (if a.slot < C.world.lights.length then C.world.lights.at a.slot else 0) = color)
+### C1. Supplied initial light colors
 
-sensor ringColorCounts (includeSelf : Bool) (C : Config) (me : Agent) (frame : Frame) : List (List Nat) :=
-  ofFn C.size fun i =>
-    let p := offset me.pos frame i
-    ofFn C.world.colorCount fun color => C.agents.count (fun a =>
-      present a ∧ a.pos = p ∧ (includeSelf ∨ a ≠ me) ∧
-      (if a.slot < C.world.lights.length then C.world.lights.at a.slot else 0) = color)
+**Use:** P03/P05 and general colored-start/self-stabilization experiments. Extend the existing light component's initialization policy when promoted; this alternate definition makes the contract explicit now. Require a positive palette and one valid entry per agent. Actions still apply at Compute.
 
-sensor externalColorView (C : Config) (me : Agent) (frame : Frame) : List (List Nat) :=
-  ofFn (2 * C.world.phi + 1) fun i =>
-    let p := offset me.pos frame ((C.size + i - C.world.phi) % C.size)
-    (range C.world.colorCount).filter (fun color => C.agents.any (fun a =>
-      present a ∧ a ≠ me ∧ a.pos = p ∧
-      (if a.slot < C.world.lights.length then C.world.lights.at a.slot else 0) = color))
-```
-
-Needs light storage; radius versions also need `Vision.Radius` and S2's offset-domain restriction. `externalColorView` returns sets of other robots' colors, unlike the count vectors; it provides the missing external-only counterpart of the existing `colorView`. These are graph observations, not an implementation of P17's Euclidean geometry. When only sets including self are allowed, use existing `colorView`; deriving sets inside the algorithm after supplying counts would already grant excess information.
-
-### S5. Initial population knowledge
-
-**Use:** P09's distinctions between knowledge of n and k, plus a general known-population capability. The engine retains agent records after destruction, so this is the initial population, not the number currently visible or correct.
-
-```sim
-sensor populationSize (C : Config) (me : Agent) : Nat :=
-  C.agents.length
-```
-
-Do not silently add this sensor to anonymous weak-robot models. Knowing a parameter in the experiment does not mean the robots know it.
-
-### S6. Incident-edge availability
-
-**Use:** P09/P10 and dynamic-ring search. Returns `[local ccw, local cw]` for the current Look. It reports availability, not how many agents traverse an edge, and does not retain a blocked agent in a port.
-
-```sim
-sensor incidentEdges (C : Config) (me : Agent) (frame : Frame) : List Bool :=
-  [edgePresent me.pos (toGlobal frame .ccw),
-   edgePresent me.pos (toGlobal frame .cw)]
-```
-
-## 4. Storage and fixed environmental information
-
-Proposed module: `std/storage.sim`. Slot fields below are internal associations, never robot IDs or public sensors. Alternative implementations owning the same fields/actions are mutually exclusive. Components still obey the existing snapshot and ownership rules.
-
-### C1. Light storage with supplied initial colors
-
-**Use:** P03/P05 configured colored starts; P07 and self-stabilizing models. Prefer eventually extending `Storage.Lights` with an optional initialization policy; this separately named proposal makes the changed contract reviewable without modifying the existing component. Requires `initialColors` of exactly the agent count, in the palette. It preserves today's Compute-before-movement update timing.
-
-```sim
+~~~sim
+@[equivariant]
 def Storage.InitialLights (colors : Nat) : Component where
-  World := { colorCount : Nat, lights : List Nat }
-  Agent := { slot : Nat }
-  actions := [action light : Option Nat := none]
-  init := { colorCount := colors, lights := param initialColors }
-  init i := { slot := i }
-  beforeMove C :=
-    let lights := ofFn C.agents.length fun i =>
-      let previous := if i < C.world.lights.length then C.world.lights.at i else 0
-      let updates := C.agents.filter (fun a => a.slot = i ∧ (decisionOf a).decided ∧
-        (decisionOf a).light.isSome ∧ (decisionOf a).light.getD 0 < C.world.colorCount)
-      if updates.isEmpty then previous else (updates.map (fun a => (decisionOf a).light.getD 0)).sum
-    { world := { C.world with lights } }
-```
+  World := { colorCount : Nat }
+  Agent := { light : Nat }
+  actions := [action setLight : Option Nat := none]
+  init := { colorCount := colors }
+  init i := { light := (param initialColors).at i }
+  onCompute C :=
+    { agents := fun a =>
+        let c := (decisionOf a).setLight
+        { light := if (decisionOf a).decided ∧ c.isSome ∧ c.getD 0 < colors
+                   then c.getD 0 else a.light } }
+~~~
 
-Use `Domains.validColors` in the experiment. Arbitrary initial colors can be enumerated as experiment settings; arbitrary private memory and arbitrary fault state need their own self-stabilization contracts.
+Use `Domains.validColors` in experiment assumptions. An agent-indexed initializer is internal bookkeeping, not a sensor exposing identity. Arbitrary colors alone do not model arbitrary memory or arbitrary scheduler state.
 
 ### C2. Finite carried pebbles
 
-**Use:** P01/P10 and token-based mobile-agent algorithms. Existing `Storage.Pebbles` counts node tokens but has no carried stock, so it cannot establish a bound on the number of physical pebbles. This component gives every agent `perAgent` pebbles initially. One activation can request one drop or pick. Picks are resolved among competing agents; the number granted is exactly the available supply, capped by requests. Same-round drops become available in the next round.
+**Use:** P10 and token-based search protocols; check which P01 variants actually use tokens. Unlike `Storage.Pebbles`, each agent has finite carried stock. Picks at one position compete for the pre-Compute supply; simultaneous drops become available after that Compute.
 
-```sim
+~~~sim
+@[equivariant]
 def Storage.FinitePebbles (perAgent : Nat) : Component where
-  World := { tokenNodes : Multiset Node, tokenStock : List Nat, tokenBudget : Nat }
-  Agent := { tokenSlot : Nat }
-  actions := [action token : PebbleAction := .none]
-  init := { tokenNodes := [], tokenStock := [], tokenBudget := perAgent }
-  init i := { tokenSlot := i }
-  beforeMove C :=
-    let drops := C.agents.filter (fun a => (decisionOf a).decided ∧
-      (decisionOf a).token = .drop ∧
-      (if a.tokenSlot < C.world.tokenStock.length
-       then C.world.tokenStock.at a.tokenSlot else C.world.tokenBudget) > 0)
-    let requests := C.agents.filter (fun a =>
-      (decisionOf a).decided ∧ (decisionOf a).token = .pick)
+  World := { pebbles : Multiset Pos }
+  Agent := { carried : Nat }
+  actions := [action pebble : PebbleAction := .none]
+  sensors := [pebblesHere, carriedPebbles]
+  init := { pebbles := [] }
+  init i := { carried := perAgent }
+  onCompute C :=
+    let drops := C.agents.filter fun a =>
+      (decisionOf a).decided ∧ (decisionOf a).pebble = .drop ∧ a.carried > 0
+    let requests := C.agents.filter fun a =>
+      (decisionOf a).decided ∧ (decisionOf a).pebble = .pick
     let granted := choose (subsets requests) such that fun selected =>
-      C.nodes.all (fun p => selected.count (fun a => a.pos = p) =
-        min (requests.count (fun a => a.pos = p)) (C.world.tokenNodes.count (fun q => q = p)))
-    let stock := ofFn C.agents.length fun i =>
-      let previous := if i < C.world.tokenStock.length then C.world.tokenStock.at i else C.world.tokenBudget
-      previous - drops.count (fun a => a.tokenSlot = i) + granted.count (fun a => a.tokenSlot = i)
-    { world := { C.world with tokenStock := stock,
-      tokenNodes := (C.world.tokenNodes.diff (granted.map (·.pos))) ++ drops.map (·.pos) } }
+      C.agents.all fun a =>
+        selected.count (fun b => b.pos = a.pos) =
+          min (requests.count (fun b => b.pos = a.pos))
+              (C.world.pebbles.count (fun p => p = a.pos))
+    { world := { C.world with pebbles :=
+        (C.world.pebbles.diff (granted.map (·.pos))) ++ drops.map (·.pos) },
+      agents := fun a =>
+        { carried := a.carried - (if drops.contains a then 1 else 0) +
+                      (if granted.contains a then 1 else 0) } }
 
-sensor carriedPebbles (C : Config) (me : Agent) : Nat :=
-  if me.tokenSlot < C.world.tokenStock.length then C.world.tokenStock.at me.tokenSlot else C.world.tokenBudget
+sensor Storage.FinitePebbles.pebblesHere (L : Look) (l : Loc) : Nat :=
+  L.world.pebbles.count (fun p => p = L.position l)
 
-sensor finitePebblesHere (C : Config) (me : Agent) : Nat :=
-  C.world.tokenNodes.count (fun p => p = me.pos)
-```
+sensor Storage.FinitePebbles.carriedPebbles (L : Look) : Nat :=
+  L.me.carried
+~~~
 
-The code specifies indistinguishable tokens, no pickup-capacity bound, and inaccessible carried tokens after an agent dies. Budget accounting includes that lost stock. Other choices—tokens dropped on crash, private token identity, receiving same-round drops—are different contracts. Do not assume this policy matches every pebble paper without checking it.
+No pickup-capacity bound is imposed. Carried tokens on destroyed agents become inaccessible; include them as lost stock in the conservation invariant. Deposit-only resources, owned tokens and tokens released on crash are different policies. The multiset of positions and owned agent stock avoid global node/slot indexing and work on infinite lines as well as finite graphs.
 
-### C3. Fixed anonymous marks / homebases
+### C3. Anonymous marks and home recognition
 
-**Use:** Marked homebases in P09; generally useful for landmarks and distinguished safe starting nodes in search models. All marked nodes look alike. The list `marks` is environmental data, not a robot's knowledge of every mark's position.
+**Use:** P09 and general landmarks/search starts. Per-location marks disclose only membership, not physical labels.
 
-```sim
+~~~sim
+@[equivariant]
 def Environment.Marks : Component where
-  World := { markedNodes : List Node }
-  init := { markedNodes := param marks }
+  World := { marked : List Pos }
+  sensors := [marked]
+  init := { marked := param marks }
 
-sensor markedHere (C : Config) (me : Agent) : Bool :=
-  C.world.markedNodes.contains me.pos
-```
+sensor Environment.Marks.marked (L : Look) (l : Loc) : Bool :=
+  L.world.marked.contains (L.position l)
+~~~
 
-A unique mark, a mark at every initial homebase, and a guaranteed safe homebase are separate experiment assumptions. The mark itself does not confer safety or expose absolute node labels.
+A unique home, several indistinguishable homes, personal home recognition and guaranteed safety are separate assumptions. Personal home recognition can use an owned `home : Pos` field and a Boolean sensor; it must not expose the home's position.
 
-### C4. Finite node whiteboards with explicit write arbitration
+### C4. Finite whiteboards with write arbitration
 
-**Use:** General mobile-agent communication primitive, including model comparisons/lower bounds discussed in P01/P10. This is a finite-alphabet register per node, initially 0. A simultaneous conflict chooses one writer nondeterministically per written node. Reads occur before this round's writes. It is not an unbounded whiteboard or a mailbox.
+**Use:** a general mobile-agent communication primitive; admit after a concrete paper needs it. Store position-keyed records so symmetry transforms keys. Avoid node-number-indexed values. A proposed representation is:
 
-```sim
+~~~sim-design
+structure BoardEntry where
+  site : Pos
+  value : Nat
+
 def Storage.Whiteboards (values : Nat) : Component where
-  World := { boards : List Nat, boardValues : Nat }
+  World := { boards : List BoardEntry }
   actions := [action writeBoard : Option Nat := none]
-  init := { boards := [], boardValues := values }
-  beforeMove C :=
-    let writers := C.agents.filter (fun a => (decisionOf a).decided ∧
-      (decisionOf a).writeBoard.isSome ∧ (decisionOf a).writeBoard.getD 0 < C.world.boardValues)
-    let winners := choose (subsets writers) such that fun selected =>
-      C.nodes.all (fun p => selected.count (fun a => a.pos = p) =
-        if writers.any (fun a => a.pos = p) then 1 else 0)
-    let boards := ofFn C.size fun i =>
-      let chosen := winners.filter (fun a => a.pos = C.nodes.at i)
-      if chosen.isEmpty then (if i < C.world.boards.length then C.world.boards.at i else 0)
-      else (chosen.map (fun a => (decisionOf a).writeBoard.getD 0)).sum
-    { world := { C.world with boards } }
+  -- Initialize every board to 0 on the chosen finite domain.
+  -- At onCompute: choose one valid writer per written position, keep other entries.
+  -- A per-location sensor returns that position's value.
+~~~
 
-sensor whiteboardHere (C : Config) (me : Agent) : Nat :=
-  let indices := (range C.size).filter (fun i => C.nodes.at i = me.pos)
-  let i := indices.at 0
-  if i < C.world.boards.length then C.world.boards.at i else 0
-```
+This is a contract sketch, not a complete definition. Specify whether whiteboards cover all finite vertices or a sparse domain, and how concurrent reads/writes linearize. Nested record-valued component fields currently hit a Lean export limitation. Resolve that for the proof track; do not restore opaque node indices as a workaround.
 
-Require `values > 0`. The board list is indexed by global node number: its entries do not automatically move under a symmetry because they are `Nat`, not `Node`. Disable symmetry reduction for this proposal until the representation or symmetry action is addressed. Node-list indexing also encounters a recorded Lean generation limitation. This is lower priority than light/pebble work.
+## 5. Fault and hazard variants
 
-## 5. Faults and hazards
+Existing `Faults.CrashStop f` acts before Look. `Faults.CrashAt` permits crashes at one fixed position before movement; light changes already applied at Compute survive. Under ASYNC, a hook executes every global step, so moving a crash policy to a hook does not itself restrict crashes to agents taking that event.
 
-Proposed module: `std/faults.sim`. Additional names should identify changed fault semantics, not a paper. Retain existing policies when they already match. A visible crash flag keeps a body in occupancy observations; it does not mean the algorithm can read the flag unless a sensor exposes it.
+### F1/F2. Budgeted crashes before movement, optionally at a fixed position
 
-### F1. Budgeted crash after Compute, before movement
+**Use:** phase-sensitive comparisons in P02/P05/P06. Audit the paper before selecting either variant. They are alternatives to the existing crash components.
 
-**Use:** P02/P05/P06 phase-sensitive crash analysis and broader luminous models. The existing budgeted crash acts before Look; the existing fixed-node crash acts before movement without a global budget. This proposal combines a global budget with the latter timing. Light/storage updates from other before-movement hooks see the same pre-crash snapshot and can commit.
-
-```sim
+~~~sim
+@[equivariant]
 def Faults.CrashBeforeMove (f : Nat) : Component where
   flags := [flag crashed visible, acts never]
   beforeMove C :=
-    let selected := choose (subsets (C.agents.filter correct)) such that fun selected =>
-      C.agents.count (·.crashed) + selected.length ≤ f
-    { raise crashed := selected }
-```
+    let S := choose (subsets (C.agents.filter correct)) such that fun S =>
+      C.agents.count (·.crashed) + S.length ≤ f
+    { raise crashed := S }
 
-### F2. Budgeted crashes restricted to one fixed node
-
-**Use:** P02/P06, and a useful restricted case for fault-model comparisons with P05. Keep separate from F1 and the existing crash components; they own the same flag and are alternatives.
-
-```sim
-def Faults.BoundedCrashAtNode (f : Nat) : Component where
-  World := { crashNode : Node }
+@[equivariant]
+def Faults.BoundedCrashAt (f : Nat) : Component where
+  World := { crashNode : Pos }
   flags := [flag crashed visible, acts never]
   init := { crashNode := param crashNode }
   beforeMove C :=
-    let eligible := C.agents.filter (fun a => correct a ∧ a.pos = C.world.crashNode)
-    let selected := choose (subsets eligible) such that fun selected =>
-      C.agents.count (·.crashed) + selected.length ≤ f
-    { raise crashed := selected }
-```
+    let eligible := C.agents.filter fun a => correct a ∧ a.pos = C.world.crashNode
+    let S := choose (subsets eligible) such that fun S =>
+      C.agents.count (·.crashed) + S.length ≤ f
+    { raise crashed := S }
+~~~
 
-This selects a node in the initial setting, not necessarily a node that the adversary can choose adaptively after observing an execution. Do not conflate the quantifier orders.
+A position universally selected as an initial parameter is not automatically an adaptively chosen first-crash position. Describe quantifier order and the all-crashed case explicitly.
 
-### F3. Several static destructive nodes
+### F3/F4. Multiple destructive positions and selective destruction
 
-**Use:** General extension of P01/P10/P12's destructive-node capability; not a claim that those papers solve the multiple-hole problem. Every present agent on a listed node is destroyed after movement.
+**Use:** broadly useful hazard primitives, deferred until an admitted paper needs them. They do not assert that P01/P10/P12 solve these stronger variants.
 
-```sim
+~~~sim
+@[equivariant]
 def Hazards.MultipleBlackHoles : Component where
-  World := { holeNodes : List Node }
+  World := { sites : List Pos }
   flags := [flag dead hidden, acts never]
-  init := { holeNodes := param holes }
+  init := { sites := param holes }
   afterMove C :=
-    { raise dead := fun a => present a ∧ C.world.holeNodes.contains a.pos }
-```
+    { raise dead := fun a => present a ∧ C.world.sites.contains a.pos }
 
-### F4. Selective destruction at one node
-
-**Use:** General gray/selective-hole primitive for future dangerous-network papers. It is deliberately not named a full Byzantine hole: this component cannot erase another component's whiteboard, alter robot state or move agents. Permanent black holes should continue using the existing component.
-
-```sim
+@[equivariant]
 def Hazards.SelectiveKiller : Component where
-  World := { killerNode : Node }
+  World := { site : Pos }
   flags := [flag dead hidden, acts never]
-  init := { killerNode := param killerNode }
+  init := { site := param killerNode }
   afterMove C :=
-    let eligible := C.agents.filter (fun a => present a ∧ a.pos = C.world.killerNode)
-    let victims := choose (subsets eligible)
+    let victims := choose (subsets (C.agents.filter fun a =>
+      present a ∧ a.pos = C.world.site))
     { raise dead := victims }
-```
+~~~
 
-No fairness forces this adversary to destroy an agent. Keep F3/F4 optional until a concrete admitted paper needs them; they are useful generic contracts, not first-batch blockers.
+No fairness forces selective destruction. This is not a full Byzantine hole: it cannot forge messages, mutate other components' storage or move agents.
 
 ## 6. History monitors and task data
 
-Proposed module: `std/monitors.sim`. Monitor state is for specifications. Do not give algorithms a sensor reading it unless the paper explicitly supplies the corresponding knowledge. `Monitors.Visited` already handles collective historical coverage.
+### M1. Repeated collective coverage epochs
 
-### M1. Repeated coverage epochs
+**Use:** P03/P05 perpetual exploration on finite graphs. Reset a visited set after every complete coverage and pulse a Boolean. Infinite pulses are equivalent to infinite collective revisits on a fixed finite domain; the monitor alone does not add recurrence to the goal language.
 
-**Use:** Perpetual exploration in P03/P05. Each epoch collects visited nodes and produces a completion pulse once all nodes have been observed. The next round begins a fresh epoch. Repeated completions express recurring collective coverage of a finite ring without an unbounded counter.
-
-```sim
-def Monitors.CoverageEpochs : Component where
-  World := { epochSeen : Multiset Node, epochComplete : Bool }
-  init := { epochSeen := [], epochComplete := false }
+~~~sim
+@[equivariant]
+def Monitors.CoverageEpoch : Component where
+  World := { seen : Multiset Pos, complete : Bool }
+  init := { seen := [], complete := false }
+  beforeLook C :=
+    { world := { C.world with seen :=
+        (C.world.seen ++ (C.agents.filter present).map (·.pos)).dedup } }
   afterMove C :=
-    let previous := if C.world.epochComplete then ([] : Multiset Node) else C.world.epochSeen
-    let seen := (previous ++ (C.agents.filter present).map (·.pos)).dedup
-    let completed := C.nodes.all (fun p => seen.contains p)
-    { world := { C.world with epochSeen := seen, epochComplete := completed } }
-```
+    let seen := (C.world.seen ++ (C.agents.filter present).map (·.pos)).dedup
+    let complete := C.positions.all fun p => seen.contains p
+    { world := { C.world with seen := if complete then [] else seen, complete } }
+~~~
 
-This component is expressible today; the recurring temporal goal in E1 is not. A cumulative visited set followed by `eventually always success` would only prove one-time coverage. Count only correct robots instead of present robots only when that is the paper's task; after the last crash, the relevant convention must still match the theorem. This monitor samples discrete post-movement states; future transit models need a defined visit-event policy.
+Do not expose monitor state to algorithms. Per-correct-agent recurrence with crashes is a different contract; one survivor's collective visits do not prove every correct robot explores.
 
-### M2. Ring target-pattern specification
+### M2. Target-pattern data
 
-**Use:** General discrete formation/pattern comparison, and a ring counterpart for the future P14/P20 work. This is target data for the task, not a promise that robots know the target. The target is a full N-entry count word, compared up to rotation and optionally reflection.
+**Use:** P14 and later formation papers; also useful for ring patterns. A target can be stored as `List Pos`, but the task must compare it modulo an explicitly specified transformation group. Space automorphisms are not necessarily the target's allowed similarities (e.g. scale). Keep the matching API at design status until that group/action is available; do not invent a canonical physical orientation.
 
-```sim
-def Specifications.RingPattern : Component where
-  World := { targetPattern : List Nat, patternMayReflect : Bool }
-  init := { targetPattern := param targetPattern, patternMayReflect := param patternMayReflect }
-```
+### M3. Last completed movement feedback
 
-Validate that the target length is N and its sum matches the intended population. P14's grid and P20's plane need different pattern representations and transformation groups; do not encode their geometry as a ring word.
+**Use:** P09/P10 where the protocol is told whether its requested move succeeded. Owned fields can store origin and pending target at `beforeMove`, then compare the resulting position at `afterMove`. Update feedback only for a robot actually taking Move, preserve it through other robots' events, and define crash behavior.
 
-### M3. Feedback about the robot's last completed activation
+~~~sim-design
+-- Proposed component contract; fields below are hidden.
+Agent := { origin : Pos, requested : Pos, movingThisStep : Bool,
+           lastMoveSucceeded : Bool }
+-- beforeMove: remember decisionOf(a).target only when decided.
+-- afterMove: success := final position = requested, for those agents only.
+-- Sensor: return lastMoveSucceeded at the next Look.
+~~~
 
-**Use:** P09/P10 motivate movement feedback in dynamic rings; the primitive is also general enough for other graph protocols. Save the source node before movement and compare it with the resulting node afterwards. Retain the result through rounds in which that robot is inactive. This records actual displacement rather than assuming a requested move succeeds. Select the sensor only when the model grants this knowledge.
+This does not require rebuilding event-based ASYNC. It may require an explicit initialization/context facility for owned position fields; settle that with the admitted paper. It does not model port buffers, crossings or transit visibility.
 
-```sim
-def Motion.Feedback : Component where
-  World := { moveSources : List Node, moveDecided : List Bool,
-    moveRequested : List Bool, moveSucceeded : List Bool }
-  Agent := { motionSlot : Nat }
-  init := { moveSources := [], moveDecided := [], moveRequested := [], moveSucceeded := [] }
-  init i := { motionSlot := i }
-  beforeMove C :=
-    let sources := ofFn C.agents.length fun i =>
-      (C.nodes.filter (fun p => C.agents.any (fun a => a.motionSlot = i ∧ a.pos = p))).at 0
-    let decided := ofFn C.agents.length fun i =>
-      C.agents.any (fun a => a.motionSlot = i ∧ (decisionOf a).decided)
-    let requested := ofFn C.agents.length fun i =>
-      C.agents.any (fun a => a.motionSlot = i ∧ (decisionOf a).decided ∧ (decisionOf a).move ≠ .stay)
-    { world := { C.world with moveSources := sources, moveDecided := decided,
-      moveRequested := requested } }
-  afterMove C :=
-    let succeeded := ofFn C.agents.length fun i =>
-      if C.world.moveDecided.at i then
-        C.world.moveRequested.at i ∧
-        C.agents.any (fun a => a.motionSlot = i ∧ a.pos ≠ C.world.moveSources.at i)
-      else if i < C.world.moveSucceeded.length then C.world.moveSucceeded.at i else false
-    { world := { C.world with moveSucceeded := succeeded } }
+## 7. Task proposals and exact temporal meaning
 
-sensor lastMoveSucceeded (C : Config) (me : Agent) : Bool :=
-  if me.motionSlot < C.world.moveSucceeded.length then C.world.moveSucceeded.at me.motionSlot else false
-```
+Tasks inspect physical positions. Sensors remain independent. Empty/correct-agent populations must follow the paper's convention rather than silently granting success.
 
-The value is false before a first activation and after a stay; it reports no global clock or robot ID. This prototype relies on nonempty node types and node-list indexing, with a known Lean generation constraint. It is for today's discrete one-edge movement. It does not model in-transit states, identify why a move failed, or provide P09's persistent port occupancy. Unlike cross detection, this feedback can be built from existing hooks.
+### T1/T2. Stable gathering of present or correct robots
 
-## 7. Task variants with precise temporal goals
+**Use:** P02/P04/P06/P07/P08 and general fault variants. Existing `Gathering` asks only for a moment of co-location. Under ASYNC a pending move can leave that position afterward.
 
-Proposed module: `std/tasks.sim` or a split `std/goals.sim`. Tasks can inspect global state; algorithms cannot. The survivor tasks below intentionally fail when no correct robot remains, avoiding vacuous success. Existing `Gathering` is retained unchanged.
-
-### T1. Stable gathering of all present robots
-
-**Use:** P02/P06/P08 and standard “gather and remain” specifications. With all crashes at one fixed location, including crashed bodies forces surviving robots to that location; an extra `StandUpGathering` predicate is unnecessary for that particular composition.
-
-```sim
+~~~sim
+@[equivariant]
 task StableGathering (C : Config) : Verdict :=
   let robots := C.agents.filter present
   if robots.isEmpty then .failure
-  else if robots.all (fun a => robots.all (fun b => a.pos = b.pos)) then .success
-  else .inProgress
+  else if robots.all (fun a => robots.all (fun b => a.pos = b.pos))
+  then .success else .inProgress
 
 goal StableGathering := eventually always .success
-```
 
-This guarantees eventual permanent co-location, not explicit termination or absence of earlier separations. It may permit the gathered group to move together unless the algorithm or a separate claim rules that out.
-
-### T2. Stable gathering of correct robots
-
-**Use:** A general crash/Byzantine-task distinction motivated by P05/P06/P15. Correct robots can gather while faulty bodies remain elsewhere. It is not stand-up indulgent gathering at a crash location, and using it for P15 still requires the missing Byzantine/probabilistic semantics.
-
-```sim
-task SurvivorGathering (C : Config) : Verdict :=
+@[equivariant]
+task StableCorrectGathering (C : Config) : Verdict :=
   let robots := C.agents.filter correct
   if robots.isEmpty then .failure
-  else if robots.all (fun a => robots.all (fun b => a.pos = b.pos)) then .success
-  else .inProgress
+  else if robots.all (fun a => robots.all (fun b => a.pos = b.pos))
+  then .success else .inProgress
 
-goal SurvivorGathering := eventually always .success
-```
+goal StableCorrectGathering := eventually always .success
+~~~
 
-### T3. Near gathering on one node or the ends of one edge
+These tasks guarantee permanent co-location. They still permit a co-located group to move together forever. If a paper requires staying at one fixed meeting position, add a position-history/stationarity condition or prove that the algorithm's gathered configurations have no future movement, including pending moves. In particular, permanent co-location alone is not the full P07 specification.
 
-**Use:** P09/P11 dynamics-dependent task variants. The existential common edge matters: on a three-node ring, merely asking every pair of positions to be adjacent would wrongly accept occupation of all three nodes.
+For SUIG, gathering only correct robots ignores the crashed location. A separate stable contract includes all visible crashed bodies or explicitly requires the correct robots to reach the unique crash position, matching the admitted fault model. P06's [fault/task model](https://arxiv.org/html/2402.14233v1#S2) must be checked independently of P02.
 
-```sim
-task NearGathering (C : Config) : Verdict :=
-  let robots := C.agents.filter present
-  if robots.isEmpty then .failure
-  else if C.nodes.any (fun p => robots.all (fun a =>
-    a.pos = p ∨ a.pos = target p .cw)) then .success
-  else .inProgress
+### T3. Stable near gathering
 
-goal NearGathering := eventually always .success
-```
+**Use:** P09 and related dynamic-gathering variants. All relevant robots must eventually remain on one position or the two ends of an edge. A generic task needs physical adjacency; `neighbors` is currently algorithm-local. Do not express it using `C.resolve` without a kept-port assumption.
 
-Adjacency uses the underlying ring, even if that edge is absent this round. Explicit terminal detection, port locations and each paper's exact permanence requirement remain separate audit items.
+~~~sim-design
+task StableNearGathering (C : Config) : Verdict :=
+  -- nonempty relevant robots, supported on {p} or {p,q} with physical adjacency p~q
+goal StableNearGathering := eventually always .success
+~~~
+
+Decide whether adjacency means the underlying edge or an edge present at that step. A task-level adjacency query is a small core API proposal; a cycle-specific project predicate can instead use the paper's known space definition.
 
 ### T4. Collision freedom
 
-**Use:** General formation/exclusive exploration safety; P14/P19/P20 motivate later space-specific applications. This definition checks node co-location only. It does not detect edge crossings or collisions during continuous movement.
+**Use:** a broadly useful safety primitive for exploration/formation variants. This is state collision freedom; opposite-direction edge crossings are different.
 
-```sim
-task CollisionFreedom (C : Config) : Verdict :=
+~~~sim
+@[equivariant]
+task CollisionFree (C : Config) : Verdict :=
   let robots := C.agents.filter present
-  if robots.any (fun a => robots.any (fun b => a ≠ b ∧ a.pos = b.pos))
-  then .failure else .success
+  if robots.all (fun a => robots.count (fun b => b.pos = a.pos) ≤ 1)
+  then .success else .failure
 
-goal CollisionFreedom := always ¬ .failure
-```
-
-Combining this with a liveness task requires E1's goal-composition work or separately checked claims. Do not replace gathering's target by collision freedom: they are different tasks.
+goal CollisionFree := always ¬ .failure
+~~~
 
 ### T5. Coverage with reported termination
 
-**Use:** P03 and terminating exploration more generally. Requires `Monitors.Visited` and an algorithm output `done : Bool`. All correct robots eventually report done after coverage. The task does not by itself establish that no rule is enabled or prevent a done robot from moving.
+**Use:** a general explicit-output contract, potentially a subclaim in P03. Algorithms expose `output done`. This does not establish that no paper rule is enabled, or that pending movement is absent.
 
-```sim
-task ReportedTerminatingExploration (C : Config) : Verdict :=
-  let robots := C.agents.filter correct
-  if robots.isEmpty then .failure
-  else if C.nodes.all (fun p => C.world.visited.contains p) ∧ robots.all (fun a => a.done)
+~~~sim
+@[equivariant]
+task ReportedExploration (C : Config) : Verdict :=
+  if C.positions.all (fun p => C.world.visited.contains p) ∧
+     C.agents.all (fun a => a.done)
   then .success else .inProgress
 
-goal ReportedTerminatingExploration := eventually always .success
-```
+goal ReportedExploration := eventually always .success
+~~~
 
-The [P03 problem definition, §2.3](https://arxiv.org/html/1805.03965) requires a suffix with no enabled robots. Accordingly, label this as a reported-termination interface until an absorbing-done/disabledness invariant or E2's enabledness semantics establishes the stronger property. Do not count it alone as formalization of that theorem.
+Needs `Monitors.Visited`. [P03 §2.3](https://arxiv.org/html/1805.03965v1#S2.SS3) defines termination by eventual rule-disabledness. Prove an output/disabledness correspondence or supply the exact rule predicate; do not rename a coverage check “terminating exploration.” Generic enabledness is E2.
 
-### T6. At least one safe black-hole identification
+### T6. At least one surviving identifier
 
-**Use:** P01/P10/P12 motivate a task distinct from the existing “every correct robot identifies” tasks. Requires the hazard's `site` field and outputs `claimDir : Option Move`, `claimSteps : Nat`. Directions are global under common chirality. Wrong reports fail immediately; eventually a surviving robot reports the correct site persistently at the system level.
+**Use:** search papers with a survivor-based guarantee, after auditing P10/P12's exact requirements. Existing identification tasks require every correct survivor to claim. This variant permits other survivors to remain undecided.
 
-```sim
+~~~sim
+@[equivariant]
 task SomeIdentifyBlackHole (C : Config) : Verdict :=
-  let robots := C.agents.filter correct
-  if robots.isEmpty then .failure
-  else if robots.any (fun a => a.claimDir.isSome ∧
-    advance a.pos (a.claimDir.getD .stay) a.claimSteps ≠ C.world.site) then .failure
-  else if robots.any (fun a => a.claimDir.isSome) then .success
-  else .inProgress
+  let alive := C.agents.filter correct
+  if alive.isEmpty then .failure
+  else if alive.any (fun a =>
+    a.claim.isSome ∧ C.resolve a (a.claim.getD 0) = C.world.site)
+  then .success else .inProgress
 
 goal SomeIdentifyBlackHole := eventually always .success
-```
+~~~
 
-This is for a hole present initially. It does not allow transient incorrect suspicions, require explicit halting, make a report irreversible, or guarantee that one fixed robot is the permanent reporter. Those are separate obligations, particularly for P01's explicit/implicit variants. A report relative to a robot that moves also needs its direction/distance updated consistently.
+This only requires one correct answer eventually forever. If the paper also forbids every incorrect declaration, add that safety condition explicitly. Persistent ports are required by `C.resolve`; remote outputs need their own interpretation.
 
-### T7. Stable ring pattern formation
+### T7. Stable pattern formation
 
-**Use:** General formation primitive using M2 and V3. The task recognizes the target up to the selected ring symmetries. Robot knowledge of the pattern, exact multiplicity assumptions and admissible initial configurations remain model choices.
+**Use:** P14 and formation families. Requires M2's specified target equivalence, plus a separate collision/connectivity condition if the theorem requires it.
 
-```sim
-task RingPatternFormation (C : Config) : Verdict :=
-  let counts := C.nodes.map (fun p => C.agents.count (fun a => present a ∧ a.pos = p))
-  if Views.canonicalRing counts C.world.patternMayReflect =
-    Views.canonicalRing C.world.targetPattern C.world.patternMayReflect
-  then .success else .inProgress
+~~~sim-design
+task PatternFormation (C : Config) : Verdict :=
+  -- .success iff the occupied configuration matches the target under the admitted group
+goal PatternFormation := eventually always .success
+~~~
 
-goal RingPatternFormation := eventually always .success
-```
+## 8. Remaining semantic extensions
 
-This recognizes a persistent shape, not an individually stationary assignment of robots. If termination or no collisions is required, add and verify those claims separately.
-
-## 8. Current-core compatibility model family
-
-### R1. Multi-sensor robots with explicit memory and frame capabilities
-
-**Use:** P03/P05 need both their own light and a spatial view; P09/P10 can combine incident edges, communication and knowledge. Today's `obliviousRing` accepts one view; `blackHoleRing` adds only the optional size sensor. This earlier executable constructor demonstrates multi-sensor composition against today's core. Phase 0's `robots` supersedes it.
-
-```sim
-def ringRobots (views : List Sensor) (components : List Component := [])
-    (memory : Memory := .oblivious) (topology : Topology := Ring)
-    (frame : FrameModel := Frames.dynamicReflection) (round : Round := .fsync)
-    (symmetries : Symmetries := .derived) : Model where
-  topology := topology
-  sensors := views
-  components := components
-  memory := memory
-  frame := frame
-  round := round
-  symmetries := symmetries
-```
-
-Example composition, once S1/S4 are available:
-
-```sim
-def localLuminousRobots : Model :=
-  ringRobots [ownLight, radiusColorCounts true]
-    (components := [Vision.Radius, Storage.Lights 3])
-    (round := .ssync)
-```
-
-Do not infer own-light visibility, known population, knowledge of N or private memory from a “luminous” label. Initial colors can use C1; fault components can be selected independently. Existing constructors can remain convenient compatible entry points.
-
-## 9. Interfaces requiring more than a standard-library addition
-
-These are part of the full proposal because several paper families need them. The `sim-design` blocks below are **future public interfaces, not accepted `.sim` code**. A signature without a body denotes a core primitive that cannot be implemented by today's component hooks. Implementing these requires coordinated language/IR, interpreter, explorer where relevant, Lean and conformance work; see [architecture.md](architecture.md) and [ir.md](ir.md).
-
-### E1. Recurrence, conjunction and environment assumptions
-
-**Use:** P03/P05 need repeated visits; P09/P11 need guarantees conditional on topology dynamics. Proposed recurrence task using M1:
-
-```sim-design
-task PerpetualExploration (C : Config) : Verdict :=
-  if C.world.epochComplete then .success else .inProgress
-
-goal PerpetualExploration := always eventually .success
-```
-
-`always eventually` is a new goal form. On a finite ring with the stated visit convention, infinitely many complete epochs imply that every node is visited infinitely often, and conversely. Add a proof of that monitor correspondence. Goal conjunction and admissibility assumptions should then permit recurrence plus safety, rather than silently dropping one obligation. An “eventually recurring edges” assumption must filter admissible executions; a component that merely chooses missing edges does not express it. Avoid inventing an `assume` syntax until its semantic contract is designed.
-
-### E2. Actual terminality / enabledness
-
-**Use:** P03's terminating exploration, P09's explicit termination and formation tasks. Needed interface:
-
-```sim-design
-def notEnabled (a : Agent) : Bool
-task TerminatingExploration (C : Config) : Verdict :=
-  if C.nodes.all (fun p => C.world.visited.contains p) ∧
-    (C.agents.filter correct).all (fun a => notEnabled a)
-  then .success else .inProgress
-goal TerminatingExploration := eventually always .success
-```
-
-The sketch's `notEnabled` is a proposed specification-only builtin with implicit configuration context, not an ordinary value helper or algorithm sensor. It requires new evaluator support and a precise meaning: no enabled rule, an explicit halt state and a stationary transition are distinct concepts. A flag with `acts never` is not a safe shortcut for “terminated”: today any raised flag also changes `correct`.
-
-### E3. ASYNC Look–Compute–Move
-
-**Use:** P07/P08/P13/P17/P19. Proposed round primitive and a future composition:
-
-```sim-design
-def AsyncLCM : Round
-
-def asynchronousRobots (space : Space) (observe : Observation) (frames : FrameEvolution)
-    (views : List Sensor) (components : List Component := []) (movement : Movement) : Model :=
-  robots space observe frames views
-    (components := components) (movement := movement) (round := AsyncLCM)
-```
-
-The primitive must specify independent robot phases, stored snapshots/destinations, light updates, in-transit visibility, finite phase completion and fairness. An existing fair singleton scheduler executes a complete fresh-observation activation, so it is not an implementation of this interface. Different atomicity/transit policies may require parameters after model audits.
-
-### E4. Topologies beyond rings
-
-**Use:** P12/P13 tori, P14 grids, and line papers such as P02. These target space constructors use the common graph API introduced in Phase 0; each finite graph family should be library-authored rather than another kernel case. Infinite graph execution/enumeration remains additional work.
-
-```sim-design
-def Line : Space
-def RectangularGrid (width : Nat) (height : Nat) : Space
-def InfiniteGrid : Space
-def Torus (rows : Nat) (columns : Nat) : Space
-def DynamicTorus (rows : Nat) (columns : Nat) (missingPerRing : Nat) : Space
-```
-
-Specify node coordinates, moves, local observation structure and movement first. `Line` means an unbounded discrete line here; finite paths need a separately named constructor and boundary observations. P12's per-row/per-column dynamic constraints do not follow from a single global missing-edge budget. The `DynamicTorus` convenience constructor must compose its underlying graph with that explicit edge policy. Infinite spaces require a strategy beyond finite enumeration. Models compose through `robots`; ring helpers retain their cycle-specific meaning.
-
-### E5. Exact geometry and geometric views
-
-**Use:** P16/P17/P18/P19/P20. Proposed value-level interfaces, with missing types and arithmetic made explicit:
-
-```sim-design
-structure Point2 where
-  x : Real
-  y : Real
-
-def Geometry.squaredDistance (a : Point2) (b : Point2) : Real :=
-  (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y)
-
-def Geometry.collinear (a : Point2) (b : Point2) (c : Point2) : Bool :=
-  (b.x - a.x) * (c.y - a.y) = (b.y - a.y) * (c.x - a.x)
-
-def Plane : Space
-def Circle : Space
-```
-
-`Real` and these spaces are not current types/constructors. Decide exact executable arithmetic or a justified abstraction before implementation; rationals do not cover every circle construction. Add visibility, occlusion and movement policies as separate contracts. The geometric observation correspondence declares whether it preserves distances, orientation, scale or other structure, from which admissible frames follow. Do not place absolute `Point2` coordinates in a sensor for disoriented robots. Phase 0 supplies the generic contracts and graph implementation; executable exact geometry remains a subsequent project.
-
-### E6. Transit events, cross detection and movement history
-
-**Use:** P09 and future dynamic-network/ASYNC papers. Proposed observation interfaces:
-
-```sim-design
-sensor crossingDetected (C : Config) (me : Agent) : Bool
-```
-
-Cross detection reports another robot crossing in the opposite direction during the relevant movement, available at the paper's specified subsequent observation. A generic component cannot read other components' flags/fields, inspect decisions directly after movement, retain a robot in a port or change the movement engine. A blocked `.cw` request becoming `.stay` does not implement port occupancy. This interface needs explicit movement events and ownership, not a sensor peeking at current-round future choices. M3 already provides the narrower last-displacement feedback with existing hooks. No bounded identity-tracking sensor should be added without the paper granting that capability.
-
-### E7. Probability and full Byzantine behavior
-
-**Use:** P15; general randomized LCM work. Proposed semantic interfaces:
-
-```sim-design
-def ProbabilisticLCM : Round
-def Faults.Byzantine (budget : Nat) : Component
-```
-
-Specify probability distributions, scheduler/adversary information and timing, message equivocation, public/private state changes and movement powers. Algorithmic random choices cannot be represented by ordinary adversarial `choose`. Today's `acts adversary` changes only movement; it is not this Byzantine component. Design a shared API only after one concrete protocol establishes the required messages and adversary observation model.
-
-## 10. Priority and implementation constraints
-
-| Priority | Proposals | Reason |
+| ID | Extension and proposed contract | Papers / acceptance criterion |
 | --- | --- | --- |
-| Phase 0: foundation and existing users | [core-redesign.md](core-redesign.md): core spaces, observations, sensors, movement, library spaces and model families | Rewrites the core, std, Lean and consumers; brings back the starter and both public projects; adds a non-ring witness. Private projects are ported in their own repository. |
-| Phase 1: first reusable additions | V1–V5 helpers, C1 (S1/S4 are part of Phase 0) | Immediate reuse in nearby gathering/exploration papers, using the new observation contracts. |
-| Next | Generic S2/S3/S5/S6, C2/C3, F1/F2, M3, T1–T3/T5/T6 where not already required by migration | Extend the shared capability inventory after preserving current users. Phase 0 may pull an item forward when an audited existing model requires it. |
-| Recurrence track | M1 + E1 | Necessary for claiming perpetual exploration rather than one-time coverage. |
-| As needed | C4, F3/F4, M2, T4/T7 | General enough to justify shared definitions, but lower reuse confidence or extra representation/proof work. |
-| Later semantic projects | E2/E3, further E4 constructors/infinite-space execution, E5–E7, environment admissibility in E1 | Multi-paper value beyond Phase 0's graph/observation foundation; not implementable by merely adding `.sim` files to std. |
+| E1 | Recurrence (`infinitely often`), goal conjunction, separate environment assumptions | P03/P05/P11. Add to IR, explorer and Lean together. Check an execution that covers once then omits one node forever, unfair scheduling, and topology assumptions independently. An epoch pulse must recur, not merely appear once. |
+| E2 | Enabledness, actual terminality; later weak/strong daemon fairness | P03 and self-stabilization. Define paper-rule enabledness versus “some possible decision changes state”; these are not interchangeable. Scheduling currently uses `C.eligible`, not `C.enabled`. See the scheduler design's deferred work. |
+| E3 | Remaining ASYNC scope: continuous moving phase, non-rigid progress, transit observations | Graph event cuts are implemented. P17/P19 still need geometry/motion; discrete pilots need only a contract audit unless they require extra transit semantics. |
+| E4 | More discrete spaces and edge policies | Finite tori/grids are library additions. P12's row/column dynamics and P11's temporal constraints need an explicit edge/environment policy. Infinite 2D canonicalization and Lean record vertices remain unsupported. |
+| E5 | Exact geometry, local coordinate frames and justified finite abstractions | P16–P20. Choose executable exact arithmetic or prove a property-preserving abstraction. `Euclidean.Plane` is an interface, not an executable model. |
+| E6 | Port buffers, cross detection and movement events | P09/P10 where required. Expose information at the paper's next observation; a current-edge sensor or M3 feedback does not implement a crossing. Audit behavior when an edge disappears between Look and Move. |
+| E7 | Probability and Byzantine state/messages | P15. Separate probabilistic transitions from adversarial `choose`; specify adaptive powers and information. `acts adversary` alone supplies movement choices, not arbitrary messages/state corruption. |
 
-Before promotion:
+### E4 library part: a finite torus
 
-- Check exact observation information, initialization, phase timing and default values against at least two users, or document the general-purpose rationale.
-- Validate positive palette/register sizes, coordinate and view domains, and initial-stock/color lengths in the experiments or a future component-contract mechanism. Do not silently change theorem assumptions to finite examples.
-- Keep components' fields/actions disjoint. Crash alternatives, hazard alternatives with the same flag, and the two light stores are not automatically composable. Declaration order cannot make same-hook effects read one another's updates.
-- Add bounded equivariance checks before adding `@[equivariant ...]` attributes. This draft deliberately declares none. C4's index-based state needs special treatment; other claims still need validation.
-- Follow the existing [Lean limits](architecture.md#lean-guarantees-and-limits). Multiset operations, custom record sensors and node-list indexing are known constraints. Current-language compilation is not Lean compilation or a correctness proof. Do not hide an unsupported translation by replacing the model with a weaker one.
-- Keep hand-written builder counterparts consistent, regenerate library Lean from its sources, and run the relevant checks in [development.md](development.md). Update the public library catalog/model-builder output contracts when promoted task outputs or core constructors require it.
+**Use:** P12/P13. This is an ordinary `Space` definition on the current graph core. A scalar vertex encoding also stays within the current Lean vertex-type subset. The port convention below is east/north/west/south; the selected frames decide whether agents retain that convention. Start validation with dimensions at least 3; audit smaller dimensions against each paper instead of silently treating parallel edges as a simple torus.
 
-## 11. Checks performed on this draft
+~~~sim
+def Graphs.Torus (rows : Nat) (cols : Nat) : Space where
+  Vertex := Nat
+  vertices := range (rows * cols)
+  neighbors v :=
+    let r := v / cols
+    let c := v % cols
+    [r * cols + (c + 1) % cols,
+     ((r + 1) % rows) * cols + c,
+     r * cols + (c + cols - 1) % cols,
+     ((r + rows - 1) % rows) * cols + c]
+  automorphisms := .computed
+~~~
 
-The earlier 32 current-language code blocks were collected into a temporary source and checked through the current compiler in 18 sample experiment compositions. Each composition initialized and produced successors. Separate temporary behavioral checks covered the value helpers, own/external-light information, competing pebble pickups and stock conservation, simultaneous whiteboard writers, light updates during crashes, recurring versus stopped coverage, feedback retained through inactive rounds, and the three-node near-gathering edge case. These prototypes are retained as semantic references, not implementations of Phase 0.
+Generic occupancy, multiplicity, color and mark sensors need no torus versions. Computed automorphisms may become expensive; measure small instances before introducing a specialized group implementation. This graph alone supplies neither P12's per-ring dynamic constraints nor a proof of either paper's algorithm.
 
-The 15 existing shared-robot and conformance tests passed before the original draft. These checks establish executable examples for the current-language proposals, not conformance with every paper, Lean compilation, equivariance or correctness proofs. All `sim-design` interfaces, including the new foundation, remain unimplemented and are intentionally excluded from compilation. No standard-library, engine, language or Lean source was changed by writing or revising this proposal.
+Example future goal surface, deliberately not accepted syntax:
 
-For the Phase 0 planning revision, 52 existing public regression tests passed across the starter, stand-up gathering, black-hole migration/presets, shared robots and conformance. Strict typechecking and the earlier prototype composition/behavior checks also passed. These establish the current baseline; they do not satisfy the future migration gates. The detailed private inventory was prepared separately, and its implementation checks remain pending.
+~~~sim-design
+task RepeatedCoverage (C : Config) : Verdict :=
+  if C.world.complete then .success else .inProgress
+goal RepeatedCoverage := infinitely often .success
+~~~
+
+A new core API follows the repository's coordinated semantics/IR/conformance/interpreter/Lean workflow. A new finite graph, sensor or policy using current APIs does not need another core redesign.
+
+## 9. Priority and promotion checks
+
+| Priority | Work | Why / exit criterion |
+| --- | --- | --- |
+| First pilot | T1 and P07 audit; reuse existing sensors, lights and ASYNC | Validate stale observations, a Look concurrent with Compute, and gathering followed by an old pending move. Do not add an unneeded own-light or ASYNC implementation. |
+| Next shared additions | C1, S4, useful V helpers, P03/P06/P04 audits | Preserve initial colors and exactly the visible information. Choose one public consumer plus another audited need, or justify the primitive's general value. |
+| Exploration specification | E2/T5 for P03; E1/M1 for P03/P05 | Exact disabledness/recurrence before claiming terminating/perpetual results. Rule translation and coverage evidence can proceed separately. |
+| Dynamic-agent cases | C2/C3/S5/M3 and the applicable E6/E4 work | Check resource conservation, blocked moves, per-port availability and environment assumptions. Prefer existing components where their contracts already match. |
+| Topology/proof track | Finite torus pilot P13; export/equivariance gap met by a selected artifact | Reuse generic sensors; test port/symmetry conventions. Scalar vertex encodings can avoid the record-vertex Lean limitation when faithful. |
+| Demand driven | C4, F3/F4, M2/T7, geometry and probability | Wait for a concrete admitted protocol rather than building every conceivable interface. |
+
+Each promoted entry needs a short contract, named consumers, current-language source, meaningful semantic examples and relevant tests. Components with `@[equivariant]` need verification against the admitted transformations; the attribute is a claim, not a theorem. For proof-track consumers, check export and state the remaining proof obligations. Current generic equivariance lemmas do not automatically cover every isomorphism-frame, conjugated-effect or dynamic-space case.
+
+## 10. Review and validation
+
+The 24 October revision inspected the actual stdlib, graph/view and event/scheduler runtime and tests. The focused 66-test baseline and strict TypeScript check are recorded in the [roadmap](public-projects-roadmap.md#review-and-validation-of-this-revision). All 19 executable snippets were combined in temporary compilation probes with seven experiment/component/task combinations, including cycles, a star and the proposed torus; compilation had no diagnostics and each experiment produced initial successors. These smoke checks do not establish all contract properties, conservation, equivariance or Lean export. Proposal snippets are not installed library code. Design sketches deliberately keep unavailable APIs/goals visible rather than presenting them as existing exports. No paper theorem follows from this proposal, from bounded checks, or from generated Lean compilation.

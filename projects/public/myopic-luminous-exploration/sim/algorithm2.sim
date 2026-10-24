@@ -1,0 +1,88 @@
+/-! P03: Ooshita and Tixeuil, Ring Exploration with Myopic Luminous Robots.
+arXiv:1805.03965v1, Algorithm 2 and Theorem 9. White = 0, Green = 1.
+Only the three-robot FSYNC terminating case is translated.
+Rule activity is specification instrumentation, never an algorithm sensor. -/
+
+import "std/models.sim"
+
+/-- Supplied initial colors; same Compute behavior as Storage.Lights, with no slot indices. -/
+@[equivariant]
+def InitialLights : Component where
+  World := { colorCount : Nat, initialColors : List Nat }
+  Agent := { light : Nat }
+  actions := [action setLight : Option Nat := none]
+  init := { colorCount := 2, initialColors := param initialColors }
+  init i := { light := (param initialColors).at i }
+  onCompute C :=
+    { agents := fun a =>
+        let c := (decisionOf a).setLight
+        { light := if (decisionOf a).decided ∧ c.isSome ∧ c.getD 0 < 2
+                   then c.getD 0 else a.light } }
+
+/-- The paper's multiset observation, represented by counts of W and G. -/
+sensor colorCounts (L : Look) (l : Loc) : List Nat :=
+  ofFn 2 fun c => (L.occupants l).count (fun a => present a ∧ a.light = c)
+
+/-- Last Look's enabledness, reported by each matched rule at Compute.
+Under FSYNC every robot reports every round; this is not a scheduler enabledness API. -/
+@[equivariant]
+def RuleActivity : Component where
+  Agent := { ruleWasEnabled : Bool }
+  actions := [action ruleEnabled : Bool := false]
+  init i := { ruleWasEnabled := true }
+  onCompute C :=
+    { agents := fun a => { ruleWasEnabled :=
+        if (decisionOf a).decided then (decisionOf a).ruleEnabled else a.ruleWasEnabled } }
+
+@[equivariant]
+task TerminatingExploration (C : Config) : Verdict :=
+  if C.positions.all (fun p => C.world.visited.contains p) ∧
+     C.agents.all (fun a => !a.ruleWasEnabled)
+  then .success else .inProgress
+
+goal TerminatingExploration := eventually always .success
+
+/-- Singleton-color guards use counts, so an equal-color tower is not a singleton. -/
+def singleton (l : Loc) (c : Nat) : Bool :=
+  colorCounts l = (if c = 0 then [1, 0] else [0, 1])
+
+def empty (l : Loc) : Bool := colorCounts l = [0, 0]
+
+algorithm ThreeRobotExploration uses colorCounts where
+  init i := {}
+  main :=
+    let left := Ring.ccw
+    let right := Ring.cw
+    -- 0GW: green moves away from its white neighbor.
+    if singleton here 1 ∧ empty left ∧ singleton right 0 then
+      move left with { ruleEnabled := true }
+    else if singleton here 1 ∧ empty right ∧ singleton left 0 then
+      move right with { ruleEnabled := true }
+    -- 0WG: white follows its green neighbor.
+    else if singleton here 0 ∧ empty left ∧ singleton right 1 then
+      move right with { ruleEnabled := true }
+    else if singleton here 0 ∧ empty right ∧ singleton left 1 then
+      move left with { ruleEnabled := true }
+    -- 0WW: the white border turns green without moving.
+    else if singleton here 0 ∧ ((empty left ∧ singleton right 0) ∨ (empty right ∧ singleton left 0)) then
+      stay with { setLight := some 1, ruleEnabled := true }
+    -- GWW: the middle white robot moves towards green.
+    else if singleton here 0 ∧ singleton left 1 ∧ singleton right 0 then
+      move left with { ruleEnabled := true }
+    else if singleton here 0 ∧ singleton right 1 ∧ singleton left 0 then
+      move right with { ruleEnabled := true }
+    -- GWG: either direction; the Look's reflected presentations provide both choices.
+    else if singleton here 0 ∧ singleton left 1 ∧ singleton right 1 then
+      move left with { ruleEnabled := true }
+    else
+      stay
+
+experiment threeRobotFSync where
+  model := obliviousRobots (Graphs.Cycle N) (Observe.radius 1) Frames.isomorphisms
+    [colorCounts] (components := [InitialLights, RuleActivity, Monitors.Visited])
+  algorithm := ThreeRobotExploration
+  task := TerminatingExploration
+  param N : Nat where N ≥ 3
+  param initialColors : List Nat in [[0, 0, 0], [1, 0, 0], [0, 0, 1], [1, 0, 1]]
+  agents := 3
+  position i := pos i

@@ -16,6 +16,8 @@
     "projects/starter/web",
     "projects/standup-gathering/src",
     "projects/standup-gathering/web",
+    "projects/public/*/src",
+    "projects/public/*/web",
     "apps/public-site",
     "scripts",
     "tests",

@@ -12,6 +12,7 @@
     "packages/*",
     "extensions/*",
     "projects/*",
+    "projects/public/*",
     "projects/private/*",
     "lean"
   ],
