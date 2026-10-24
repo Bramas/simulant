@@ -7,6 +7,7 @@ New paper artifacts live in one folder per paper family. Existing public project
 | --- | --- |
 | [Myopic ASYNC gathering](myopic-async-gathering/README.md) | P07, Algorithm 1 at radius one; three colors, delayed L/C/M and towers |
 | [Myopic luminous exploration](myopic-luminous-exploration/README.md) | P03, Algorithm 2; three FSYNC robots and terminating exploration |
+| [Stand-up rendezvous on rings](standup-ring-gathering/README.md) | P06, positive two-robot FSYNC strategy with an arbitrary crash |
 
 Each folder has `sim/`, a `src/projects.ts` registry, a `web/` viewer and an audit in its README.
 The [program roadmap](../../docs/public-projects-roadmap.md) tracks remaining algorithms and claims.

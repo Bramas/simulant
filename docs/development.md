@@ -37,6 +37,9 @@ pnpm --filter @bramas/simulant-project-myopic-luminous-exploration build
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/public-literature.test.ts
 pnpm cli check-all -p myopic-async-gathering-phi-one
 pnpm cli check-all -p myopic-luminous-exploration-three-fsync
+pnpm --filter @bramas/simulant-project-standup-ring-gathering build
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/standup-ring-gathering.test.ts
+pnpm cli check-all -p standup-ring-gathering-two-fsync
 
 # Stand-up gathering: paper examples, sensors and exhaustive crash branches
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
@@ -99,6 +102,8 @@ The 2026-10-22 pre-release review on Node 24.11.0 passed 248 ordinary tests (253
 The follow-up corrections passed 256 ordinary tests (261 total, five optional skips), strict typechecking, the public build, Lean library/examples builds and all 10 opt-in Lean tests. New `agent-fields` and `edge-presence` conformance fixtures agree with their independent builder counterparts and the Lean round; the first also covers generation of a component with multiple agent fields. The installed release archives passed their standalone CLI, type, website and clean Lean checks. All Phase 0 baselines and 66,792 decisions still matched. A focused Chrome check verified JSON editing of a record position and preservation through a semantic hot update in the same browser document. The three review defects are resolved; the browser-suite migrations and line-only highlight issue remain separate.
 
 The 2026-10-24 literature increment adds two scoped artifacts under `projects/public/`: P07 Algorithm 1 at radius one and P03 Algorithm 2 under FSYNC. The ordinary suite passed 287 tests (292 total, five optional skips), using `TMPDIR=/private/tmp` and local socket access for the two Vite integration tests. Strict typechecking, the complete public-site build and both generated Lean models passed. CLI `check-all` passed five P07 settings in three graphs (30,979 states, 416,637 edges) and 40 P03 settings in ten graphs (290 states/edges); P03's individual unreduced checks also passed. A browser smoke check opened and stepped both pages; after the light-label renderer addition, the two page builds, typecheck and focused registry/example tests passed, and the exploration page visibly showed G/W/G after its first step. No general paper theorem or instrumentation correspondence was proved. The semantic core and stdlib were unchanged. Each artifact's README records its narrower scope and remaining algorithms.
+
+P06's positive two-robot ring strategy subsequently passed four focused tests, all 40 admitted normalized settings on even cycles 6–20 (68 states, 96 edges in eight shared graphs), individual unreduced comparisons, bounded rotation/reflection equivariance checks, strict typechecking, its page build and generated Lean compilation. This does not formalize the multi-robot SUIG algorithm or prove the paper theorem.
 
 ## Package distribution
 
