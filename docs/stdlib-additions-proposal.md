@@ -164,6 +164,17 @@ def Views.nearestRight (v : List Nat) : Option Nat :=
 
 `nearestRight` returns an edge distance and `none` when no robot is observed on that side. Use an odd-length centered input; mirroring gives the corresponding left query.
 
+### V6. Visible shortest-path steps
+
+**Observed reuse:** the implemented [P04 tower case](../projects/public/synthesized-ring-gathering/sim/three-robots.sim) and [P06 rendezvous strategy](../projects/public/standup-ring-gathering/sim/rendezvous.sim) both filter the observer's neighbors by decreasing distance to one observed target. This is a topology-independent algorithm-local helper, suitable for promotion after reviewing its distance contract:
+
+~~~sim
+def shortestStepsTo (target : Loc) : List Loc :=
+  (neighbors here).filter fun l => distance l target + 1 = distance here target
+~~~
+
+The result includes all tied first steps, and is empty when the target is `here`. It does not choose an orientation or grant target visibility. Distances are those of the visible graph; both current consumers have full observations. A bounded-view consumer must justify using those distances. For dynamic spaces, filter edge availability separately when the model grants that sensor. The caller decides whether a tie means waiting (P06) or an adversarial choice through admissible frames (P04). The expression is exercised in both projects; the standard library remains unchanged.
+
 ## 3. Observation and knowledge proposals
 
 ### S2. Capped multiplicity (optional convenience)

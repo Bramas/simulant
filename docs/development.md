@@ -40,6 +40,9 @@ pnpm cli check-all -p myopic-luminous-exploration-three-fsync
 pnpm --filter @bramas/simulant-project-standup-ring-gathering build
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/standup-ring-gathering.test.ts
 pnpm cli check-all -p standup-ring-gathering-two-fsync
+pnpm --filter @bramas/simulant-project-synthesized-ring-gathering build
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/synthesized-ring-gathering.test.ts
+pnpm cli check-all -p synthesized-ring-gathering-three-fsync
 
 # Stand-up gathering: paper examples, sensors and exhaustive crash branches
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
@@ -104,6 +107,8 @@ The follow-up corrections passed 256 ordinary tests (261 total, five optional sk
 The 2026-10-24 literature increment adds two scoped artifacts under `projects/public/`: P07 Algorithm 1 at radius one and P03 Algorithm 2 under FSYNC. The ordinary suite passed 287 tests (292 total, five optional skips), using `TMPDIR=/private/tmp` and local socket access for the two Vite integration tests. Strict typechecking, the complete public-site build and both generated Lean models passed. CLI `check-all` passed five P07 settings in three graphs (30,979 states, 416,637 edges) and 40 P03 settings in ten graphs (290 states/edges); P03's individual unreduced checks also passed. A browser smoke check opened and stepped both pages; after the light-label renderer addition, the two page builds, typecheck and focused registry/example tests passed, and the exploration page visibly showed G/W/G after its first step. No general paper theorem or instrumentation correspondence was proved. The semantic core and stdlib were unchanged. Each artifact's README records its narrower scope and remaining algorithms.
 
 P06's positive two-robot ring strategy subsequently passed four focused tests, all 40 admitted normalized settings on even cycles 6–20 (68 states, 96 edges in eight shared graphs), individual unreduced comparisons, bounded rotation/reflection equivariance checks, strict typechecking, its page build and generated Lean compilation. This does not formalize the multi-robot SUIG algorithm or prove the paper theorem.
+
+P04's extracted three-robot FSYNC protocol then passed five focused tests, all 351 non-periodic rotation-normalized triples on cycles 4–12 (92 states/edges in nine shared graphs), individual unreduced comparisons, source-case fixtures and bounded equivariance checks. The separate literal-final-paragraph experiment retains its expected one-state lasso. Both generated Lean models and the project page build pass. The combined ordinary suite passes 296 tests (301 total, five optional skips); strict typechecking and the complete public build pass. The P04 source discrepancy remains under Known issues; no synthesis engine, move-optimality proof or general correctness proof was added.
 
 ## Package distribution
 
@@ -182,6 +187,8 @@ construct its list before yielding its first value. These changes preserve state
 successor order, witnesses and the exploration semantics.
 
 ## Known issues
+
+- **P04's final rule paragraph omits the disoriented-tower case described earlier in the same source.** In arXiv:1407.0978v2, section 4's strategy description lets the singleton take either direction towards an antipodal two-robot tower, but the final paragraph's tower guard requires unequal gaps. Its literal translation stalls at N = 4, positions `[0,0,2]`. Reproduce with `pnpm cli check-all -p synthesized-ring-gathering-literal-final-paragraph` (expected exit 1), or load those settings and path `[0,0]` in that experiment. The primary `synthesized-ring-gathering-three-fsync` explicitly includes the preceding strategy bullet and passes this case; both readings are preserved in the public project. The source's disoriented-tower parity statement is also inconsistent with its physical definition. Clarify these textual discrepancies and establish correspondence with the intended protocol before claiming the paper theorem is formalized; no published source was edited.
 
 - **The browser acceptance assertions need to finish migrating to version 2.** The 2026-10-22 release review ran the suite using the bundled Playwright API and installed Google Chrome, through a temporary launcher that sets `executablePath`. The checked-in suite still expects `"bh":"cw"` instead of `"bh":0` and an advisory domain warning for an invalid cycle vertex, which now produces a structural setup error. Missing favicons also fail its console assertions, and early failures cascade through its shared page. A temporary copy correcting those two assertions and answering favicon requests passed all 10 other scenarios; the line-only highlight scenario still failed as documented below (the parent test also counts as failed). Update the assertions and isolate incidental favicon requests before using the suite as a release gate. No checked-in browser test was changed during review.
 

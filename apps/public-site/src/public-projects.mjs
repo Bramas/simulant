@@ -44,4 +44,13 @@ export const publicProjects = [
     description:
       'The positive two-robot FSYNC case: full occupancy observations and at most one crash at any round.',
   },
+  {
+    name: 'Synthesized Ring Gathering',
+    slug: 'synthesized-ring-gathering',
+    href: './synthesized-ring-gathering/',
+    packageName: '@bramas/simulant-project-synthesized-ring-gathering',
+    paper: 'On the Synthesis of Mobile Robots Algorithms: the Case of Ring Gathering, SSS 2014',
+    description:
+      'The three-robot FSYNC protocol, with separate strategy-description and literal-final-paragraph experiments for a source discrepancy.',
+  },
 ];
