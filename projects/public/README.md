@@ -10,6 +10,7 @@ New paper artifacts live in one folder per paper family. Existing public project
 | [Stand-up rendezvous on rings](standup-ring-gathering/README.md) | P06, positive two-robot FSYNC strategy with an arbitrary crash |
 | [Synthesized ring gathering](synthesized-ring-gathering/README.md) | P04, extracted three-robot FSYNC protocol and a literal-source counterexample probe |
 | [Rotor-router graph exploration](rotor-router-exploration/README.md) | P21, memoryless agent with node pointers on arbitrary finite connected graphs |
+| [Black-hole search in trees](tree-black-hole-search/README.md) | P22, two agents running Algorithm Tree with split/probe, timed detection and return home |
 
 Each folder has `sim/`, a `src/projects.ts` registry, a `web/` viewer and an audit in its README.
 The [program roadmap](../../docs/public-projects-roadmap.md) tracks remaining algorithms and claims.

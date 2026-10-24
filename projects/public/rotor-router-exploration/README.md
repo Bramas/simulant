@@ -8,7 +8,7 @@ Translation pinned to [arXiv:1502.05545v3](https://arxiv.org/abs/1502.05545v3), 
 The paper studies a memoryless agent with local port labels, writable node memory and
 unknown entry port. Its rotor-router mechanism exits through the current pointer and
 advances that pointer cyclically. The artifact implements this mechanism on arbitrary
-finite, simple, connected undirected port graphs. The lower-bound proofs remain open.
+finite, simple, connected undirected port graphs with at least two vertices. The lower-bound proofs remain open.
 
 ## Model and source mapping
 

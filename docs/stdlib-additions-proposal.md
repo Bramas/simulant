@@ -223,6 +223,21 @@ sensor Knowledge.Population.populationSize (L : Look) : Nat :=
 
 An experiment using this knowledge sets `agents := population`. Space-size knowledge already has `spaceSize`; supplying a parameter to a model does not automatically make it algorithm knowledge.
 
+### S6. Static input maps for mobile agents
+
+**Use:** P22's [KnownTree](../projects/public/tree-black-hole-search/sim/tree.sim)
+exposes only a fixed rooted port map. Its dynamic agent observations remain local. Keep
+three capabilities separate: knowledge of the graph size, a preloaded port map with a
+known start, and recognition of an arbitrary physical node. A map does not grant remote
+occupancy, remote storage reads or a position-valued sensor. In P22 an agent tracks its
+map location using its own moves; P21 explicitly receives no map at all.
+
+The project-local component demonstrates a scalar/list-valued static input on the current
+core. Before promotion, audit another known-map algorithm and choose a map format and
+start-alignment contract. Map-relative answers need an interpretation against the input's
+position keys; the generic neighbor-port black-hole task is insufficient after returning
+to a distant home. P22 also supplies an explicit no-hole report and checks actual return.
+
 ## 4. Storage and environmental information
 
 ### C1. Supplied initial light colors

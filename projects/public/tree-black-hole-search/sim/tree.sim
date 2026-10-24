@@ -1,0 +1,125 @@
+/-! P22: Czyzowicz, Kowalski, Markou and Pelc, Searching for a Black Hole in
+Synchronous Tree Networks (CPC 2007). Section 3 split/probe and section 5.2 Algorithm Tree.
+Two labelled agents start at a safe root with the input map. Each edge traversal takes
+one round; only co-located agents communicate. At most one static black hole.
+This is the general Tree procedure, not the optimized Line or Bushy-Tree algorithms. -/
+
+import "std/models.sim"
+
+/-- A topological numbering of a rooted tree. Root 0 is its own parent. -/
+def rootedTree (parents : List Nat) : Bool :=
+  parents.length ≥ 2 ∧ parents.at 0 = 0 ∧
+  (range (parents.length - 1)).all (fun j => parents.at (j + 1) < j + 1)
+
+def childrenOf (parents : List Nat) (v : Nat) : List Nat :=
+  (range parents.length).filter (fun w => w ≠ 0 ∧ parents.at w = v)
+
+/-- Child ports first, then the parent port. The known input map includes this convention. -/
+def portsOf (parents : List Nat) (v : Nat) : List Nat :=
+  childrenOf parents v ++ (if v = 0 then [] else [parents.at v])
+
+def treePort (parents : List Nat) (v : Nat) (w : Nat) : Nat :=
+  ((range (portsOf parents v).length).filter (fun p => (portsOf parents v).at p = w)).at 0
+
+def RootedTree (parents : List Nat) : Space where
+  Vertex := Nat
+  vertices := range parents.length
+  neighbors v := (range parents.length).filter (fun w => w ≠ 0 ∧ parents.at w = v) ++
+    (if v = 0 then [] else [parents.at v])
+
+/-- Static input knowledge, including the rooted port map. No dynamic remote observations. -/
+@[equivariant]
+def KnownTree : Component where
+  World := { inputTree : List Nat, nodes : List Pos, home : Pos }
+  init := { inputTree := param parents, nodes := positions, home := pos 0 }
+
+sensor knownTree (L : Look) : List Nat := L.world.inputTree
+
+inductive TreePhase | meet | back | home
+
+/-- An explicit answer, actual return to the safe root, and survival. Wrong reports fail
+immediately. `none` with `done` means the whole tree was found safe, not an unknown answer. -/
+@[equivariant]
+task TreeIdentification (C : Config) : Verdict :=
+  let alive := C.agents.filter correct
+  let wrong := alive.any (fun a => a.done ∧
+    (if C.world.active then a.answer.isNone ∨ C.world.nodes.at (a.answer.getD 0) ≠ C.world.site
+     else a.answer.isSome))
+  if alive.isEmpty ∨ wrong then .failure
+  else if alive.all (fun a => a.done ∧ a.pos = C.world.home) then .success
+  else .inProgress
+
+goal TreeIdentification := eventually always .success
+
+/-- Unknown edges are indexed by their child in the known rooted input map. Both agents
+maintain the same explored territory after successful meetings. The map is initial knowledge,
+not a global-vision sensor. A missing partner is tested only after the two-step deadline. -/
+algorithm TreeSearch uses otherStates, knownTree where
+  Pub := { role : Nat, answer : Option Nat, done : Bool }
+  Mem := { vertex : Nat, explored : List Nat, phase : TreePhase,
+           waiting : Bool, first : Nat, second : Option Nat, found : Option Nat }
+  output answer := pub.answer
+  output done := pub.done
+  init i := { pub := { role := i, answer := none, done := false },
+              mem := { vertex := 0, explored := [], phase := .meet,
+                       waiting := false, first := 0, second := none, found := none } }
+  step mem pub :=
+    let tree := knownTree
+    if pub.done then { move := here }
+    else if mem.phase = .home then
+      if mem.vertex = 0 then
+        { move := here, pub := { pub with answer := mem.found, done := true } }
+      else
+        { move := (neighbors here).at (treePort tree mem.vertex (tree.at mem.vertex)),
+          mem := { mem with vertex := tree.at mem.vertex } }
+    else if mem.phase = .back then
+      let travelled := pub.role = 0 ∨ mem.second.isSome
+      let child := if pub.role = 0 then mem.first else mem.second.getD mem.first
+      { move := if travelled then (neighbors here).at (treePort tree child mem.vertex) else here,
+        mem := { mem with phase := .meet } }
+    else
+      let missing := mem.waiting ∧ !(otherStates.any (fun p => p.role ≠ pub.role))
+      let found := if missing then some (if pub.role = 0 then mem.second.getD mem.first else mem.first) else none
+      let explored := if mem.waiting ∧ !missing
+                      then mem.explored ++ [mem.first] ++ (if mem.second.isSome then [mem.second.getD 0] else [])
+                      else mem.explored
+      if found.isSome ∨ explored.length = tree.length - 1 then
+        if mem.vertex = 0 then
+          { move := here, pub := { pub with answer := found, done := true } }
+        else
+          { move := (neighbors here).at (treePort tree mem.vertex (tree.at mem.vertex)),
+            mem := { mem with vertex := tree.at mem.vertex, phase := .home, found } }
+      else
+        let unknown := (childrenOf tree mem.vertex).filter (fun w => !explored.contains w)
+        if !unknown.isEmpty then
+          let first := unknown.at 0
+          let second := if unknown.length ≥ 2 then some (unknown.at 1) else none
+          let target := if pub.role = 0 then first else second.getD mem.vertex
+          { move := if target = mem.vertex then here else (neighbors here).at (treePort tree mem.vertex target),
+            mem := { mem with explored, first, second, phase := .back, waiting := true } }
+        else
+          let unfinished := (childrenOf tree mem.vertex).filter (fun w =>
+            (childrenOf tree w).any (fun z => !explored.contains z))
+          let target := if unfinished.isEmpty then tree.at mem.vertex else unfinished.at 0
+          { move := (neighbors here).at (treePort tree mem.vertex target),
+            mem := { mem with vertex := target, explored, waiting := false } }
+
+experiment treeWithHole where
+  model := agentsWithMemory (RootedTree parents) (Observe.radius 1) Frames.identity
+    [otherStates, knownTree] (components := [KnownTree, Hazards.BlackHole .initiallyPresent])
+  algorithm := TreeSearch
+  task := TreeIdentification
+  param parents : List Nat where rootedTree parents
+  param site : Pos in positions.filter (· ≠ pos 0)
+  agents := 2
+  position i := pos 0
+
+experiment treeWithoutHole where
+  model := agentsWithMemory (RootedTree parents) (Observe.radius 1) Frames.identity
+    [otherStates, knownTree] (components := [KnownTree, Hazards.BlackHole .none])
+  algorithm := TreeSearch
+  task := TreeIdentification
+  param parents : List Nat where rootedTree parents
+  param site : Pos in [pos 1]
+  agents := 2
+  position i := pos 0

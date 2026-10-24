@@ -115,8 +115,9 @@ Sources were initially screened on 19 October 2026; dependencies were revised on
 | ID | Paper and pinned source | Artifact scope | Remaining claims | Status |
 | --- | --- | --- | --- | --- |
 | P21 | [Time and space optimality of rotor-router graph exploration — IPL 2017](https://doi.org/10.1016/j.ipl.2017.06.010); [v3](https://arxiv.org/abs/1502.05545v3) | [Rotor-router artifact](../projects/public/rotor-router-exploration/README.md): one memoryless agent, local writable node pointers, arbitrary finite connected port graphs. | General coverage/equivariance and the paper's time/space lower bounds remain unproved. Node storage stays project-local. | Implemented partial artifact |
+| P22 | [Searching for a Black Hole in Synchronous Tree Networks — CPC 2007](https://doi.org/10.1017/S0963548306008133); [author manuscript](https://www.researchgate.net/publication/220357976_Searching_for_a_Black_Hole_in_Synchronous_Tree_Networks) | [Algorithm Tree artifact](../projects/public/tree-black-hole-search/README.md): arbitrary rooted trees, labelled agents, known map, split/probe deadlines, optional static hole and actual return home. | General correctness, source-scheme correspondence and the 5/3 bound remain unproved. Final report uses an additional activation. Optimized Line/Bushy-Tree are separate targets. | Implemented partial artifact |
 
-The catalog contains 21 distinct published paper families: two original public artifacts, five newly implemented partial artifacts and 14 prospective ones. Exact versions for the remaining targets still need full-text audits. Tree and general-graph agent exploration now has a first executable artifact; dispersion, self-stabilization, further search protocols and geometric faults remain discovery targets.
+The catalog contains 22 distinct published paper families: two original public artifacts, six newly implemented partial artifacts and 14 prospective ones. Exact versions for the remaining targets still need full-text audits. Tree and general-graph agent exploration now has a first executable artifact; dispersion, self-stabilization, further search protocols and geometric faults remain discovery targets.
 
 ## From a paper to a public artifact
 
@@ -289,3 +290,11 @@ rotor-router model admits arbitrary finite connected ordered adjacency lists and
 valid pointer vectors. All 340 registered starts/pointers on five example graphs pass;
 reduced and unreduced results agree, and the generated Lean model compiles. Theorem proofs
 and asymptotic lower bounds remain separate work.
+
+P22 adds the general tree black-hole procedure, with a static known input map and local
+face-to-face observations. All 153 increasing parent encodings through six vertices pass
+for every non-root hole placement (719 cases) and no hole (153 cases), with independent
+unreduced checks. Both generated models compile in Lean. The completion task includes
+survival, correct answers and actual return home. Further graph search papers should
+retain their own timing, initial knowledge, communication and connectivity assumptions;
+the current timed procedure is not an asynchronous black-hole-search formalization.

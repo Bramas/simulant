@@ -62,4 +62,13 @@ export const publicProjects = [
     description:
       'A memoryless agent with local node pointers on trees, rings and arbitrary finite connected port graphs.',
   },
+  {
+    name: 'Black-Hole Search in Trees',
+    slug: 'tree-black-hole-search',
+    href: './tree-black-hole-search/',
+    packageName: '@bramas/simulant-project-tree-black-hole-search',
+    paper: 'Searching for a Black Hole in Synchronous Tree Networks, CPC 2007',
+    description:
+      'Two agents run the general Tree split/probe procedure, identify a static black hole or its absence, and return to the safe root.',
+  },
 ];

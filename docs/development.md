@@ -49,6 +49,12 @@ node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/r
 pnpm cli check-all -p rotor-router-exploration-graph
 pnpm --filter @bramas/simulant-project-rotor-router-exploration build
 
+# Two-agent tree search: split/probe timing, optional hole and actual return home
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/tree-black-hole-search.test.ts
+pnpm cli check-all -p tree-black-hole-search-two-agents
+pnpm cli check-all -p tree-black-hole-search-no-hole
+pnpm --filter @bramas/simulant-project-tree-black-hole-search build
+
 # Stand-up gathering: paper examples, sensors and exhaustive crash branches
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
 # Domain syntax, defaults, finite project checks and source updates
@@ -114,6 +120,15 @@ The 2026-10-24 literature increment adds two scoped artifacts under `projects/pu
 P06's positive two-robot ring strategy subsequently passed four focused tests, all 40 admitted normalized settings on even cycles 6–20 (68 states, 96 edges in eight shared graphs), individual unreduced comparisons, bounded rotation/reflection equivariance checks, strict typechecking, its page build and generated Lean compilation. This does not formalize the multi-robot SUIG algorithm or prove the paper theorem.
 
 P04's extracted three-robot FSYNC protocol then passed five focused tests, all 351 non-periodic rotation-normalized triples on cycles 4–12 (92 states/edges in nine shared graphs), individual unreduced comparisons, source-case fixtures and bounded equivariance checks. The separate literal-final-paragraph experiment retains its expected one-state lasso. Both generated Lean models and the project page build pass. The combined ordinary suite passes 296 tests (301 total, five optional skips); strict typechecking and the complete public build pass. The P04 source discrepancy remains under Known issues; no synthesis engine, move-optimality proof or general correctness proof was added.
+
+The P21/P22 mobile-agent literature increment passed 306 ordinary tests (311 total, five
+optional skips), strict TypeScript checking, frozen offline lockfile validation and the
+complete public-site build. P21 checks all 340 registered starts/pointer assignments;
+P22 checks 719 hole placements and 153 no-hole trees through six vertices. Independent
+unreduced checks agree. Lake compiled all three generated models. Browser smoke checks
+loaded both viewers and stepped their default tree examples to success, including actual
+return home in P22. No general correctness, complexity, equivariance or lower-bound theorem
+was proved. P22's final reporting activation is excluded from any claim of source-time parity.
 
 ## Package distribution
 
@@ -190,11 +205,6 @@ membership uses maps. `--max-configs` stops the settings iterator before request
 setting, so a small prefix does not enumerate later ring sizes. A dependent domain may still
 construct its list before yielding its first value. These changes preserve state encodings,
 successor order, witnesses and the exploration semantics.
-
-P21 verification: four project tests, all 340 registered coverage settings, strict
-TypeScript checking, the public page build, frozen offline lockfile validation and the
-11 site tests passed. Lake compiled its generated model. Coverage and complexity theorems
-remain unproved; these checks do not establish the paper's lower bounds.
 
 ## Known issues
 
