@@ -55,6 +55,12 @@ pnpm cli check-all -p tree-black-hole-search-two-agents
 pnpm cli check-all -p tree-black-hole-search-no-hole
 pnpm --filter @bramas/simulant-project-tree-black-hole-search build
 
+# Planar SUIG: approximate visualization, explicitly outside the formal engine
+node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/standup-plane-gathering.test.ts
+pnpm --filter @bramas/simulant-project-standup-plane-gathering build
+# Expected exit 2 (incomplete); numerical traces cannot certify a theorem
+pnpm cli check-all -p standup-plane-gathering-preview
+
 # Stand-up gathering: paper examples, sensors and exhaustive crash branches
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test --test-isolation=none tests/standup-gathering.test.ts tests/parameter-acceptance.test.ts tests/component-inputs.test.ts
 # Domain syntax, defaults, finite project checks and source updates
@@ -129,6 +135,14 @@ unreduced checks agree. Lake compiled all three generated models. Browser smoke 
 loaded both viewers and stepped their default tree examples to success, including actual
 return home in P22. No general correctness, complexity, equivariance or lower-bound theorem
 was proved. P22's final reporting activation is excluded from any claim of source-time parity.
+
+The 25 October P23 numerical planar companion passed nine project tests, strict typechecking,
+frozen offline lockfile validation, and the full public-site build. The ordinary suite passed
+315 tests (320 total, five optional skips). Browser checks verified source highlighting,
+stepping the crash example to numerical co-location, coordinate records in the inspector,
+and suppression of formal task/graph/IR/Lean claims. An existing formal project's Model view
+retains its IR download and Lean tab. Shared textarea styling now respects declared rows for
+the preview's JSON settings. No Euclidean `.sim` or Lean theorem is implemented by this increment.
 
 ## Package distribution
 
@@ -207,6 +221,10 @@ construct its list before yielding its first value. These changes preserve state
 successor order, witnesses and the exploration semantics.
 
 ## Known issues
+
+- **P23 is a numerical companion, not an executable Euclidean `.sim` model.** Its approximate geometry may select different branches near collinearity, equality ratios or dyadic level boundaries. Open `standup-plane-gathering-preview`, vary epsilon or perturb a two-point distance near a power of two to inspect this. CLI checks deliberately return `incomplete`; there is no formal IR or Lean export. Remaining work is the exact planar semantic slice and correspondence described in [planar-robots.md](planar-robots.md).
+
+- **P23's pinned source has a fraction mismatch in explanatory text.** In arXiv:2302.03466v1, Algorithm 3 (page 13) uses right-side B movement `1/10`, while footnote 3 (page 12) mentions `1/8`. The numerical companion follows Algorithm 3 and retains the printed extremity-ratio set. Confirm the intended version before claiming source correspondence; no silent correction is applied.
 
 - **P04's final rule paragraph omits the disoriented-tower case described earlier in the same source.** In arXiv:1407.0978v2, section 4's strategy description lets the singleton take either direction towards an antipodal two-robot tower, but the final paragraph's tower guard requires unequal gaps. Its literal translation stalls at N = 4, positions `[0,0,2]`. Reproduce with `pnpm cli check-all -p synthesized-ring-gathering-literal-final-paragraph` (expected exit 1), or load those settings and path `[0,0]` in that experiment. The primary `synthesized-ring-gathering-three-fsync` explicitly includes the preceding strategy bullet and passes this case; both readings are preserved in the public project. The source's disoriented-tower parity statement is also inconsistent with its physical definition. Clarify these textual discrepancies and establish correspondence with the intended protocol before claiming the paper theorem is formalized; no published source was edited.
 

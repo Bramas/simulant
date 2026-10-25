@@ -125,6 +125,7 @@ export function ModelView(props: ModelViewProps) {
   );
 
   const download = () => {
+    if (d().ir === undefined) return;
     const blob = new Blob([JSON.stringify(d().ir, null, 2) + '\n'], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -188,7 +189,9 @@ export function ModelView(props: ModelViewProps) {
           <Show when={props.onCopyLink}>
             <button class="sim-ghost" onClick={() => props.onCopyLink!()} title="Copy a link that opens this view">Copy link</button>
           </Show>
-          <button class="sim-ghost" onClick={download} title="Download the compiled experiment (the IR the simulator, the explorer and the Lean generator use)">Download IR</button>
+          <Show when={d().ir !== undefined}>
+            <button class="sim-ghost" onClick={download} title="Download the compiled experiment (the IR the simulator, the explorer and the Lean generator use)">Download IR</button>
+          </Show>
         </div>
         <Show when={d().about}>
           <div class="mv-about">
@@ -198,7 +201,9 @@ export function ModelView(props: ModelViewProps) {
           </div>
         </Show>
         <p class="sim-muted mv-help">
-          The semantics below are derived from the compiled experiment; each reference opens the declaration it comes from, as written.
+          <Show when={d().ir !== undefined} fallback="This visualization companion supplies its model description directly. It has no compiled formal experiment.">
+            The semantics below are derived from the compiled experiment; each reference opens the declaration it comes from, as written.
+          </Show>
           <Show when={d().revision}> Sources revision <code>{d().revision}</code>.</Show>
         </p>
       </section>

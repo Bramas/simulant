@@ -127,7 +127,7 @@ export function StateInspector(props: StateInspectorProps) {
                   <span class="si-swatch" style={{ 'background-color': agent.color }} />
                   <span class="si-agent-name">{agent.name}</span>
                   <span class="si-agent-summary">
-                    node {String(agent.value.position)}
+                    at {inline(agent.value.position)}
                     <Show when={agent.value.line !== undefined}> · line {String(agent.value.line)}</Show>
                     <Show when={agent.status !== 'correct'}> · {agent.status === 'hidden' ? 'gone' : 'faulty'}</Show>
                   </span>

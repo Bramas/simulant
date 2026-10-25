@@ -88,6 +88,14 @@ The builder also takes the user's own code. A text area holds custom sensors, co
 
 New literature artifacts live under `projects/public/<slug>/`; the original public projects and starter retain `projects/<slug>/`. Workspace discovery, CLI registry discovery, snapshot-type generation and the shared page configuration include both layouts. Private registries remain under `projects/private/<slug>/`. Public pages are selected explicitly in `apps/public-site/src/public-projects.mjs` and build to `dist/<slug>/`, independent of source nesting. Each paper artifact documents its implemented algorithm/model cases and remaining claims in its README.
 
+The project adapter can also host explicitly labeled numerical visualization companions.
+P23 (`standup-plane-gathering`) uses project-local floating-point geometry and the shared
+execution, inspection and drawing interfaces. It supplies no `.sim` experiment, exact task
+verdict or exhaustive state graph; its CLI checks return `incomplete`. A Model description
+may omit `ir`, in which case the viewer hides the IR download and identifies the description
+as supplied directly by the companion. No Lean translation is implied. The [planar plan](planar-robots.md)
+separates this visualization from the remaining Euclidean semantic implementation.
+
 Settings resolve `Pos` to the graph's vertex type, recursively inside lists, options and records. Numeric vertices use numeric fields (signed for `Int`); record vertices use JSON fields. Defaults, supplied settings and source-update compatibility use this same representation, so a record position is editable and survives a compatible source change.
 
 Projects register an imported `.sim` experiment with `simProject`, which supplies the settings form, execution adapter, checks, source viewer, state inspector and model view. The default renderer follows the space (`renderers/space.ts`): cycles are drawn as rings (dynamic cycles too: a round's missing edges are named by its step label), the infinite line as a window around the agents and the positions the settings and the world name, and other finite graphs on a circle, a vertex adjacent to all others (a star's center) in the middle. Projects can supply drawing functions with agent hit positions; the shared marks (agents, black hole, pebbles) are in `renderers/marks.ts`. The `aliases` option normalizes older parameter names for the UI, CLI, saved settings and shared links.

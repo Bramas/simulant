@@ -71,4 +71,13 @@ export const publicProjects = [
     description:
       'Two agents run the general Tree split/probe procedure, identify a static black hole or its absence, and return to the safe root.',
   },
+  {
+    name: 'Planar Stand-Up Indulgent Gathering · Preview',
+    slug: 'standup-plane-gathering',
+    href: './standup-plane-gathering/',
+    packageName: '@bramas/simulant-project-standup-plane-gathering',
+    paper: 'Stand Up Indulgent Gathering, TCS 2023',
+    description:
+      'Numerical visualization companion for Algorithm 3: planar trajectories, private frames and crash scenarios. No formal .sim translation or exhaustive guarantee.',
+  },
 ];

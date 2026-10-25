@@ -374,7 +374,7 @@ body {
   transition: border-color 0.12s, box-shadow 0.12s;
 }
 
-.sim-app textarea {
+.sim-app textarea[rows] {
   height: auto;
   padding: 7px 9px;
   line-height: 1.5;

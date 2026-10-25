@@ -1,6 +1,6 @@
 # Public projects: formalizing the mobile-robot literature
 
-Planning draft · revised 24 October 2026 against the implemented graph core and scheduler DSL
+Planning draft · revised 25 October 2026 against the implemented graph core, scheduler DSL and planar visualization companion
 
 ## Purpose
 
@@ -116,8 +116,9 @@ Sources were initially screened on 19 October 2026; dependencies were revised on
 | --- | --- | --- | --- | --- |
 | P21 | [Time and space optimality of rotor-router graph exploration — IPL 2017](https://doi.org/10.1016/j.ipl.2017.06.010); [v3](https://arxiv.org/abs/1502.05545v3) | [Rotor-router artifact](../projects/public/rotor-router-exploration/README.md): one memoryless agent, local writable node pointers, arbitrary finite connected port graphs. | General coverage/equivariance and the paper's time/space lower bounds remain unproved. Node storage stays project-local. | Implemented partial artifact |
 | P22 | [Searching for a Black Hole in Synchronous Tree Networks — CPC 2007](https://doi.org/10.1017/S0963548306008133); [author manuscript](https://www.researchgate.net/publication/220357976_Searching_for_a_Black_Hole_in_Synchronous_Tree_Networks) | [Algorithm Tree artifact](../projects/public/tree-black-hole-search/README.md): arbitrary rooted trees, labelled agents, known map, split/probe deadlines, optional static hole and actual return home. | General correctness, source-scheme correspondence and the 5/3 bound remain unproved. Final report uses an additional activation. Optimized Line/Bushy-Tree are separate targets. | Implemented partial artifact |
+| P23 | [Stand Up Indulgent Gathering — TCS 2023](https://doi.org/10.1016/j.tcs.2022.10.015); [v1](https://arxiv.org/abs/2302.03466v1) | [Numerical companion](../projects/public/standup-plane-gathering/README.md) for planar Algorithm 3: private frames, circle/extremity targets, non-rigid sample movements and crashes. | Exact planar observations, destinations, arithmetic, movement and Lean semantics remain unimplemented. See the [planar plan](planar-robots.md). | Visualization only; not a formal translation |
 
-The catalog contains 22 distinct published paper families: two original public artifacts, six newly implemented partial artifacts and 14 prospective ones. Exact versions for the remaining targets still need full-text audits. Tree and general-graph agent exploration now has a first executable artifact; dispersion, self-stabilization, further search protocols and geometric faults remain discovery targets.
+The catalog contains 23 distinct published paper families: two original public artifacts, six newly implemented partial formal artifacts, one numerical visualization companion and 14 prospective ones. Exact versions for the remaining targets still need full-text audits. Tree and general-graph agent exploration now has a first executable artifact; dispersion, self-stabilization, further search protocols and geometric faults remain discovery targets.
 
 ## From a paper to a public artifact
 
@@ -298,3 +299,9 @@ unreduced checks. Both generated models compile in Lean. The completion task inc
 survival, correct answers and actual return home. Further graph search papers should
 retain their own timing, initial knowledge, communication and connectivity assumptions;
 the current timed procedure is not an asynchronous black-hole-search formalization.
+
+
+P23 starts the planar track with a numerical companion in the existing viewer. It does not
+count as an additional formal translation or a proved claim. The current scope includes
+all Algorithm 3 branches and six example scenarios; geometry and movement predicates are
+approximate. The exact `.sim` core work is scoped in [planar-robots.md](planar-robots.md).

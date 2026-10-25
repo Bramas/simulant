@@ -11,7 +11,9 @@ New paper artifacts live in one folder per paper family. Existing public project
 | [Synthesized ring gathering](synthesized-ring-gathering/README.md) | P04, extracted three-robot FSYNC protocol and a literal-source counterexample probe |
 | [Rotor-router graph exploration](rotor-router-exploration/README.md) | P21, memoryless agent with node pointers on arbitrary finite connected graphs |
 | [Black-hole search in trees](tree-black-hole-search/README.md) | P22, two agents running Algorithm Tree with split/probe, timed detection and return home |
+| [Planar stand-up indulgent gathering](standup-plane-gathering/README.md) | P23, numerical visualization companion for Algorithm 3; not a formal `.sim` translation |
 
-Each folder has `sim/`, a `src/projects.ts` registry, a `web/` viewer and an audit in its README.
+Formal translations have `sim/`, a `src/projects.ts` registry, a `web/` viewer and an audit in their README.
+Numerical companions use the viewer with project-local execution code and are labeled separately.
 The [program roadmap](../../docs/public-projects-roadmap.md) tracks remaining algorithms and claims.
 The site catalog is explicit; adding a directory alone does not publish a project.

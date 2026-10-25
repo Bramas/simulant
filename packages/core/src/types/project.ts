@@ -51,8 +51,8 @@ export type ModelDescription = {
   sources: SourceExcerpt[];
   /** Warnings about what the checks do not cover. */
   caveats: string[];
-  /** The compiled experiment, for download. */
-  ir: unknown;
+  /** The compiled experiment, for download. Absent for a numerical visualization companion. */
+  ir?: unknown;
   /** The generated Lean model, with the `.sim` sources of its parts; or why there is none. */
   lean?: LeanDescription;
   revision?: string;
