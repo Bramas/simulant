@@ -45,7 +45,7 @@ Proposed module: `std/views.sim`; V1–V5 remain value-level candidates on the n
 
 ### V1. Safe occupancy and interval predicates
 
-**Use:** P02/P06/P07 and local rules in P03/P05. Empty intervals are true only when the requested interval is inside the view. Guard bounds before indexing; out-of-view locations must not be classified as observed empty nodes.
+**Use:** P02/P07 and local rules in P03/P05. Empty intervals are true only when the requested interval is inside the view. Guard bounds before indexing; out-of-view locations must not be classified as observed empty nodes.
 
 ```sim
 def Views.occupiedAt (v : List Nat) (i : Nat) : Bool :=
@@ -65,7 +65,7 @@ def Views.occupiedOffsets (v : List Nat) : List Nat :=
 
 ### V2. Reflection, rotation and normalization
 
-**Use:** P02/P03/P05/P07 use mirrored local rules; P04/P06/P08 use circular symmetries. `mirrorInterval` reverses an odd-length centered view and keeps its center fixed. `reflectRing` fixes offset 0. They are intentionally different operations. The helpers return values, not an extra robot orientation or an identity.
+**Use:** P02/P03/P05/P07 use mirrored local rules; P04/P08 use circular symmetries. `mirrorInterval` reverses an odd-length centered view and keeps its center fixed. `reflectRing` fixes offset 0. They are intentionally different operations. The helpers return values, not an extra robot orientation or an identity.
 
 ```sim
 def Views.mirrorInterval (v : List Nat) : List Nat :=
@@ -91,7 +91,7 @@ For an empty word, `ofFn 0` produces `[]` without evaluating an index. For an ev
 
 ### V3. Periodicity, reflection symmetry and canonical ring words
 
-**Use:** P04/P06/P08; general finite symmetry and initial-domain helpers. Canonicalization returns a word; it does not choose a physical leader among indistinguishable robots. Keeping multiplicities or colors in the input is the caller's responsibility.
+**Use:** P04/P08; general finite symmetry and initial-domain helpers. Canonicalization returns a word; it does not choose a physical leader among indistinguishable robots. Keeping multiplicities or colors in the input is the caller's responsibility.
 
 ```sim
 def Views.periodicRing (v : List Nat) : Bool :=
@@ -166,14 +166,14 @@ def Views.nearestRight (v : List Nat) : Option Nat :=
 
 ### V6. Visible shortest-path steps
 
-**Observed reuse:** the implemented [P04 tower case](../projects/public/synthesized-ring-gathering/sim/three-robots.sim) and [P06 rendezvous strategy](../projects/public/standup-ring-gathering/sim/rendezvous.sim) both filter the observer's neighbors by decreasing distance to one observed target. This is a topology-independent algorithm-local helper, suitable for promotion after reviewing its distance contract:
+**Current consumer:** the implemented [P04 tower case](../projects/public/synthesized-ring-gathering/sim/three-robots.sim) filters the observer's neighbors by decreasing distance to one observed target. The retired P06 pilot exercised the same pattern before its removal from the public collection. Only P04 remains an active public consumer, so the previous two-project reuse evidence is historical. This topology-independent algorithm-local helper remains a candidate after reviewing its distance contract and general value:
 
 ~~~sim
 def shortestStepsTo (target : Loc) : List Loc :=
   (neighbors here).filter fun l => distance l target + 1 = distance here target
 ~~~
 
-The result includes all tied first steps, and is empty when the target is `here`. It does not choose an orientation or grant target visibility. Distances are those of the visible graph; both current consumers have full observations. A bounded-view consumer must justify using those distances. For dynamic spaces, filter edge availability separately when the model grants that sensor. The caller decides whether a tie means waiting (P06) or an adversarial choice through admissible frames (P04). The expression is exercised in both projects; the standard library remains unchanged.
+The result includes all tied first steps, and is empty when the target is `here`. It does not choose an orientation or grant target visibility. Distances are those of the visible graph; the current P04 consumer has full observations. A bounded-view consumer must justify using those distances. For dynamic spaces, filter edge availability separately when the model grants that sensor. The caller decides how to handle ties; P04 uses admissible frames for the symmetric choice. A new active consumer or a reviewed general primitive contract is needed before promotion; the standard library remains unchanged.
 
 ## 3. Observation and knowledge proposals
 
@@ -341,7 +341,7 @@ Existing `Faults.CrashStop f` acts before Look. `Faults.CrashAt` permits crashes
 
 ### F1/F2. Budgeted crashes before movement, optionally at a fixed position
 
-**Use:** phase-sensitive comparisons in P02/P05/P06. Audit the paper before selecting either variant. They are alternatives to the existing crash components.
+**Use:** phase-sensitive comparisons in P02/P05. Audit the paper before selecting either variant. They are alternatives to the existing crash components.
 
 ~~~sim
 @[equivariant]
@@ -439,7 +439,7 @@ Tasks inspect physical positions. Sensors remain independent. Empty/correct-agen
 
 ### T1/T2. Stable gathering of present or correct robots
 
-**Use:** P02/P04/P06/P07/P08 and general fault variants. Existing `Gathering` asks only for a moment of co-location. Under ASYNC a pending move can leave that position afterward.
+**Use:** P02/P04/P07/P08 and general fault variants. Existing `Gathering` asks only for a moment of co-location. Under ASYNC a pending move can leave that position afterward.
 
 ~~~sim
 @[equivariant]
@@ -463,7 +463,7 @@ goal StableCorrectGathering := eventually always .success
 
 These tasks guarantee permanent co-location. They still permit a co-located group to move together forever. If a paper requires staying at one fixed meeting position, add a position-history/stationarity condition or prove that the algorithm's gathered configurations have no future movement, including pending moves. In particular, permanent co-location alone is not the full P07 specification.
 
-For SUIG, gathering only correct robots ignores the crashed location. A separate stable contract includes all visible crashed bodies or explicitly requires the correct robots to reach the unique crash position, matching the admitted fault model. P06's [fault/task model](https://arxiv.org/html/2402.14233v1#S2) must be checked independently of P02.
+For SUIG, gathering only correct robots ignores the crashed location. A separate stable contract includes all visible crashed bodies or explicitly requires the correct robots to reach the unique crash position, matching the admitted fault model. Each active consumer’s fault/task model must be checked independently; the retired P06 pilot is no longer a promotion target.
 
 ### T3. Stable near gathering
 
@@ -582,7 +582,7 @@ A new core API follows the repository's coordinated semantics/IR/conformance/int
 | Priority | Work | Why / exit criterion |
 | --- | --- | --- |
 | First pilot | T1 and P07 audit; reuse existing sensors, lights and ASYNC | Validate stale observations, a Look concurrent with Compute, and gathering followed by an old pending move. Do not add an unneeded own-light or ASYNC implementation. |
-| Next shared additions | C1, S4, useful V helpers, P03/P06/P04 audits | Preserve initial colors and exactly the visible information. Choose one public consumer plus another audited need, or justify the primitive's general value. |
+| Next shared additions | C1, S4, useful V helpers, P03/P04 audits | Preserve initial colors and exactly the visible information. Choose one public consumer plus another audited need, or justify the primitive's general value. |
 | Exploration specification | E2/T5 for P03; E1/M1 for P03/P05 | Exact disabledness/recurrence before claiming terminating/perpetual results. Rule translation and coverage evidence can proceed separately. |
 | Dynamic-agent cases | C2/C3/S5/M3 and the applicable E6/E4 work | Check resource conservation, blocked moves, per-port availability and environment assumptions. Prefer existing components where their contracts already match. |
 | Topology/proof track | Finite torus pilot P13; export/equivariance gap met by a selected artifact | Reuse generic sensors; test port/symmetry conventions. Scalar vertex encodings can avoid the record-vertex Lean limitation when faithful. |

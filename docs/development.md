@@ -37,9 +37,6 @@ pnpm --filter @bramas/simulant-project-myopic-luminous-exploration build
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/public-literature.test.ts
 pnpm cli check-all -p myopic-async-gathering-phi-one
 pnpm cli check-all -p myopic-luminous-exploration-three-fsync
-pnpm --filter @bramas/simulant-project-standup-ring-gathering build
-node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/standup-ring-gathering.test.ts
-pnpm cli check-all -p standup-ring-gathering-two-fsync
 pnpm --filter @bramas/simulant-project-synthesized-ring-gathering build
 node --import tsx --import ./packages/vite-plugin/src/register.ts --test tests/synthesized-ring-gathering.test.ts
 pnpm cli check-all -p synthesized-ring-gathering-three-fsync
@@ -123,7 +120,7 @@ The follow-up corrections passed 256 ordinary tests (261 total, five optional sk
 
 The 2026-10-24 literature increment adds two scoped artifacts under `projects/public/`: P07 Algorithm 1 at radius one and P03 Algorithm 2 under FSYNC. The ordinary suite passed 287 tests (292 total, five optional skips), using `TMPDIR=/private/tmp` and local socket access for the two Vite integration tests. Strict typechecking, the complete public-site build and both generated Lean models passed. CLI `check-all` passed five P07 settings in three graphs (30,979 states, 416,637 edges) and 40 P03 settings in ten graphs (290 states/edges); P03's individual unreduced checks also passed. A browser smoke check opened and stepped both pages; after the light-label renderer addition, the two page builds, typecheck and focused registry/example tests passed, and the exploration page visibly showed G/W/G after its first step. No general paper theorem or instrumentation correspondence was proved. The semantic core and stdlib were unchanged. Each artifact's README records its narrower scope and remaining algorithms.
 
-P06's positive two-robot ring strategy subsequently passed four focused tests, all 40 admitted normalized settings on even cycles 6–20 (68 states, 96 edges in eight shared graphs), individual unreduced comparisons, bounded rotation/reflection equivariance checks, strict typechecking, its page build and generated Lean compilation. This does not formalize the multi-robot SUIG algorithm or prove the paper theorem.
+Before its removal from the public collection, P06's positive two-robot ring strategy passed four focused tests, all 40 admitted normalized settings on even cycles 6–20 (68 states, 96 edges in eight shared graphs), individual unreduced comparisons, bounded rotation/reflection equivariance checks, strict typechecking, its page build and generated Lean compilation. This did not formalize the multi-robot SUIG algorithm or prove the paper theorem. The pilot was later removed at the author’s request in favor of a private project covering a wider setting.
 
 P04's extracted three-robot FSYNC protocol then passed five focused tests, all 351 non-periodic rotation-normalized triples on cycles 4–12 (92 states/edges in nine shared graphs), individual unreduced comparisons, source-case fixtures and bounded equivariance checks. The separate literal-final-paragraph experiment retains its expected one-state lasso. Both generated Lean models and the project page build pass. The combined ordinary suite passes 296 tests (301 total, five optional skips); strict typechecking and the complete public build pass. The P04 source discrepancy remains under Known issues; no synthesis engine, move-optimality proof or general correctness proof was added.
 
@@ -143,6 +140,14 @@ stepping the crash example to numerical co-location, coordinate records in the i
 and suppression of formal task/graph/IR/Lean claims. An existing formal project's Model view
 retains its IR download and Lean tab. Shared textarea styling now respects declared rows for
 the preview's JSON settings. No Euclidean `.sim` or Lean theorem is implemented by this increment.
+
+The public P06 ring-SUIG pilot was subsequently removed at the author's request. Its
+dedicated tests, workspace importer and site entry were removed, and bibliography/library
+planning references now mark it as retired. The remaining literature and site checks passed
+42 tests; strict typechecking, frozen offline lockfile validation and the complete public
+build passed. CLI discovery finds six new public packages, and the built catalog contains
+eight paper pages. Neither discovery nor the output contains the retired project. The
+private repository and stdlib were unchanged.
 
 ## Package distribution
 

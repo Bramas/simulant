@@ -36,15 +36,6 @@ export const publicProjects = [
       'Three algorithms on a line: compare visibility and persistent lights, and explore crashes at a single location.',
   },
   {
-    name: 'Stand-Up Rendezvous on Rings',
-    slug: 'standup-ring-gathering',
-    href: './standup-ring-gathering/',
-    packageName: '@bramas/simulant-project-standup-ring-gathering',
-    paper: 'Stand-Up Indulgent Gathering on Rings, SIROCCO 2024',
-    description:
-      'The positive two-robot FSYNC case: full occupancy observations and at most one crash at any round.',
-  },
-  {
     name: 'Synthesized Ring Gathering',
     slug: 'synthesized-ring-gathering',
     href: './synthesized-ring-gathering/',
