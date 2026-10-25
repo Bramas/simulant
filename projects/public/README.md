@@ -17,7 +17,7 @@ Numerical companions use the viewer with project-local execution code and are la
 The [program roadmap](../../docs/public-projects-roadmap.md) tracks remaining algorithms and claims.
 The site catalog is explicit; adding a directory alone does not publish a project.
 
-The former public P06 ring-SUIG pilot was removed at the author's request because it is
-superseded by a private project covering a wider setting. Six new public projects remain:
+The former public P06 ring-SUIG pilot was removed at the author's request. Six new public
+projects remain:
 five partial `.sim` translations and one numerical companion (eight paper projects including
 the two originals, excluding the starter).
