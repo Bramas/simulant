@@ -248,16 +248,19 @@ export function AlgorithmViewer(props: AlgorithmViewerProps) {
       <div class={`algorithm-header${props.onHeadPointerDown ? ' algorithm-header-draggable' : ''}`} onPointerDown={e => props.onHeadPointerDown?.(e)}>
         <Icon name="file" />
         <Show when={props.source.file}>
-          <span class="algorithm-file">{props.source.file!.split('/').pop()}</span>
+          <span class="algorithm-file" title={props.source.file}>{props.source.file!.split('/').pop()}</span>
           <Icon name="chevronRight" size={12} class="algorithm-crumb" />
         </Show>
         <h3 class="algorithm-caption">{props.source.name}</h3>
         <span class="sim-spacer" />
+        {props.actions}
+      </div>
+      <Show when={props.agents?.length}>
+        {/* The agents have their own strip: many of them wrap there without stretching the title bar. */}
         <div class="algorithm-agents" aria-label="Agents">
           <For each={props.agents ?? []}>
             {(a) => (
               <button
-                onPointerDown={e => e.stopPropagation()}
                 class={`algorithm-agent${selected() === a.agentId || props.highlighted === a.agentId ? ' selected' : ''}`}
                 style={{ '--agent': a.color }}
                 onClick={() => {
@@ -274,8 +277,7 @@ export function AlgorithmViewer(props: AlgorithmViewerProps) {
             )}
           </For>
         </div>
-        {props.actions}
-      </div>
+      </Show>
 
       <div class="algorithm-scroll" ref={scroller}>
         <div class="algorithm-body">

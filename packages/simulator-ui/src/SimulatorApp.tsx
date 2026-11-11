@@ -136,7 +136,7 @@ const typing = (e: KeyboardEvent) => {
   return !!t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName));
 };
 
-/** `N=6 · site=2`, for the status bar. */
+/** `N=6 · site=2`, for the configuration's title bar. */
 const settingsSummary = (settings: Record<string, unknown>) =>
   Object.entries(settings).map(([k, v]) => {
     const s = typeof v === 'string' ? v : JSON.stringify(v);
@@ -207,8 +207,9 @@ function PanelHead(props: { icon: IconName; title: string; sub?: string; childre
     <div class={`sim-panel-head${props.onDragStart ? ' sim-panel-head-draggable' : ''}`} onPointerDown={e => props.onDragStart?.(e)}>
       <Icon name={props.icon} />
       <h2 class="sim-panel-title">{props.title}</h2>
-      <Show when={props.sub}><span class="sim-panel-sub">{props.sub}</span></Show>
-      <span class="sim-spacer" />
+      <Show when={props.sub} fallback={<span class="sim-spacer" />}>
+        <span class="sim-panel-sub" title={props.sub}>{props.sub}</span>
+      </Show>
       {props.children}
       <PanelActions title={props.title} dock={props.dock} onMove={props.onMove} onClose={props.onClose} />
     </div>
@@ -896,6 +897,7 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
             presets={predefinedSettings()}
             saved={savedSettings()}
             current={effectiveSettings()}
+            currentPath={executionPath()}
             onLoad={loadSettings}
             onShare={s => copy(shareLink(loadedSettings(project(), s.settings), s.path))}
             onDelete={name => {
@@ -1063,73 +1065,66 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
           </Show>
           <span class="sim-spacer" />
           <ActivityButton icon="dock" label="Reset the panel layout" active={false} onClick={resetLayout} />
-          <Show when={hasGraph()}>
-            <ActivityButton
-              icon="graph"
-              label={shownView() === 'graph' ? 'Back to the simulation' : 'Configuration graph'}
-              active={shownView() === 'graph'}
-              onClick={() => showView(shownView() === 'graph' ? 'simulation' : 'graph')}
-            />
-          </Show>
         </nav>
 
         <div class="sim-main">
           <div class="sim-transport-bar" hidden={shownView() !== 'simulation'}>
             <section class="sim-transport" aria-label="Execution">
               <div class="sim-transport-row">
-                <div class="sim-group">
-                  <button class="sim-ghost sim-icon" onClick={() => step(0)} disabled={indexInPath() === 0 || !canExplore()} aria-label="First step" title="First step (Home)"><Icon name="first" /></button>
-                  <button class="sim-btn sim-icon" onClick={onPrevious} disabled={indexInPath() === 0 || !canExplore()} aria-label="Previous step" title="Previous step (←)"><Icon name="previous" /></button>
-                  <div class="sim-round" title={`Step ${indexInPath()} of the path's ${executionPath().length - 1}`}>
-                    <span class="sim-round-label">Step</span>
-                    <span class="sim-round-value">{indexInPath()}</span>
-                    <span class="sim-round-total">/ {executionPath().length - 1}</span>
+                <div class="sim-transport-groups">
+                  <div class="sim-group">
+                    <button class="sim-ghost sim-icon" onClick={() => step(0)} disabled={indexInPath() === 0 || !canExplore()} aria-label="First step" title="First step (Home)"><Icon name="first" /></button>
+                    <button class="sim-btn sim-icon" onClick={onPrevious} disabled={indexInPath() === 0 || !canExplore()} aria-label="Previous step" title="Previous step (←)"><Icon name="previous" /></button>
+                    <div class="sim-round" title={`Step ${indexInPath()} of the path's ${executionPath().length - 1}`}>
+                      <span class="sim-round-label">Step</span>
+                      <span class="sim-round-value">{indexInPath()}</span>
+                      <span class="sim-round-total">/ {executionPath().length - 1}</span>
+                    </div>
+                    <button class="sim-btn sim-icon" onClick={() => { setPlaying(false); onNext(); }} disabled={!canExplore() || atEnd()} aria-label="Next step" title="Next step (→)"><Icon name="next" /></button>
+                    <button class="sim-ghost sim-icon" onClick={() => step(executionPath().length - 1)} disabled={indexInPath() === executionPath().length - 1 || !canExplore()} aria-label="Last step" title="Last step of the path (End)"><Icon name="last" /></button>
                   </div>
-                  <button class="sim-btn sim-icon" onClick={() => { setPlaying(false); onNext(); }} disabled={!canExplore() || atEnd()} aria-label="Next step" title="Next step (→)"><Icon name="next" /></button>
-                  <button class="sim-ghost sim-icon" onClick={() => step(executionPath().length - 1)} disabled={indexInPath() === executionPath().length - 1 || !canExplore()} aria-label="Last step" title="Last step of the path (End)"><Icon name="last" /></button>
-                </div>
-                <span class="sim-divider" />
-                <div class="sim-group">
-                  <button class={`${playing() ? 'sim-btn' : 'sim-primary'} sim-play`} onClick={togglePlay} disabled={!playing() && (!canExplore() || atEnd())} aria-label={playing() ? 'Pause' : 'Play'} title={playing() ? 'Pause (Space)' : 'Play: step forward until the execution ends (Space)'}>
-                    <Icon name={playing() ? 'pause' : 'play'} />
-                  </button>
-                  <label class="sim-speed" title="Playback speed">
-                    <select value={speed()} onChange={e => setSpeed(Number(e.currentTarget.value))} aria-label="Playback speed">
-                      <For each={SPEEDS}>{s => <option value={s}>{s} step{s > 1 ? 's' : ''}/s</option>}</For>
-                    </select>
-                  </label>
-                </div>
-                <span class="sim-divider" />
-                <div class="sim-group">
-                  <Show when={verdict()}>
-                    {v => <span class={`sim-chip sim-verdict sim-${v().status}`} title={v().title}>Task: {v().text}</span>}
-                  </Show>
-                  <Show when={config() && childCount() === 0}>
-                    <span class="sim-chip sim-verdict" title="No successor: the execution ends here">End of execution</span>
-                  </Show>
-                </div>
-                <span class="sim-divider" />
-                <div class="sim-group sim-branches">
-                  <button
-                    class={`sim-ghost sim-icon sim-toggle${randomBranch() ? ' sim-toggle-on' : ''}`}
-                    onClick={toggleRandomBranch}
-                    aria-pressed={randomBranch()}
-                    aria-label="Random branch for new steps"
-                    title={randomBranch()
-                      ? 'New steps take a random branch (R): click to take the first branch'
-                      : 'New steps take the first branch (R): click to take a random branch'}
-                  >
-                    <Icon name="dice" />
-                  </button>
-                  <Show when={branches().length > 1}>
-                    <Icon name="branch" />
-                    <span class="sim-branch">Branch {branchIndex()} <span class="sim-branch-of">of {branches().length}</span></span>
-                    <button class="sim-ghost sim-icon sim-sm" onClick={() => setChoice((branchIndex() + branches().length - 1) % branches().length)} disabled={!canExplore()} aria-label="Previous branch" title="Previous branch"><Icon name="previous" size={14} /></button>
-                    <button class="sim-ghost sim-icon sim-sm" onClick={() => setChoice((branchIndex() + 1) % branches().length)} disabled={!canExplore()} aria-label="Next branch" title="Next branch"><Icon name="next" size={14} /></button>
-                    <span class="sim-step-label sim-branch-label" title={branches()[branchIndex()]?.label}>{branches()[branchIndex()]?.short || '(first options)'}</span>
-                    <button class="sim-btn sim-sm" onClick={() => setPickingBranch(true)} disabled={!canExplore()} title="See every branch of this step and pick one">
-                      <Icon name="grid" size={14} /> All branches
+                  <div class="sim-group">
+                    <button class={`${playing() ? 'sim-btn' : 'sim-primary'} sim-play`} onClick={togglePlay} disabled={!playing() && (!canExplore() || atEnd())} aria-label={playing() ? 'Pause' : 'Play'} title={playing() ? 'Pause (Space)' : 'Play: step forward until the execution ends (Space)'}>
+                      <Icon name={playing() ? 'pause' : 'play'} />
                     </button>
+                    <label class="sim-speed" title="Playback speed">
+                      <select value={speed()} onChange={e => setSpeed(Number(e.currentTarget.value))} aria-label="Playback speed">
+                        <For each={SPEEDS}>{s => <option value={s}>{s} step{s > 1 ? 's' : ''}/s</option>}</For>
+                      </select>
+                    </label>
+                    <button
+                      class={`sim-ghost sim-icon sim-toggle${randomBranch() ? ' sim-toggle-on' : ''}`}
+                      onClick={toggleRandomBranch}
+                      aria-pressed={randomBranch()}
+                      aria-label="Random branch for new steps"
+                      title={randomBranch()
+                        ? 'New steps take a random branch (R): click to take the first branch'
+                        : 'New steps take the first branch (R): click to take a random branch'}
+                    >
+                      <Icon name="dice" />
+                    </button>
+                  </div>
+                  <Show when={verdict() || (config() && childCount() === 0)}>
+                    <div class="sim-group sim-verdicts">
+                      <Show when={verdict()}>
+                        {v => <span class={`sim-chip sim-verdict sim-${v().status}`} title={v().title}>Task: {v().text}</span>}
+                      </Show>
+                      <Show when={config() && childCount() === 0}>
+                        <span class="sim-chip sim-verdict" title="No successor: the execution ends here">End of execution</span>
+                      </Show>
+                    </div>
+                  </Show>
+                  <Show when={branches().length > 1}>
+                    <div class="sim-group sim-branches">
+                      <Icon name="branch" />
+                      <span class="sim-branch">Branch {branchIndex()} <span class="sim-branch-of">of {branches().length}</span></span>
+                      <button class="sim-ghost sim-icon sim-sm" onClick={() => setChoice((branchIndex() + branches().length - 1) % branches().length)} disabled={!canExplore()} aria-label="Previous branch" title="Previous branch"><Icon name="previous" size={14} /></button>
+                      <button class="sim-ghost sim-icon sim-sm" onClick={() => setChoice((branchIndex() + 1) % branches().length)} disabled={!canExplore()} aria-label="Next branch" title="Next branch"><Icon name="next" size={14} /></button>
+                      <span class="sim-step-label sim-branch-label" title={branches()[branchIndex()]?.label}>{branches()[branchIndex()]?.short || '(first options)'}</span>
+                      <button class="sim-btn sim-sm" onClick={() => setPickingBranch(true)} disabled={!canExplore()} title="See every branch of this step and pick one">
+                        <Icon name="grid" size={14} /> All branches
+                      </button>
+                    </div>
                   </Show>
                 </div>
               </div>
@@ -1152,7 +1147,7 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
                     )}
                   </For>
                 </div>
-                <Show when={indexInPath() > 0 && stepLabel(indexInPath())}>
+                <Show when={indexInPath() > 0 && branches().length <= 1 && stepLabel(indexInPath())}>
                   <span class="sim-step-label" title={stepLabel(indexInPath())}>last step: {stepLabel(indexInPath())}</span>
                 </Show>
               </div>
@@ -1293,7 +1288,6 @@ export const SimulatorApp: Component<SimulatorAppProps> = (props) => {
           <span class={`sim-status-dot${updateNotice()?.outOfDate || setupLog() ? ' sim-stale' : ''}`} />
           <span class="sim-status-mono">{project()}</span>
         </span>
-        <span class="sim-status-item sim-status-mono sim-status-hide-sm">{settingsSummary(effectiveSettings())}</span>
         <span class="sim-status-item sim-status-hide-sm">
           <Icon name="branch" /> {childCount()} successor{childCount() === 1 ? '' : 's'}
         </span>

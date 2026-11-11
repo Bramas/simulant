@@ -37,31 +37,50 @@
 
 .algorithm-caption {
   margin: 0;
+  min-width: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--sim-text);
   font-family: var(--sim-font);
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
+/* The file gives way before the algorithm's name. */
 .algorithm-file {
+  flex-shrink: 100;
+  min-width: 0;
   color: var(--sim-muted);
   font-family: var(--sim-mono);
   font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.algorithm-header > :is(button, .sim-popover-anchor, .sim-svg) {
+  flex-shrink: 0;
 }
 
 .algorithm-crumb {
   color: var(--sim-faint);
 }
 
-/* The agents, in the header: each opens the explanation of its last step */
+/* The agents, in a strip under the title bar: each opens the explanation of its last step */
 
 .algorithm-agents {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 4px;
   min-width: 0;
+  /* Many agents scroll here rather than taking the code's place. */
+  max-height: 84px;
+  overflow-y: auto;
+  padding: 6px 10px 6px 14px;
+  border-bottom: 1px solid var(--sim-border);
+  background: var(--sim-surface-2);
 }
 
 .algorithm-viewer button.algorithm-agent,

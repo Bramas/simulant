@@ -14,6 +14,8 @@ export interface SettingsLibraryProps {
   saved: SavedSetting[];
   /** The current settings (with defaults filled in), to mark the entries that match them. */
   current: Record<string, unknown>;
+  /** The current execution path: entries recorded with another path are not the current one. */
+  currentPath?: number[];
   onLoad: (s: SavedSetting) => void;
   onShare: (s: SavedSetting) => void;
   onDelete: (name: string) => void;
@@ -33,6 +35,10 @@ function summary(settings: any): string {
 const same = (a: any, b: Record<string, unknown>) =>
   !!a && Object.keys(b).every(k => JSON.stringify(a[k]) === JSON.stringify(b[k]));
 
+/** Whether one path continues the other: presets that share their settings differ by their paths. */
+const compatible = (a: number[] | undefined, b: number[] | undefined) =>
+  !a || !b || a.slice(0, b.length).every((choice, i) => choice === b[i]);
+
 export function SettingsLibrary(props: SettingsLibraryProps) {
   const [name, setName] = createSignal('');
   const save = (e: Event) => {
@@ -43,25 +49,26 @@ export function SettingsLibrary(props: SettingsLibraryProps) {
     setName('');
   };
 
-  const Entry = (p: { s: SavedSetting; deletable: boolean }) => (
-    <li class={`sim-entry${same(p.s.settings, props.current) ? ' sim-entry-current' : ''}`}>
-      <div class="sim-entry-text">
-        <span class="sim-entry-name">{p.s.name}</span>
-        <span class="sim-muted">
-          <Show when={same(p.s.settings, props.current)}><span class="sim-entry-badge">current · </span></Show>
-          {summary(p.s.settings)}
-          <Show when={p.s.path && p.s.path.length > 1}> · {p.s.path!.length - 1} steps</Show>
+  const Entry = (p: { s: SavedSetting; deletable: boolean }) => {
+    const current = () => same(p.s.settings, props.current) && compatible(p.s.path, props.currentPath);
+    const details = () => `${summary(p.s.settings)}${p.s.path && p.s.path.length > 1 ? ` · ${p.s.path.length - 1} steps` : ''}`;
+    return (
+      <li class={`sim-entry${current() ? ' sim-entry-current' : ''}`}>
+        <span class="sim-entry-name" title={p.s.name}>{p.s.name}</span>
+        <div class="sim-entry-actions">
+          <button class="sim-btn sim-sm" onClick={() => props.onLoad(p.s)}>Load</button>
+          <button class="sim-ghost sim-icon sim-sm" aria-label="Copy a link to these settings" title="Copy a link to these settings" onClick={() => props.onShare(p.s)}><Icon name="link" size={14} /></button>
+          <Show when={p.deletable}>
+            <button class="sim-ghost sim-icon sim-sm sim-danger" aria-label={`Delete ${p.s.name}`} title="Delete" onClick={() => props.onDelete(p.s.name)}><Icon name="trash" size={14} /></button>
+          </Show>
+        </div>
+        <span class="sim-entry-details" title={details()}>
+          <Show when={current()}><span class="sim-entry-badge">current</span></Show>
+          <span class="sim-entry-summary">{details()}</span>
         </span>
-      </div>
-      <div class="sim-entry-actions">
-        <button class="sim-btn sim-sm" onClick={() => props.onLoad(p.s)}>Load</button>
-        <button class="sim-ghost sim-icon sim-sm" aria-label="Copy a link to these settings" title="Copy a link to these settings" onClick={() => props.onShare(p.s)}><Icon name="link" size={14} /></button>
-        <Show when={p.deletable}>
-          <button class="sim-ghost sim-icon sim-sm sim-danger" aria-label={`Delete ${p.s.name}`} title="Delete" onClick={() => props.onDelete(p.s.name)}><Icon name="trash" size={14} /></button>
-        </Show>
-      </div>
-    </li>
-  );
+      </li>
+    );
+  };
 
   return (
     <div class="sim-library">

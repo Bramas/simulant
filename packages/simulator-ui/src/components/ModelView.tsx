@@ -11,6 +11,7 @@ import type { ModelDescription, SourceExcerpt, SourceRef } from '@bramas/simulan
 import { tokenizeAll } from './highlight';
 import { displayPath } from '../sim/describe';
 import { LeanView } from './LeanView';
+import { Icon } from './Icon';
 import './AlgorithmViewer.css';
 import './ModelView.css';
 
@@ -176,10 +177,7 @@ export function ModelView(props: ModelViewProps) {
       <section class="sim-card mv-intro">
         <div class="mv-intro-head">
           <h2>{d().experiment}</h2>
-          <div class="mv-chips">
-            <For each={d().summary}>{c => <span class="sim-chip">{c}</span>}</For>
-          </div>
-          <span class="sim-spacer" style={{ flex: 1 }} />
+          <span class="sim-spacer" />
           <Show when={d().lean}>
             <div class="sim-tabs" role="tablist" aria-label="Model view">
               <button role="tab" aria-selected={mode() === 'summary'} class={mode() === 'summary' ? 'sim-tab sim-tab-current' : 'sim-tab'} onClick={() => setMode('summary')}>Summary</button>
@@ -187,11 +185,15 @@ export function ModelView(props: ModelViewProps) {
             </div>
           </Show>
           <Show when={props.onCopyLink}>
-            <button class="sim-ghost" onClick={() => props.onCopyLink!()} title="Copy a link that opens this view">Copy link</button>
+            <button class="sim-btn sim-sm" onClick={() => props.onCopyLink!()} title="Copy a link that opens this view"><Icon name="link" size={14} /> Copy link</button>
           </Show>
           <Show when={d().ir !== undefined}>
-            <button class="sim-ghost" onClick={download} title="Download the compiled experiment (the IR the simulator, the explorer and the Lean generator use)">Download IR</button>
+            <button class="sim-btn sim-sm" onClick={download} title="Download the compiled experiment (the IR the simulator, the explorer and the Lean generator use)"><Icon name="download" size={14} /> Download IR</button>
           </Show>
+        </div>
+        {/* The summary has its own line: the title keeps its actions beside it whatever their number. */}
+        <div class="mv-chips">
+          <For each={d().summary}>{c => <span class="sim-chip">{c}</span>}</For>
         </div>
         <Show when={d().about}>
           <div class="mv-about">

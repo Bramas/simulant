@@ -525,15 +525,22 @@ body {
 }
 
 @container (max-width: 260px) {
-  .sim-panel-head .sim-btn-label,
-  .sim-panel-head .sim-panel-sub {
+  .sim-panel-head .sim-btn-label {
     display: none;
+  }
+
+  .sim-panel-title {
+    flex-shrink: 1;
   }
 }
 
+.sim-panel-title {
+  flex-shrink: 0;
+}
+
 .sim-panel-sub {
-  /* Gives way before the title. */
-  flex-shrink: 100;
+  /* Takes the room the title and the buttons leave, and is cut before them. */
+  flex: 1 1 0;
   min-width: 0;
   font-size: 12px;
   color: var(--sim-muted);
@@ -647,24 +654,33 @@ body {
 }
 
 .sim-transport-row {
+  padding: 8px 10px;
+  /* Clips the separator of the first group of each line (see below). */
+  overflow: hidden;
+}
+
+/*
+ * Each group draws a separator on its left. The negative margin puts the separator of a line's
+ * first group outside the row, so a wrapped line never starts (or ends) with a stray separator.
+ */
+.sim-transport-groups {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px 14px;
-  padding: 8px 10px;
+  gap: 8px 12px;
+  margin-left: -13px;
+}
+
+.sim-transport-groups > .sim-group {
+  min-height: 30px;
+  padding-left: 12px;
+  border-left: 1px solid var(--sim-border);
 }
 
 .sim-group {
   display: flex;
   align-items: center;
   gap: 4px;
-}
-
-.sim-divider {
-  width: 1px;
-  height: 22px;
-  background: var(--sim-border);
-  flex-shrink: 0;
 }
 
 .sim-round {
@@ -912,15 +928,19 @@ body {
 
 .sim-app button.sim-activity-btn.sim-active {
   color: var(--sim-accent);
+}
+
+.sim-app button.sim-activity-btn.sim-active:hover {
   background: var(--sim-accent-soft);
 }
 
+/* A shown panel is marked by a bar on the window's edge; its button is not filled in. */
 .sim-app button.sim-activity-btn.sim-active::before {
   content: '';
   position: absolute;
   left: -7px;
-  top: 9px;
-  bottom: 9px;
+  top: 8px;
+  bottom: 8px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--sim-accent);
@@ -1452,10 +1472,11 @@ body {
 
 .sim-entries li.sim-entry {
   list-style: none;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 7px 8px 7px 10px;
+  gap: 2px 8px;
+  padding: 6px 6px 7px 10px;
   margin: 0;
   border-radius: 7px;
   border: 1px solid transparent;
@@ -1471,15 +1492,26 @@ body {
   border-color: color-mix(in srgb, var(--sim-accent) 30%, transparent);
 }
 
-.sim-entry-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+.sim-entry-name {
   min-width: 0;
-  flex: 1;
+  font-weight: 500;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
-.sim-entry-text .sim-muted {
+/* The parameters span the entry's width, under the name and its actions. */
+.sim-entry-details {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  color: var(--sim-muted);
+}
+
+.sim-entry-summary {
+  min-width: 0;
   font-family: var(--sim-mono);
   font-size: 11.5px;
   overflow: hidden;
@@ -1487,18 +1519,15 @@ body {
   white-space: nowrap;
 }
 
-.sim-entry-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-weight: 500;
-  font-size: 13px;
-}
-
 .sim-entry-badge {
-  font-size: 10.5px;
+  flex: none;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--sim-accent-soft);
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.04em;
+  line-height: 16px;
   text-transform: uppercase;
   color: var(--sim-accent);
 }
@@ -1741,13 +1770,9 @@ body {
   .sim-app button.sim-tab { padding: 0 9px; }
   .sim-topbar-actions { gap: 2px; }
   .sim-status-keys, .sim-status-hide-sm { display: none; }
-  .sim-transport-row { gap: 8px; }
-  .sim-transport-row .sim-divider { display: none; }
   .sim-group { flex-wrap: wrap; }
   .sim-branch-label { max-width: 10rem; }
-  .algorithm-header { flex-wrap: wrap; }
-  .algorithm-agents { justify-content: flex-start; }
-  .sim-panel-sub { display: none; }
+  .sim-panel-sub { visibility: hidden; }
 }
 
 /* The model view replaces the shell, and scrolls */
@@ -1765,6 +1790,7 @@ body {
   .sim-app { height: auto; min-height: 100vh; overflow: visible; }
   .sim-shell { flex-direction: column; }
   .sim-activity { flex-direction: row; width: auto; padding: var(--sim-gap) var(--sim-gap) 0; justify-content: flex-start; }
+  .sim-app button.sim-activity-btn.sim-active { background: var(--sim-accent-soft); }
   .sim-activity-sep { width: 1px; height: 22px; margin: 0 4px; }
   .sim-activity .sim-spacer { display: none; }
   .sim-app button.sim-activity-btn.sim-active::before { display: none; }
